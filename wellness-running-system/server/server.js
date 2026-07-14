@@ -2,10 +2,13 @@ require('dotenv').config();
 const express = require('express');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
+app.use(cookieParser());
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
@@ -17,6 +20,45 @@ const pool = mysql.createPool({
 app.get('/api/health', async (req, res) => {
   const [rows] = await pool.query('SELECT COUNT(*) AS total FROM employee');
   res.json({ status: 'ok', employeeCount: rows[0].total });
+});
+
+// ---- session helpers ----
+function issueSessionCookie(res, employeeId) {
+  const token = jwt.sign({ employeeId }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  res.cookie('session', token, {
+    httpOnly: true,
+    secure: false, // dev เท่านั้น เพราะทดสอบผ่าน http://localhost ได้ด้วย
+                    // ตอน deploy จริงบน https ต้องเปลี่ยนเป็น true
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 วัน
+  });
+}
+
+// middleware เช็คว่า login อยู่ไหม ใช้ครอบทุก route ที่ต้อง login ก่อนเรียก
+function requireAuth(req, res, next) {
+  const token = req.cookies.session;
+  if (!token) {
+    return res.status(401).json({ message: 'กรุณาเข้าสู่ระบบก่อน' });
+  }
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    req.employeeId = payload.employeeId; // ใช้ต่อใน route อื่นๆ ได้เลย ไม่ต้องเชื่อค่าจาก frontend
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: 'session หมดอายุ กรุณาเข้าสู่ระบบใหม่' });
+  }
+}
+
+// route ทดสอบ: ต้อง login ก่อนถึงจะเรียกได้ ใช้เช็คว่า middleware ทำงานถูก
+app.get('/api/me', requireAuth, async (req, res) => {
+  const [rows] = await pool.query(
+    'SELECT employee_id, full_name, department FROM employee WHERE employee_id = ?',
+    [req.employeeId]
+  );
+  if (rows.length === 0) {
+    return res.status(404).json({ message: 'ไม่พบข้อมูลพนักงาน' });
+  }
+  res.json(rows[0]);
 });
 
 // verify idToken กับ LINE โดยตรง ห้าม decode JWT เองแล้วเชื่อเลย
@@ -64,6 +106,7 @@ app.post('/api/auth/line-login', async (req, res) => {
         `UPDATE employee_account SET last_login = NOW(), display_name = ?, picture_url = ? WHERE account_id = ?`,
         [displayName, pictureUrl, account.account_id]
       );
+      issueSessionCookie(res, account.employee_id);
       return res.json({
         linked: true,
         employeeId: account.employee_id,
@@ -96,6 +139,7 @@ app.post('/api/auth/line-login', async (req, res) => {
       [employeeId, lineUserId, displayName, pictureUrl]
     );
 
+    issueSessionCookie(res, employeeId);
     res.json({ linked: true, employeeId, displayName });
   } catch (err) {
     console.error('line-login error:', err);
