@@ -26,6 +26,15 @@ export default function App() {
   );
   const photoRequired = Boolean(selectedActivity?.require_image);
 
+  // ---- Phase 2: reward redemption ----
+  const [scoreBalance, setScoreBalance] = useState(0);
+  const [rewards, setRewards] = useState([]);
+  const [myRedeems, setMyRedeems] = useState([]);
+  const [redeemingRewardId, setRedeemingRewardId] = useState(null);
+  const [cancelingRedeemId, setCancelingRedeemId] = useState(null);
+  const [rewardMessage, setRewardMessage] = useState('');
+  const [rewardMessageType, setRewardMessageType] = useState('info'); // 'success' | 'error'
+
   useEffect(() => {
     let cancelled = false;
 
@@ -106,6 +115,97 @@ export default function App() {
       cancelled = true;
     };
   }, [status]);
+
+  async function loadRewardData() {
+    try {
+      const [balanceRes, rewardsRes, myRedeemsRes] = await Promise.all([
+        fetch(`${API_BASE}/api/my-score`, { credentials: 'include' }),
+        fetch(`${API_BASE}/api/rewards`, { credentials: 'include' }),
+        fetch(`${API_BASE}/api/my-redeems`, { credentials: 'include' }),
+      ]);
+
+      if (balanceRes.ok) {
+        const balanceData = await balanceRes.json();
+        setScoreBalance(balanceData.balance);
+      }
+      if (rewardsRes.ok) {
+        setRewards(await rewardsRes.json());
+      }
+      if (myRedeemsRes.ok) {
+        setMyRedeems(await myRedeemsRes.json());
+      }
+    } catch (err) {
+      console.error('load reward data error:', err);
+    }
+  }
+
+  useEffect(() => {
+    if (status !== 'done') return;
+    loadRewardData();
+  }, [status]);
+
+  async function handleRedeem(rewardId) {
+    setRedeemingRewardId(rewardId);
+    setRewardMessage('');
+
+    try {
+      const res = await fetch(`${API_BASE}/api/redeem`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ rewardId }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.message || 'แลกของรางวัลไม่สำเร็จ');
+      }
+
+      setRewardMessageType('success');
+      setRewardMessage(data.message || 'แลกของรางวัลสำเร็จ');
+      await loadRewardData();
+    } catch (err) {
+      setRewardMessageType('error');
+      setRewardMessage(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setRedeemingRewardId(null);
+    }
+  }
+
+  async function handleCancelRedeem(redeemId) {
+    setCancelingRedeemId(redeemId);
+    setRewardMessage('');
+
+    try {
+      const res = await fetch(`${API_BASE}/api/redeem/${redeemId}/cancel`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.message || 'ยกเลิกไม่สำเร็จ');
+      }
+
+      setRewardMessageType('success');
+      setRewardMessage('ยกเลิกรายการแลกของสำเร็จ คืนคะแนนแล้ว');
+      await loadRewardData();
+    } catch (err) {
+      setRewardMessageType('error');
+      setRewardMessage(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setCancelingRedeemId(null);
+    }
+  }
+
+  const STATUS_LABEL_TH = {
+    PENDING: 'รอดำเนินการ',
+    APPROVED: 'อนุมัติแล้ว',
+    REJECTED: 'ถูกปฏิเสธ',
+    CANCELLED: 'ยกเลิกแล้ว',
+  };
 
   async function handleSubmitActivity(e) {
     e.preventDefault();
@@ -318,6 +418,96 @@ export default function App() {
 
         {submitMessage && (
           <p style={{ color: submitState === 'error' ? 'red' : 'green' }}>{submitMessage}</p>
+        )}
+
+        <hr style={{ margin: '16px 0' }} />
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0 }}>แลกของรางวัล</h3>
+          <span>
+            คะแนนคงเหลือ: <strong>{scoreBalance}</strong>
+          </span>
+        </div>
+
+        {rewardMessage && (
+          <p style={{ color: rewardMessageType === 'error' ? 'red' : 'green' }}>{rewardMessage}</p>
+        )}
+
+        {rewards.length === 0 && <p>ยังไม่มีของรางวัลให้แลกตอนนี้</p>}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {rewards.map((r) => {
+            const canAfford = scoreBalance >= r.required_score;
+            const inStock = r.stock > 0;
+            const isRedeeming = redeemingRewardId === r.reward_id;
+            return (
+              <div
+                key={r.reward_id}
+                style={{
+                  border: '1px solid #ddd',
+                  borderRadius: 6,
+                  padding: 12,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 'bold' }}>{r.reward_name}</div>
+                  <div style={{ fontSize: 14, color: '#666' }}>
+                    {r.required_score} คะแนน · เหลือ {r.stock} ชิ้น
+                  </div>
+                  {r.description && (
+                    <div style={{ fontSize: 13, color: '#888' }}>{r.description}</div>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleRedeem(r.reward_id)}
+                  disabled={!canAfford || !inStock || isRedeeming}
+                >
+                  {isRedeeming ? 'กำลังแลก...' : !inStock ? 'ของหมด' : !canAfford ? 'คะแนนไม่พอ' : 'แลก'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <h4 style={{ marginTop: 20 }}>ประวัติการแลกของ</h4>
+        {myRedeems.length === 0 && <p>ยังไม่มีประวัติการแลกของ</p>}
+        {myRedeems.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {myRedeems.map((rd) => (
+              <div
+                key={rd.redeem_id}
+                style={{
+                  border: '1px solid #eee',
+                  borderRadius: 6,
+                  padding: 12,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 'bold' }}>{rd.reward_name}</div>
+                  <div style={{ fontSize: 14, color: '#666' }}>
+                    ใช้ {rd.used_score} คะแนน · {STATUS_LABEL_TH[rd.status] || rd.status} ·{' '}
+                    {new Date(rd.redeem_date).toLocaleString('th-TH')}
+                  </div>
+                </div>
+                {rd.status === 'PENDING' && (
+                  <button
+                    onClick={() => handleCancelRedeem(rd.redeem_id)}
+                    disabled={cancelingRedeemId === rd.redeem_id}
+                  >
+                    {cancelingRedeemId === rd.redeem_id ? 'กำลังยกเลิก...' : 'ยกเลิก'}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </div>
     );

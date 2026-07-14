@@ -200,6 +200,211 @@ app.post('/api/submissions', requireAuth, handleProofUpload, async (req, res) =>
   }
 });
 
+// ---- reward redemption (Phase 2) ----
+// ใช้ตารางจริงจาก wellness.sql: reward, reward_redeem, score_transaction
+// หลักการ: หัก stock+คะแนนทันทีตอนกดแลก (status PENDING) แล้วคืนกลับถ้า CANCELLED/REJECTED ภายหลัง
+// คะแนนคงเหลือของพนักงาน = SUM(score_transaction.score) ไม่มีคอลัมน์ balance แยกเก็บไว้ต่างหาก
+
+// รายการของรางวัลที่แลกได้ (เฉพาะที่เปิดใช้งาน)
+app.get('/api/rewards', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT reward_id, reward_name, required_score, stock, image, description
+       FROM reward
+       WHERE status = 'ACTIVE'
+       ORDER BY required_score ASC`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('get rewards error:', err);
+    res.status(500).json({ message: 'โหลดรายการของรางวัลไม่สำเร็จ' });
+  }
+});
+
+// คะแนนคงเหลือของพนักงานที่ login อยู่ (คำนวณสดจาก ledger ทุกครั้ง ไม่มีคอลัมน์ cache)
+app.get('/api/my-score', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT COALESCE(SUM(score), 0) AS balance
+       FROM score_transaction
+       WHERE employee_id = ?`,
+      [req.employeeId]
+    );
+    res.json({ balance: rows[0].balance });
+  } catch (err) {
+    console.error('get my score error:', err);
+    res.status(500).json({ message: 'โหลดคะแนนไม่สำเร็จ' });
+  }
+});
+
+// พนักงานกดแลกของรางวัล -> หัก stock + หักคะแนนทันที (PENDING รอแอดมินมอบของจริง)
+// ล็อกทั้งแถว employee และแถว reward ด้วย FOR UPDATE กันแลกซ้ำพร้อมกันจนคะแนน/stock ติดลบ
+app.post('/api/redeem', requireAuth, async (req, res) => {
+  const { rewardId } = req.body;
+
+  if (!rewardId) {
+    return res.status(400).json({ message: 'กรุณาเลือกของรางวัล' });
+  }
+
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    // ล็อกแถวพนักงานตัวเองไว้ก่อน กันพนักงานคนเดียวกันกดแลกพร้อมกันหลายครั้งจนคะแนนติดลบ
+    await connection.query(`SELECT employee_id FROM employee WHERE employee_id = ? FOR UPDATE`, [
+      req.employeeId,
+    ]);
+
+    const [rewardRows] = await connection.query(
+      `SELECT reward_id, reward_name, required_score, stock, status
+       FROM reward
+       WHERE reward_id = ?
+       FOR UPDATE`,
+      [rewardId]
+    );
+
+    if (rewardRows.length === 0 || rewardRows[0].status !== 'ACTIVE') {
+      await connection.rollback();
+      return res.status(400).json({ message: 'ไม่พบของรางวัลนี้ หรือถูกปิดใช้งานแล้ว' });
+    }
+
+    const reward = rewardRows[0];
+
+    if (reward.stock <= 0) {
+      await connection.rollback();
+      return res.status(400).json({ message: 'ของรางวัลนี้หมดแล้ว' });
+    }
+
+    const [balanceRows] = await connection.query(
+      `SELECT COALESCE(SUM(score), 0) AS balance FROM score_transaction WHERE employee_id = ?`,
+      [req.employeeId]
+    );
+    const currentBalance = balanceRows[0].balance;
+
+    if (currentBalance < reward.required_score) {
+      await connection.rollback();
+      return res.status(400).json({
+        message: `คะแนนไม่พอ (มี ${currentBalance} คะแนน ต้องใช้ ${reward.required_score} คะแนน)`,
+      });
+    }
+
+    const [redeemResult] = await connection.query(
+      `INSERT INTO reward_redeem (employee_id, reward_id, used_score, status, redeem_date)
+       VALUES (?, ?, ?, 'PENDING', NOW())`,
+      [req.employeeId, rewardId, reward.required_score]
+    );
+    const redeemId = redeemResult.insertId;
+
+    await connection.query(`UPDATE reward SET stock = stock - 1 WHERE reward_id = ?`, [rewardId]);
+
+    await connection.query(
+      `INSERT INTO score_transaction
+        (redeem_id, employee_id, score, transaction_type, remark, created_by, created_at)
+        VALUES (?, ?, ?, 'REDEEM', ?, NULL, NOW())`,
+      [
+        redeemId,
+        req.employeeId,
+        -reward.required_score,
+        `หักคะแนนจากการแลกของรางวัล #${redeemId} (${reward.reward_name})`,
+      ]
+    );
+
+    await connection.commit();
+    res.status(201).json({
+      redeemId,
+      status: 'PENDING',
+      scoreDeducted: reward.required_score,
+      message: 'แลกของรางวัลสำเร็จ กรุณารอการดำเนินการจากแอดมิน',
+    });
+  } catch (err) {
+    await connection.rollback();
+    console.error('redeem error:', err);
+    res.status(500).json({ message: 'แลกของรางวัลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  } finally {
+    connection.release();
+  }
+});
+
+// ประวัติการแลกของของพนักงานที่ login อยู่ (ใช้โชว์สถานะ + ปุ่มยกเลิกในหน้า UI)
+app.get('/api/my-redeems', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT rr.redeem_id, rr.reward_id, r.reward_name, r.image, rr.used_score, rr.status, rr.redeem_date
+       FROM reward_redeem rr
+       JOIN reward r ON r.reward_id = rr.reward_id
+       WHERE rr.employee_id = ?
+       ORDER BY rr.redeem_date DESC`,
+      [req.employeeId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('get my redeems error:', err);
+    res.status(500).json({ message: 'โหลดประวัติการแลกของไม่สำเร็จ' });
+  }
+});
+
+// พนักงานยกเลิกการแลกของตัวเอง (เฉพาะที่ยังไม่ถูกดำเนินการ) -> คืน stock + คืนคะแนน
+app.post('/api/redeem/:id/cancel', requireAuth, async (req, res) => {
+  const redeemId = req.params.id;
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [redeemRows] = await connection.query(
+      `SELECT redeem_id, employee_id, reward_id, used_score, status
+       FROM reward_redeem
+       WHERE redeem_id = ?
+       FOR UPDATE`,
+      [redeemId]
+    );
+
+    if (redeemRows.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'ไม่พบรายการแลกของนี้' });
+    }
+
+    const redeem = redeemRows[0];
+
+    if (redeem.employee_id !== req.employeeId) {
+      await connection.rollback();
+      return res.status(403).json({ message: 'ไม่สามารถยกเลิกรายการของคนอื่นได้' });
+    }
+
+    if (redeem.status !== 'PENDING') {
+      await connection.rollback();
+      return res.status(400).json({
+        message: `รายการนี้ถูกดำเนินการไปแล้ว ยกเลิกไม่ได้ (สถานะปัจจุบัน: ${redeem.status})`,
+      });
+    }
+
+    await connection.query(`UPDATE reward_redeem SET status = 'CANCELLED' WHERE redeem_id = ?`, [
+      redeemId,
+    ]);
+
+    await connection.query(`UPDATE reward SET stock = stock + 1 WHERE reward_id = ?`, [
+      redeem.reward_id,
+    ]);
+
+    await connection.query(
+      `INSERT INTO score_transaction
+        (redeem_id, employee_id, score, transaction_type, remark, created_by, created_at)
+        VALUES (?, ?, ?, 'ADJUST', ?, NULL, NOW())`,
+      [redeemId, req.employeeId, redeem.used_score, `คืนคะแนนจากการยกเลิกแลกของ #${redeemId}`]
+    );
+
+    await connection.commit();
+    res.json({ redeemId: Number(redeemId), status: 'CANCELLED' });
+  } catch (err) {
+    await connection.rollback();
+    console.error('cancel redeem error:', err);
+    res.status(500).json({ message: 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  } finally {
+    connection.release();
+  }
+});
+
 // ---- admin auth (Phase 1 Part C) ----
 // แยก session/cookie คนละชุดจากฝั่งพนักงาน (LINE) เพราะ use case ต่างกัน (แอดมินรีวิวบนคอมพิวเตอร์)
 // แต่สิทธิ์แอดมินยังผูกกับ employee_id จริงเสมอ ผ่าน employee.role + ตาราง admin_credential
@@ -466,6 +671,122 @@ app.post('/api/admin/submissions/:id/reject', requireAdmin, async (req, res) => 
   } catch (err) {
     console.error('reject submission error:', err);
     res.status(500).json({ message: 'ปฏิเสธไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
+});
+
+// ---- reward redemption: ฝั่งแอดมิน (Phase 2) ----
+
+// รายการคำขอแลกของตามสถานะ (default PENDING) พร้อมชื่อพนักงาน+ชื่อของรางวัล
+app.get('/api/admin/redeems', requireAdmin, async (req, res) => {
+  const status = req.query.status || 'PENDING';
+  const validStatuses = ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ message: 'status ไม่ถูกต้อง' });
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT
+        rr.redeem_id, rr.employee_id, e.full_name, e.department,
+        rr.reward_id, r.reward_name, r.image,
+        rr.used_score, rr.status, rr.redeem_date
+       FROM reward_redeem rr
+       JOIN employee e ON e.employee_id = rr.employee_id
+       JOIN reward r ON r.reward_id = rr.reward_id
+       WHERE rr.status = ?
+       ORDER BY rr.redeem_date ASC`,
+      [status]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('get admin redeems error:', err);
+    res.status(500).json({ message: 'โหลดรายการไม่สำเร็จ' });
+  }
+});
+
+// อนุมัติคำขอแลกของ -> แค่ยืนยันว่ามอบของจริงแล้ว ไม่กระทบคะแนน/stock เพิ่ม
+// เพราะหักไปแล้วตั้งแต่ตอนกดแลก (PENDING)
+app.post('/api/admin/redeems/:id/approve', requireAdmin, async (req, res) => {
+  const redeemId = req.params.id;
+
+  try {
+    const [result] = await pool.query(
+      `UPDATE reward_redeem
+       SET status = 'APPROVED'
+       WHERE redeem_id = ? AND status = 'PENDING'`,
+      [redeemId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(400).json({ message: 'ไม่พบรายการนี้ หรือถูกดำเนินการไปแล้ว' });
+    }
+
+    res.json({ redeemId: Number(redeemId), status: 'APPROVED' });
+  } catch (err) {
+    console.error('approve redeem error:', err);
+    res.status(500).json({ message: 'อนุมัติไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
+});
+
+// ปฏิเสธคำขอแลกของ -> คืน stock + คืนคะแนนเสมอ (เปิด transaction เพราะกระทบ 2 ตารางพร้อมกัน)
+app.post('/api/admin/redeems/:id/reject', requireAdmin, async (req, res) => {
+  const redeemId = req.params.id;
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [redeemRows] = await connection.query(
+      `SELECT redeem_id, employee_id, reward_id, used_score, status
+       FROM reward_redeem
+       WHERE redeem_id = ?
+       FOR UPDATE`,
+      [redeemId]
+    );
+
+    if (redeemRows.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'ไม่พบรายการแลกของนี้' });
+    }
+
+    const redeem = redeemRows[0];
+
+    if (redeem.status !== 'PENDING') {
+      await connection.rollback();
+      return res.status(400).json({
+        message: `รายการนี้ถูกดำเนินการไปแล้ว (สถานะปัจจุบัน: ${redeem.status})`,
+      });
+    }
+
+    await connection.query(`UPDATE reward_redeem SET status = 'REJECTED' WHERE redeem_id = ?`, [
+      redeemId,
+    ]);
+
+    await connection.query(`UPDATE reward SET stock = stock + 1 WHERE reward_id = ?`, [
+      redeem.reward_id,
+    ]);
+
+    await connection.query(
+      `INSERT INTO score_transaction
+        (redeem_id, employee_id, score, transaction_type, remark, created_by, created_at)
+        VALUES (?, ?, ?, 'ADJUST', ?, ?, NOW())`,
+      [
+        redeemId,
+        redeem.employee_id,
+        redeem.used_score,
+        `คืนคะแนนจากการปฏิเสธการแลกของ #${redeemId}`,
+        req.adminEmployeeId,
+      ]
+    );
+
+    await connection.commit();
+    res.json({ redeemId: Number(redeemId), status: 'REJECTED' });
+  } catch (err) {
+    await connection.rollback();
+    console.error('reject redeem error:', err);
+    res.status(500).json({ message: 'ปฏิเสธไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  } finally {
+    connection.release();
   }
 });
 

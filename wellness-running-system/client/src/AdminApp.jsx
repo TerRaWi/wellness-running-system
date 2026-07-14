@@ -12,6 +12,9 @@ export default function AdminApp() {
   const [loginError, setLoginError] = useState('');
   const [loginSubmitting, setLoginSubmitting] = useState(false);
 
+  // สลับระหว่างหน้าตรวจสอบกิจกรรม กับหน้าตรวจสอบการแลกของรางวัล (Phase 2)
+  const [activeTab, setActiveTab] = useState('submissions'); // 'submissions' | 'redeems'
+
   const [statusFilter, setStatusFilter] = useState('PENDING');
   const [submissions, setSubmissions] = useState([]);
   const [listLoading, setListLoading] = useState(false);
@@ -26,6 +29,14 @@ export default function AdminApp() {
   const [rejectNote, setRejectNote] = useState('');
   const [rejectSubmitting, setRejectSubmitting] = useState(false);
   const [rejectError, setRejectError] = useState('');
+
+  // ---- Phase 2: reward redemption review ----
+  const [redeemStatusFilter, setRedeemStatusFilter] = useState('PENDING');
+  const [redeems, setRedeems] = useState([]);
+  const [redeemListLoading, setRedeemListLoading] = useState(false);
+  const [redeemListError, setRedeemListError] = useState('');
+  const [redeemActioningId, setRedeemActioningId] = useState(null);
+  const [redeemActionError, setRedeemActionError] = useState('');
 
   // เช็คว่ามี admin session ที่ยัง valid อยู่ไหมตอนโหลดหน้า กันต้อง login ใหม่ทุกครั้งที่ refresh
   useEffect(() => {
@@ -134,6 +145,78 @@ export default function AdminApp() {
       setIsLoggedIn(false);
       setAdminId(null);
       setSubmissions([]);
+      setRedeems([]);
+    }
+  }
+
+  async function loadRedeems() {
+    setRedeemListLoading(true);
+    setRedeemListError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/redeems?status=${redeemStatusFilter}`, {
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) {
+        throw new Error(data.message || 'โหลดรายการไม่สำเร็จ');
+      }
+      setRedeems(data);
+    } catch (err) {
+      setRedeemListError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setRedeemListLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (isLoggedIn && activeTab === 'redeems') {
+      loadRedeems();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn, activeTab, redeemStatusFilter]);
+
+  async function handleApproveRedeem(redeemId) {
+    setRedeemActioningId(redeemId);
+    setRedeemActionError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/redeems/${redeemId}/approve`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'อนุมัติไม่สำเร็จ');
+      }
+      setRedeems((prev) => prev.filter((r) => r.redeem_id !== redeemId));
+    } catch (err) {
+      setRedeemActionError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setRedeemActioningId(null);
+    }
+  }
+
+  async function handleRejectRedeem(redeemId) {
+    const confirmed = window.confirm(
+      'ยืนยันปฏิเสธรายการนี้? ระบบจะคืน stock และคืนคะแนนให้พนักงานอัตโนมัติ'
+    );
+    if (!confirmed) return;
+
+    setRedeemActioningId(redeemId);
+    setRedeemActionError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/redeems/${redeemId}/reject`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'ปฏิเสธไม่สำเร็จ');
+      }
+      setRedeems((prev) => prev.filter((r) => r.redeem_id !== redeemId));
+    } catch (err) {
+      setRedeemActionError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setRedeemActioningId(null);
     }
   }
 
@@ -272,13 +355,30 @@ export default function AdminApp() {
           gap: 8,
         }}
       >
-        <h2 style={{ margin: 0 }}>แดชบอร์ดแอดมิน — ตรวจสอบกิจกรรม</h2>
+        <h2 style={{ margin: 0 }}>แดชบอร์ดแอดมิน</h2>
         <div>
           <span style={{ marginRight: 12 }}>เข้าสู่ระบบเป็น: {adminId}</span>
           <button onClick={handleLogout}>ออกจากระบบ</button>
         </div>
       </div>
 
+      <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
+        <button
+          onClick={() => setActiveTab('submissions')}
+          style={{ fontWeight: activeTab === 'submissions' ? 'bold' : 'normal' }}
+        >
+          ตรวจสอบกิจกรรม
+        </button>
+        <button
+          onClick={() => setActiveTab('redeems')}
+          style={{ fontWeight: activeTab === 'redeems' ? 'bold' : 'normal' }}
+        >
+          คำขอแลกของรางวัล
+        </button>
+      </div>
+
+      {activeTab === 'submissions' && (
+        <>
       <div style={{ marginBottom: 16 }}>
         <label htmlFor="statusFilter">สถานะ: </label>
         <select
@@ -457,6 +557,87 @@ export default function AdminApp() {
             </div>
           </div>
         </div>
+      )}
+        </>
+      )}
+
+      {activeTab === 'redeems' && (
+        <>
+          <div style={{ marginBottom: 16 }}>
+            <label htmlFor="redeemStatusFilter">สถานะ: </label>
+            <select
+              id="redeemStatusFilter"
+              value={redeemStatusFilter}
+              onChange={(e) => setRedeemStatusFilter(e.target.value)}
+              style={{ padding: 6, fontSize: 14 }}
+            >
+              <option value="PENDING">รอดำเนินการ (PENDING)</option>
+              <option value="APPROVED">อนุมัติแล้ว (APPROVED)</option>
+              <option value="REJECTED">ถูกปฏิเสธ (REJECTED)</option>
+              <option value="CANCELLED">ยกเลิกแล้ว (CANCELLED)</option>
+            </select>
+            <button onClick={loadRedeems} style={{ marginLeft: 8 }}>
+              รีเฟรช
+            </button>
+          </div>
+
+          {redeemActionError && <p style={{ color: 'red' }}>{redeemActionError}</p>}
+          {redeemListError && <p style={{ color: 'red' }}>{redeemListError}</p>}
+          {redeemListLoading && <p>กำลังโหลด...</p>}
+
+          {!redeemListLoading && redeems.length === 0 && <p>ไม่มีรายการในสถานะนี้</p>}
+
+          {!redeemListLoading && redeems.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
+                    <th style={{ padding: 8 }}>#</th>
+                    <th style={{ padding: 8 }}>พนักงาน</th>
+                    <th style={{ padding: 8 }}>แผนก</th>
+                    <th style={{ padding: 8 }}>ของรางวัล</th>
+                    <th style={{ padding: 8 }}>คะแนนที่ใช้</th>
+                    <th style={{ padding: 8 }}>วันที่แลก</th>
+                    {redeemStatusFilter === 'PENDING' && <th style={{ padding: 8 }}>จัดการ</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {redeems.map((rd) => (
+                    <tr key={rd.redeem_id} style={{ borderBottom: '1px solid #eee' }}>
+                      <td style={{ padding: 8 }}>{rd.redeem_id}</td>
+                      <td style={{ padding: 8 }}>
+                        {rd.full_name}
+                        <br />
+                        <small style={{ color: '#888' }}>{rd.employee_id}</small>
+                      </td>
+                      <td style={{ padding: 8 }}>{rd.department || '-'}</td>
+                      <td style={{ padding: 8 }}>{rd.reward_name}</td>
+                      <td style={{ padding: 8 }}>{rd.used_score}</td>
+                      <td style={{ padding: 8 }}>{new Date(rd.redeem_date).toLocaleString('th-TH')}</td>
+                      {redeemStatusFilter === 'PENDING' && (
+                        <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                          <button
+                            onClick={() => handleApproveRedeem(rd.redeem_id)}
+                            disabled={redeemActioningId === rd.redeem_id}
+                            style={{ marginRight: 6 }}
+                          >
+                            {redeemActioningId === rd.redeem_id ? '...' : 'อนุมัติ (มอบของแล้ว)'}
+                          </button>
+                          <button
+                            onClick={() => handleRejectRedeem(rd.redeem_id)}
+                            disabled={redeemActioningId === rd.redeem_id}
+                          >
+                            {redeemActioningId === rd.redeem_id ? '...' : 'ปฏิเสธ'}
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
