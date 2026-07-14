@@ -1,0 +1,463 @@
+import { useEffect, useState } from 'react';
+
+const API_BASE = import.meta.env.VITE_API_BASE;
+
+export default function AdminApp() {
+  const [authChecked, setAuthChecked] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [adminId, setAdminId] = useState(null);
+
+  const [loginEmployeeId, setLoginEmployeeId] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loginSubmitting, setLoginSubmitting] = useState(false);
+
+  const [statusFilter, setStatusFilter] = useState('PENDING');
+  const [submissions, setSubmissions] = useState([]);
+  const [listLoading, setListLoading] = useState(false);
+  const [listError, setListError] = useState('');
+
+  const [actioningId, setActioningId] = useState(null);
+  const [actionError, setActionError] = useState('');
+
+  const [rejectReasons, setRejectReasons] = useState([]);
+  const [rejectModalSubmissionId, setRejectModalSubmissionId] = useState(null);
+  const [rejectReasonId, setRejectReasonId] = useState('');
+  const [rejectNote, setRejectNote] = useState('');
+  const [rejectSubmitting, setRejectSubmitting] = useState(false);
+  const [rejectError, setRejectError] = useState('');
+
+  // เช็คว่ามี admin session ที่ยัง valid อยู่ไหมตอนโหลดหน้า กันต้อง login ใหม่ทุกครั้งที่ refresh
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/me`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          setAdminId(data.employeeId);
+          setIsLoggedIn(true);
+        }
+      } catch (err) {
+        console.error('check admin auth error:', err);
+      } finally {
+        setAuthChecked(true);
+      }
+    }
+    checkAuth();
+  }, []);
+
+  async function loadSubmissions() {
+    setListLoading(true);
+    setListError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/submissions?status=${statusFilter}`, {
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) {
+        throw new Error(data.message || 'โหลดรายการไม่สำเร็จ');
+      }
+      setSubmissions(data);
+    } catch (err) {
+      setListError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setListLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      loadSubmissions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn, statusFilter]);
+
+  // โหลดรายการ preset เหตุผลปฏิเสธไว้ล่วงหน้า (ใช้ตอนเปิด modal ปฏิเสธ)
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    async function loadRejectReasons() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/reject-reasons`, {
+          credentials: 'include',
+        });
+        const data = await res.json().catch(() => []);
+        if (res.ok) {
+          setRejectReasons(data);
+        }
+      } catch (err) {
+        console.error('load reject reasons error:', err);
+      }
+    }
+
+    loadRejectReasons();
+  }, [isLoggedIn]);
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    setLoginSubmitting(true);
+    setLoginError('');
+
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ employeeId: loginEmployeeId.trim(), password: loginPassword }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.message || 'เข้าสู่ระบบไม่สำเร็จ');
+      }
+
+      setAdminId(data.employeeId);
+      setIsLoggedIn(true);
+      setLoginPassword('');
+    } catch (err) {
+      setLoginError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setLoginSubmitting(false);
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      await fetch(`${API_BASE}/api/admin/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (err) {
+      console.error('logout error:', err);
+    } finally {
+      setIsLoggedIn(false);
+      setAdminId(null);
+      setSubmissions([]);
+    }
+  }
+
+  async function handleApprove(submissionId) {
+    setActioningId(submissionId);
+    setActionError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/submissions/${submissionId}/approve`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'อนุมัติไม่สำเร็จ');
+      }
+      // ลบออกจาก list ปัจจุบัน เพราะสถานะเปลี่ยนไปแล้ว ไม่ตรง filter เดิมอีกต่อไป
+      setSubmissions((prev) => prev.filter((s) => s.submission_id !== submissionId));
+    } catch (err) {
+      setActionError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setActioningId(null);
+    }
+  }
+
+  function openRejectModal(submissionId) {
+    setRejectModalSubmissionId(submissionId);
+    setRejectReasonId('');
+    setRejectNote('');
+    setRejectError('');
+  }
+
+  function closeRejectModal() {
+    setRejectModalSubmissionId(null);
+    setRejectReasonId('');
+    setRejectNote('');
+    setRejectError('');
+  }
+
+  const selectedRejectReason = rejectReasons.find(
+    (r) => String(r.reason_id) === String(rejectReasonId)
+  );
+  const rejectNoteRequired = Boolean(selectedRejectReason?.is_other);
+
+  async function handleConfirmReject() {
+    if (!rejectReasonId) {
+      setRejectError('กรุณาเลือกเหตุผลที่ปฏิเสธ');
+      return;
+    }
+    if (rejectNoteRequired && !rejectNote.trim()) {
+      setRejectError('กรุณาระบุเหตุผลเพิ่มเติม');
+      return;
+    }
+
+    const submissionId = rejectModalSubmissionId;
+    setRejectSubmitting(true);
+    setRejectError('');
+
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/submissions/${submissionId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          reasonId: rejectReasonId,
+          note: rejectNoteRequired ? rejectNote.trim() : '',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'ปฏิเสธไม่สำเร็จ');
+      }
+      setSubmissions((prev) => prev.filter((s) => s.submission_id !== submissionId));
+      closeRejectModal();
+    } catch (err) {
+      setRejectError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setRejectSubmitting(false);
+    }
+  }
+
+  if (!authChecked) {
+    return (
+      <div style={{ padding: 24, textAlign: 'center' }}>
+        <p>กำลังตรวจสอบสิทธิ์...</p>
+      </div>
+    );
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <div style={{ padding: 24, maxWidth: 360, margin: '0 auto' }}>
+        <h2 style={{ textAlign: 'center' }}>เข้าสู่ระบบแอดมิน</h2>
+        <form onSubmit={handleLogin}>
+          <div style={{ marginBottom: 12 }}>
+            <label htmlFor="loginEmployeeId">รหัสพนักงาน</label>
+            <br />
+            <input
+              id="loginEmployeeId"
+              type="text"
+              value={loginEmployeeId}
+              onChange={(e) => setLoginEmployeeId(e.target.value)}
+              style={{ padding: 8, fontSize: 16, width: '100%' }}
+              autoComplete="username"
+            />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label htmlFor="loginPassword">รหัสผ่าน</label>
+            <br />
+            <input
+              id="loginPassword"
+              type="password"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              style={{ padding: 8, fontSize: 16, width: '100%' }}
+              autoComplete="current-password"
+            />
+          </div>
+          <button type="submit" disabled={loginSubmitting} style={{ width: '100%', padding: 10 }}>
+            {loginSubmitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
+          </button>
+        </form>
+        {loginError && <p style={{ color: 'red', textAlign: 'center' }}>{loginError}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: 24 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 16,
+          flexWrap: 'wrap',
+          gap: 8,
+        }}
+      >
+        <h2 style={{ margin: 0 }}>แดชบอร์ดแอดมิน — ตรวจสอบกิจกรรม</h2>
+        <div>
+          <span style={{ marginRight: 12 }}>เข้าสู่ระบบเป็น: {adminId}</span>
+          <button onClick={handleLogout}>ออกจากระบบ</button>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <label htmlFor="statusFilter">สถานะ: </label>
+        <select
+          id="statusFilter"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          style={{ padding: 6, fontSize: 14 }}
+        >
+          <option value="PENDING">รอตรวจสอบ (PENDING)</option>
+          <option value="APPROVED">อนุมัติแล้ว (APPROVED)</option>
+          <option value="REJECTED">ถูกปฏิเสธ (REJECTED)</option>
+        </select>
+        <button onClick={loadSubmissions} style={{ marginLeft: 8 }}>
+          รีเฟรช
+        </button>
+      </div>
+
+      {actionError && <p style={{ color: 'red' }}>{actionError}</p>}
+      {listError && <p style={{ color: 'red' }}>{listError}</p>}
+      {listLoading && <p>กำลังโหลด...</p>}
+
+      {!listLoading && submissions.length === 0 && <p>ไม่มีรายการในสถานะนี้</p>}
+
+      {!listLoading && submissions.length > 0 && (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
+                <th style={{ padding: 8 }}>#</th>
+                <th style={{ padding: 8 }}>พนักงาน</th>
+                <th style={{ padding: 8 }}>แผนก</th>
+                <th style={{ padding: 8 }}>กิจกรรม</th>
+                <th style={{ padding: 8 }}>คะแนน</th>
+                <th style={{ padding: 8 }}>ระยะทาง</th>
+                <th style={{ padding: 8 }}>เวลา</th>
+                <th style={{ padding: 8 }}>รูปหลักฐาน</th>
+                <th style={{ padding: 8 }}>หมายเหตุ</th>
+                <th style={{ padding: 8 }}>ส่งเมื่อ</th>
+                {statusFilter === 'REJECTED' && <th style={{ padding: 8 }}>เหตุผลที่ปฏิเสธ</th>}
+                {statusFilter === 'PENDING' && <th style={{ padding: 8 }}>จัดการ</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {submissions.map((s) => (
+                <tr key={s.submission_id} style={{ borderBottom: '1px solid #eee' }}>
+                  <td style={{ padding: 8 }}>{s.submission_id}</td>
+                  <td style={{ padding: 8 }}>
+                    {s.full_name}
+                    <br />
+                    <small style={{ color: '#888' }}>{s.employee_id}</small>
+                  </td>
+                  <td style={{ padding: 8 }}>{s.department || '-'}</td>
+                  <td style={{ padding: 8 }}>{s.activity_name}</td>
+                  <td style={{ padding: 8 }}>{s.score}</td>
+                  <td style={{ padding: 8 }}>{s.distance != null ? `${s.distance} กม.` : '-'}</td>
+                  <td style={{ padding: 8 }}>{s.duration != null ? `${s.duration} นาที` : '-'}</td>
+                  <td style={{ padding: 8 }}>
+                    {s.proof_image ? (
+                      <a href={`${API_BASE}/${s.proof_image}`} target="_blank" rel="noreferrer">
+                        <img
+                          src={`${API_BASE}/${s.proof_image}`}
+                          alt="proof"
+                          style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 4 }}
+                        />
+                      </a>
+                    ) : (
+                      'ไม่มีรูป'
+                    )}
+                  </td>
+                  <td style={{ padding: 8 }}>{s.note || '-'}</td>
+                  <td style={{ padding: 8 }}>{new Date(s.submitted_at).toLocaleString('th-TH')}</td>
+                  {statusFilter === 'REJECTED' && (
+                    <td style={{ padding: 8 }}>
+                      {s.reject_reason_text || '-'}
+                      {s.reject_reason_note && (
+                        <>
+                          <br />
+                          <small style={{ color: '#888' }}>{s.reject_reason_note}</small>
+                        </>
+                      )}
+                    </td>
+                  )}
+                  {statusFilter === 'PENDING' && (
+                    <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                      <button
+                        onClick={() => handleApprove(s.submission_id)}
+                        disabled={actioningId === s.submission_id}
+                        style={{ marginRight: 6 }}
+                      >
+                        {actioningId === s.submission_id ? '...' : 'อนุมัติ'}
+                      </button>
+                      <button
+                        onClick={() => openRejectModal(s.submission_id)}
+                        disabled={actioningId === s.submission_id}
+                      >
+                        ปฏิเสธ
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {rejectModalSubmissionId !== null && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: 8,
+              padding: 24,
+              width: '90%',
+              maxWidth: 420,
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>
+              ปฏิเสธ submission #{rejectModalSubmissionId}
+            </h3>
+
+            <div style={{ marginBottom: 12 }}>
+              <label htmlFor="rejectReasonSelect">เหตุผล</label>
+              <br />
+              <select
+                id="rejectReasonSelect"
+                value={rejectReasonId}
+                onChange={(e) => setRejectReasonId(e.target.value)}
+                style={{ padding: 8, fontSize: 16, width: '100%' }}
+              >
+                <option value="">-- เลือกเหตุผล --</option>
+                {rejectReasons.map((r) => (
+                  <option key={r.reason_id} value={r.reason_id}>
+                    {r.reason_text}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {rejectNoteRequired && (
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="rejectNote">ระบุเหตุผลเพิ่มเติม</label>
+                <br />
+                <textarea
+                  id="rejectNote"
+                  value={rejectNote}
+                  onChange={(e) => setRejectNote(e.target.value)}
+                  rows={3}
+                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                />
+              </div>
+            )}
+
+            {rejectError && <p style={{ color: 'red' }}>{rejectError}</p>}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={closeRejectModal} disabled={rejectSubmitting}>
+                ยกเลิก
+              </button>
+              <button onClick={handleConfirmReject} disabled={rejectSubmitting}>
+                {rejectSubmitting ? 'กำลังบันทึก...' : 'ยืนยันปฏิเสธ'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

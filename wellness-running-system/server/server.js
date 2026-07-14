@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcryptjs');
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
@@ -196,6 +197,275 @@ app.post('/api/submissions', requireAuth, handleProofUpload, async (req, res) =>
     cleanupUploadedFile();
     console.error('create submission error:', err);
     res.status(500).json({ message: 'บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
+});
+
+// ---- admin auth (Phase 1 Part C) ----
+// แยก session/cookie คนละชุดจากฝั่งพนักงาน (LINE) เพราะ use case ต่างกัน (แอดมินรีวิวบนคอมพิวเตอร์)
+// แต่สิทธิ์แอดมินยังผูกกับ employee_id จริงเสมอ ผ่าน employee.role + ตาราง admin_credential
+
+// route ปกติ ไม่ต้อง login ก่อนเรียก แต่ควรมี rate limit ในอนาคตกันการ brute force รหัสผ่าน
+app.post('/api/admin/login', async (req, res) => {
+  const { employeeId, password } = req.body;
+  if (!employeeId || !password) {
+    return res.status(400).json({ message: 'กรุณากรอกรหัสพนักงานและรหัสผ่าน' });
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT e.employee_id, e.role, e.employment_status, ac.password_hash
+       FROM employee e
+       JOIN admin_credential ac ON ac.employee_id = e.employee_id
+       WHERE e.employee_id = ?`,
+      [employeeId]
+    );
+
+    // ไม่บอกแยกว่า "ไม่พบ employeeId" หรือ "รหัสผ่านผิด" กันคนสุ่มเดารหัสพนักงานที่มีอยู่จริง
+    if (rows.length === 0) {
+      return res.status(401).json({ message: 'รหัสพนักงานหรือรหัสผ่านไม่ถูกต้อง' });
+    }
+
+    const account = rows[0];
+
+    if (account.role !== 'ADMIN' || account.employment_status !== 'ACTIVE') {
+      return res.status(403).json({ message: 'บัญชีนี้ไม่มีสิทธิ์แอดมิน หรือถูกระงับการใช้งาน' });
+    }
+
+    const passwordMatches = await bcrypt.compare(password, account.password_hash);
+    if (!passwordMatches) {
+      return res.status(401).json({ message: 'รหัสพนักงานหรือรหัสผ่านไม่ถูกต้อง' });
+    }
+
+    const token = jwt.sign(
+      { employeeId: account.employee_id, role: 'ADMIN' },
+      process.env.JWT_SECRET,
+      { expiresIn: '8h' } // อายุสั้นกว่า session พนักงาน เพราะสิทธิ์นี้กระทบคะแนนคนอื่นได้
+    );
+
+    res.cookie('admin_session', token, {
+      httpOnly: true,
+      secure: false, // dev เท่านั้น เหมือน session พนักงาน ตอน deploy จริงบน https ต้องเปลี่ยนเป็น true
+      sameSite: 'lax',
+      maxAge: 8 * 60 * 60 * 1000,
+    });
+
+    res.json({ employeeId: account.employee_id, role: 'ADMIN' });
+  } catch (err) {
+    console.error('admin login error:', err);
+    res.status(500).json({ message: 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
+});
+
+app.post('/api/admin/logout', (req, res) => {
+  res.clearCookie('admin_session');
+  res.json({ message: 'ออกจากระบบแล้ว' });
+});
+
+// middleware เช็คสิทธิ์แอดมิน เช็คสดจาก DB ทุกครั้ง (ไม่เชื่อแค่ค่าใน JWT)
+// เผื่อโดนถอด role หรือลาออกระหว่าง session 8 ชม. ยังไม่หมดอายุ
+async function requireAdmin(req, res, next) {
+  const token = req.cookies.admin_session;
+  if (!token) {
+    return res.status(401).json({ message: 'กรุณาเข้าสู่ระบบแอดมินก่อน' });
+  }
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (payload.role !== 'ADMIN') {
+      return res.status(403).json({ message: 'ไม่มีสิทธิ์เข้าถึง' });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT role, employment_status FROM employee WHERE employee_id = ?`,
+      [payload.employeeId]
+    );
+
+    if (rows.length === 0 || rows[0].role !== 'ADMIN' || rows[0].employment_status !== 'ACTIVE') {
+      return res.status(403).json({ message: 'ไม่มีสิทธิ์เข้าถึง หรือบัญชีถูกระงับ' });
+    }
+
+    req.adminEmployeeId = payload.employeeId;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: 'session แอดมินหมดอายุ กรุณาเข้าสู่ระบบใหม่' });
+  }
+}
+
+// เช็คว่า admin session ปัจจุบันยัง valid อยู่ไหม ใช้ตอนโหลดหน้าแอดมินครั้งแรก
+// กันไม่ให้ต้อง login ใหม่ทุกครั้งที่ refresh หน้า (ถ้า cookie ยังไม่หมดอายุ)
+app.get('/api/admin/me', requireAdmin, (req, res) => {
+  res.json({ employeeId: req.adminEmployeeId, role: 'ADMIN' });
+});
+
+// preset เหตุผลปฏิเสธสำหรับ dropdown ฝั่งแอดมิน (is_other บอกว่าแถวไหนต้องให้พิมพ์เหตุผลเอง)
+app.get('/api/admin/reject-reasons', requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT reason_id, reason_text, is_other
+       FROM reject_reason
+       WHERE status = 'ACTIVE'
+       ORDER BY is_other ASC, reason_id ASC`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('get reject reasons error:', err);
+    res.status(500).json({ message: 'โหลดรายการเหตุผลไม่สำเร็จ' });
+  }
+});
+
+// รายการ submission ตามสถานะ (default PENDING) พร้อมข้อมูลพนักงาน+กิจกรรมสำหรับหน้ารีวิว
+app.get('/api/admin/submissions', requireAdmin, async (req, res) => {
+  const status = req.query.status || 'PENDING';
+  const validStatuses = ['PENDING', 'APPROVED', 'REJECTED'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ message: 'status ไม่ถูกต้อง' });
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT
+        rs.submission_id, rs.employee_id, e.full_name, e.department,
+        rs.activity_id, at.activity_name, at.score,
+        rs.distance, rs.duration, rs.proof_image, rs.note,
+        rs.status, rs.approved_by, rs.approved_at, rs.submitted_at,
+        rr.reason_text AS reject_reason_text, rs.reject_reason_note
+       FROM running_submission rs
+       JOIN employee e ON e.employee_id = rs.employee_id
+       JOIN activity_type at ON at.activity_id = rs.activity_id
+       LEFT JOIN reject_reason rr ON rr.reason_id = rs.reject_reason_id
+       WHERE rs.status = ?
+       ORDER BY rs.submitted_at ASC`,
+      [status]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('get admin submissions error:', err);
+    res.status(500).json({ message: 'โหลดรายการไม่สำเร็จ' });
+  }
+});
+
+// อนุมัติ submission -> อัปเดตสถานะ + insert score_transaction (EARN) ในทรานแซกชันเดียวกัน
+// ใช้ FOR UPDATE ล็อกแถวกันแอดมิน 2 คนกด approve รายการเดียวกันพร้อมกันจนคะแนนซ้ำ
+app.post('/api/admin/submissions/:id/approve', requireAdmin, async (req, res) => {
+  const submissionId = req.params.id;
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [subRows] = await connection.query(
+      `SELECT rs.submission_id, rs.employee_id, rs.status, at.score
+       FROM running_submission rs
+       JOIN activity_type at ON at.activity_id = rs.activity_id
+       WHERE rs.submission_id = ?
+       FOR UPDATE`,
+      [submissionId]
+    );
+
+    if (subRows.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'ไม่พบ submission นี้' });
+    }
+
+    const submission = subRows[0];
+
+    if (submission.status !== 'PENDING') {
+      await connection.rollback();
+      return res.status(400).json({
+        message: `submission นี้ถูกตรวจสอบไปแล้ว (สถานะปัจจุบัน: ${submission.status})`,
+      });
+    }
+
+    await connection.query(
+      `UPDATE running_submission
+       SET status = 'APPROVED', approved_by = ?, approved_at = NOW()
+       WHERE submission_id = ?`,
+      [req.adminEmployeeId, submissionId]
+    );
+
+    const isSelfApproval = submission.employee_id === req.adminEmployeeId;
+    const remark = isSelfApproval
+      ? `ได้คะแนนจากการอนุมัติ submission #${submissionId} (อนุมัติโดยตัวเอง)`
+      : `ได้คะแนนจากการอนุมัติ submission #${submissionId}`;
+
+    await connection.query(
+      `INSERT INTO score_transaction
+        (submission_id, employee_id, score, transaction_type, remark, created_by, created_at)
+        VALUES (?, ?, ?, 'EARN', ?, ?, NOW())`,
+      [submissionId, submission.employee_id, submission.score, remark, req.adminEmployeeId]
+    );
+
+    await connection.commit();
+    res.json({ submissionId: Number(submissionId), status: 'APPROVED', scoreAwarded: submission.score });
+  } catch (err) {
+    await connection.rollback();
+    console.error('approve submission error:', err);
+    res.status(500).json({ message: 'อนุมัติไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  } finally {
+    connection.release();
+  }
+});
+
+// ปฏิเสธ submission -> เปลี่ยนสถานะ + บันทึกเหตุผลจริง (reject_reason_id + reject_reason_note ถ้าเลือก "อื่นๆ")
+// ไม่มีคะแนนเกี่ยวข้อง จึงไม่ต้องเปิด transaction
+app.post('/api/admin/submissions/:id/reject', requireAdmin, async (req, res) => {
+  const submissionId = req.params.id;
+  const { reasonId, note } = req.body;
+
+  if (!reasonId) {
+    return res.status(400).json({ message: 'กรุณาเลือกเหตุผลที่ปฏิเสธ' });
+  }
+
+  try {
+    const [subRows] = await pool.query(
+      `SELECT submission_id, employee_id, status FROM running_submission WHERE submission_id = ?`,
+      [submissionId]
+    );
+
+    if (subRows.length === 0) {
+      return res.status(404).json({ message: 'ไม่พบ submission นี้' });
+    }
+
+    const submission = subRows[0];
+
+    if (submission.status !== 'PENDING') {
+      return res.status(400).json({
+        message: `submission นี้ถูกตรวจสอบไปแล้ว (สถานะปัจจุบัน: ${submission.status})`,
+      });
+    }
+
+    const [reasonRows] = await pool.query(
+      `SELECT reason_id, is_other FROM reject_reason WHERE reason_id = ? AND status = 'ACTIVE'`,
+      [reasonId]
+    );
+
+    if (reasonRows.length === 0) {
+      return res.status(400).json({ message: 'ไม่พบเหตุผลนี้ หรือถูกปิดใช้งานแล้ว' });
+    }
+
+    const reason = reasonRows[0];
+    const trimmedNote = typeof note === 'string' ? note.trim() : '';
+
+    // ถ้าเลือก "อื่นๆ" ต้องพิมพ์เหตุผลเองมาด้วยเสมอ ไม่งั้นจะไม่รู้สาเหตุจริงตอนย้อนดูทีหลัง
+    if (reason.is_other && !trimmedNote) {
+      return res.status(400).json({ message: 'กรุณาระบุเหตุผลเพิ่มเติม' });
+    }
+
+    const [result] = await pool.query(
+      `UPDATE running_submission
+       SET status = 'REJECTED', approved_by = ?, approved_at = NOW(),
+           reject_reason_id = ?, reject_reason_note = ?
+       WHERE submission_id = ? AND status = 'PENDING'`,
+      [req.adminEmployeeId, reasonId, reason.is_other ? trimmedNote : null, submissionId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(400).json({ message: 'ไม่พบ submission นี้ หรือถูกตรวจสอบไปแล้ว' });
+    }
+
+    res.json({ submissionId: Number(submissionId), status: 'REJECTED' });
+  } catch (err) {
+    console.error('reject submission error:', err);
+    res.status(500).json({ message: 'ปฏิเสธไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
   }
 });
 
