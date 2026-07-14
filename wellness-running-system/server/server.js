@@ -4,6 +4,9 @@ const mysql = require('mysql2/promise');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
@@ -15,6 +18,37 @@ const pool = mysql.createPool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
+});
+
+// ---- file upload setup (proof photo เก็บ local disk ก่อน, ย้ายขึ้น cloud ทีหลังได้) ----
+const UPLOAD_ROOT = path.join(__dirname, 'uploads', 'submissions');
+if (!fs.existsSync(UPLOAD_ROOT)) {
+  fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
+}
+
+// เสิร์ฟไฟล์รูปแบบ static เพื่อให้แอดมินเปิดดูรูปได้ระหว่าง dev
+// ตอน deploy จริงควรใส่ auth คุมสิทธิ์การเข้าถึง route นี้ด้วย
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+const submissionStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOAD_ROOT),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    const uniqueName = `${req.employeeId}_${Date.now()}${ext}`;
+    cb(null, uniqueName);
+  },
+});
+
+const uploadProof = multer({
+  storage: submissionStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.mimetype)) {
+      return cb(new Error('รองรับเฉพาะไฟล์รูปภาพ JPG, PNG, WEBP เท่านั้น'));
+    }
+    cb(null, true);
+  },
 });
 
 app.get('/api/health', async (req, res) => {
@@ -59,6 +93,110 @@ app.get('/api/me', requireAuth, async (req, res) => {
     return res.status(404).json({ message: 'ไม่พบข้อมูลพนักงาน' });
   }
   res.json(rows[0]);
+});
+
+// ---- activity submission loop (Phase 1 Part B) ----
+// ใช้ตารางจริงจาก wellness.sql: activity_category, activity_type, running_submission
+// คะแนน (activity_type.score) จะไป trigger score_transaction ตอนแอดมิน APPROVE เท่านั้น
+// ตอนส่ง (PENDING) ไม่มีการ snapshot/บันทึกคะแนนใดๆ ไว้ที่ running_submission
+
+// รายการประเภทกิจกรรมที่เลือกได้ (dropdown ฝั่ง frontend) พร้อม category และ require_image
+app.get('/api/activities', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT
+        at.activity_id, at.activity_name, at.score, at.require_image, at.description,
+        ac.category_id, ac.category_name
+       FROM activity_type at
+       JOIN activity_category ac ON ac.category_id = at.category_id
+       WHERE at.status = 'ACTIVE' AND ac.status = 'ACTIVE'
+       ORDER BY ac.category_name, at.score`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('get activities error:', err);
+    res.status(500).json({ message: 'โหลดรายการกิจกรรมไม่สำเร็จ' });
+  }
+});
+
+function handleProofUpload(req, res, next) {
+  uploadProof.single('proofImage')(req, res, (err) => {
+    if (!err) return next();
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ message: 'ไฟล์รูปใหญ่เกินไป (สูงสุด 5MB)' });
+    }
+    // ครอบทั้ง MulterError อื่นๆ และ error จาก fileFilter (ชนิดไฟล์ไม่ถูกต้อง)
+    return res.status(400).json({ message: err.message || 'อัปโหลดไฟล์ไม่สำเร็จ' });
+  });
+}
+
+// พนักงานส่งกิจกรรมวิ่ง/เดิน -> เข้าสถานะ PENDING ใน running_submission รอแอดมินอนุมัติ
+// รูปหลักฐานบังคับหรือไม่ ขึ้นกับ activity_type.require_image ของกิจกรรมที่เลือก
+app.post('/api/submissions', requireAuth, handleProofUpload, async (req, res) => {
+  const cleanupUploadedFile = () => {
+    if (req.file) {
+      fs.unlink(req.file.path, () => {});
+    }
+  };
+
+  try {
+    const { activityId, distance, duration, note } = req.body;
+
+    if (!activityId) {
+      cleanupUploadedFile();
+      return res.status(400).json({ message: 'กรุณาเลือกประเภทกิจกรรม' });
+    }
+
+    const parsedDistance = distance !== undefined && distance !== '' ? Number(distance) : null;
+    const parsedDuration = duration !== undefined && duration !== '' ? Number(duration) : null;
+
+    if (parsedDistance !== null && (Number.isNaN(parsedDistance) || parsedDistance <= 0)) {
+      cleanupUploadedFile();
+      return res.status(400).json({ message: 'ระยะทางไม่ถูกต้อง' });
+    }
+    if (parsedDuration !== null && (Number.isNaN(parsedDuration) || parsedDuration <= 0)) {
+      cleanupUploadedFile();
+      return res.status(400).json({ message: 'ระยะเวลาไม่ถูกต้อง' });
+    }
+
+    const [activityRows] = await pool.query(
+      `SELECT at.activity_id, at.require_image
+       FROM activity_type at
+       JOIN activity_category ac ON ac.category_id = at.category_id
+       WHERE at.activity_id = ? AND at.status = 'ACTIVE' AND ac.status = 'ACTIVE'`,
+      [activityId]
+    );
+
+    if (activityRows.length === 0) {
+      cleanupUploadedFile();
+      return res.status(400).json({ message: 'ไม่พบประเภทกิจกรรมนี้ หรือถูกปิดใช้งานแล้ว' });
+    }
+
+    if (activityRows[0].require_image && !req.file) {
+      return res.status(400).json({ message: 'กิจกรรมนี้ต้องแนบรูปหลักฐาน' });
+    }
+
+    const proofImagePath = req.file
+      ? path.posix.join('uploads', 'submissions', req.file.filename)
+      : null;
+
+    const [result] = await pool.query(
+      `INSERT INTO running_submission
+        (employee_id, activity_id, distance, duration, proof_image, note, status, submitted_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'PENDING', NOW())`,
+      [req.employeeId, activityId, parsedDistance, parsedDuration, proofImagePath, note || null]
+    );
+
+    res.status(201).json({
+      submissionId: result.insertId,
+      status: 'PENDING',
+      message: 'ส่งข้อมูลการวิ่งสำเร็จ กรุณารอการตรวจสอบจากแอดมิน',
+    });
+  } catch (err) {
+    cleanupUploadedFile();
+    console.error('create submission error:', err);
+    res.status(500).json({ message: 'บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
 });
 
 // verify idToken กับ LINE โดยตรง ห้าม decode JWT เองแล้วเชื่อเลย
