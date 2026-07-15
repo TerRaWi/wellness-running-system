@@ -38,6 +38,22 @@ export default function AdminApp() {
   const [redeemActioningId, setRedeemActioningId] = useState(null);
   const [redeemActionError, setRedeemActionError] = useState('');
 
+  // ---- Phase 3: challenge management ----
+  const [challengeCategories, setChallengeCategories] = useState([]);
+  const [challenges, setChallenges] = useState([]);
+  const [challengeListLoading, setChallengeListLoading] = useState(false);
+  const [challengeListError, setChallengeListError] = useState('');
+  const [challengeActioningId, setChallengeActioningId] = useState(null);
+  const [challengeActionError, setChallengeActionError] = useState('');
+
+  const [newChallengeCategoryId, setNewChallengeCategoryId] = useState('');
+  const [newChallengeName, setNewChallengeName] = useState('');
+  const [newChallengeDescription, setNewChallengeDescription] = useState('');
+  const [newChallengeStartDate, setNewChallengeStartDate] = useState('');
+  const [newChallengeEndDate, setNewChallengeEndDate] = useState('');
+  const [createChallengeSubmitting, setCreateChallengeSubmitting] = useState(false);
+  const [createChallengeError, setCreateChallengeError] = useState('');
+
   // เช็คว่ามี admin session ที่ยัง valid อยู่ไหมตอนโหลดหน้า กันต้อง login ใหม่ทุกครั้งที่ refresh
   useEffect(() => {
     async function checkAuth() {
@@ -146,6 +162,7 @@ export default function AdminApp() {
       setAdminId(null);
       setSubmissions([]);
       setRedeems([]);
+      setChallenges([]);
     }
   }
 
@@ -219,6 +236,111 @@ export default function AdminApp() {
       setRedeemActioningId(null);
     }
   }
+
+  async function loadChallenges() {
+    setChallengeListLoading(true);
+    setChallengeListError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/challenges`, { credentials: 'include' });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) {
+        throw new Error(data.message || 'โหลดรายการ challenge ไม่สำเร็จ');
+      }
+      setChallenges(data);
+    } catch (err) {
+      setChallengeListError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setChallengeListLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!isLoggedIn || activeTab !== 'challenges') return;
+    loadChallenges();
+
+    async function loadChallengeCategories() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/activity-categories`, { credentials: 'include' });
+        if (res.ok) {
+          setChallengeCategories(await res.json());
+        }
+      } catch (err) {
+        console.error('load challenge categories error:', err);
+      }
+    }
+    loadChallengeCategories();
+  }, [isLoggedIn, activeTab]);
+
+  async function handleCreateChallenge(e) {
+    e.preventDefault();
+    setCreateChallengeError('');
+
+    if (!newChallengeCategoryId || !newChallengeName.trim() || !newChallengeStartDate || !newChallengeEndDate) {
+      setCreateChallengeError('กรุณากรอกข้อมูลให้ครบ');
+      return;
+    }
+
+    setCreateChallengeSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/challenges`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          categoryId: newChallengeCategoryId,
+          challengeName: newChallengeName.trim(),
+          description: newChallengeDescription.trim(),
+          startDate: newChallengeStartDate,
+          endDate: newChallengeEndDate,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'สร้าง challenge ไม่สำเร็จ');
+      }
+
+      setNewChallengeCategoryId('');
+      setNewChallengeName('');
+      setNewChallengeDescription('');
+      setNewChallengeStartDate('');
+      setNewChallengeEndDate('');
+      await loadChallenges();
+    } catch (err) {
+      setCreateChallengeError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setCreateChallengeSubmitting(false);
+    }
+  }
+
+  async function handleCancelChallenge(challengeId) {
+    const confirmed = window.confirm('ยืนยันยกเลิก challenge นี้?');
+    if (!confirmed) return;
+
+    setChallengeActioningId(challengeId);
+    setChallengeActionError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/challenges/${challengeId}/cancel`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'ยกเลิกไม่สำเร็จ');
+      }
+      await loadChallenges();
+    } catch (err) {
+      setChallengeActionError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setChallengeActioningId(null);
+    }
+  }
+
+  const CHALLENGE_STATUS_LABEL_TH = {
+    UPCOMING: 'ยังไม่เริ่ม',
+    ONGOING: 'กำลังแข่งขัน',
+    ENDED: 'จบแล้ว',
+    CANCELLED: 'ยกเลิกแล้ว',
+  };
 
   async function handleApprove(submissionId) {
     setActioningId(submissionId);
@@ -374,6 +496,12 @@ export default function AdminApp() {
           style={{ fontWeight: activeTab === 'redeems' ? 'bold' : 'normal' }}
         >
           คำขอแลกของรางวัล
+        </button>
+        <button
+          onClick={() => setActiveTab('challenges')}
+          style={{ fontWeight: activeTab === 'challenges' ? 'bold' : 'normal' }}
+        >
+          Challenge
         </button>
       </div>
 
@@ -631,6 +759,161 @@ export default function AdminApp() {
                           </button>
                         </td>
                       )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'challenges' && (
+        <>
+          <div
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 6,
+              padding: 16,
+              marginBottom: 16,
+              maxWidth: 480,
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>สร้าง Challenge ใหม่</h3>
+            <form onSubmit={handleCreateChallenge}>
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="newChallengeCategory">หมวดกิจกรรมที่ใช้วัด (รวมระยะทางทุกกิจกรรมในหมวดนี้)</label>
+                <br />
+                <select
+                  id="newChallengeCategory"
+                  value={newChallengeCategoryId}
+                  onChange={(e) => setNewChallengeCategoryId(e.target.value)}
+                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                >
+                  <option value="">-- เลือกหมวดกิจกรรม --</option>
+                  {challengeCategories.map((cat) => (
+                    <option key={cat.category_id} value={cat.category_id}>
+                      {cat.category_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="newChallengeName">ชื่อ Challenge</label>
+                <br />
+                <input
+                  id="newChallengeName"
+                  type="text"
+                  value={newChallengeName}
+                  onChange={(e) => setNewChallengeName(e.target.value)}
+                  placeholder="เช่น July Run Challenge"
+                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="newChallengeDescription">รายละเอียด (ถ้ามี)</label>
+                <br />
+                <textarea
+                  id="newChallengeDescription"
+                  value={newChallengeDescription}
+                  onChange={(e) => setNewChallengeDescription(e.target.value)}
+                  rows={2}
+                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="newChallengeStart">วันเริ่ม</label>
+                  <br />
+                  <input
+                    id="newChallengeStart"
+                    type="datetime-local"
+                    value={newChallengeStartDate}
+                    onChange={(e) => setNewChallengeStartDate(e.target.value)}
+                    style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="newChallengeEnd">วันจบ</label>
+                  <br />
+                  <input
+                    id="newChallengeEnd"
+                    type="datetime-local"
+                    value={newChallengeEndDate}
+                    onChange={(e) => setNewChallengeEndDate(e.target.value)}
+                    style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  />
+                </div>
+              </div>
+
+              {createChallengeError && <p style={{ color: 'red' }}>{createChallengeError}</p>}
+
+              <button type="submit" disabled={createChallengeSubmitting}>
+                {createChallengeSubmitting ? 'กำลังสร้าง...' : 'สร้าง Challenge'}
+              </button>
+            </form>
+          </div>
+
+          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+            <h3 style={{ margin: 0 }}>รายการ Challenge ทั้งหมด</h3>
+            <button onClick={loadChallenges}>รีเฟรช</button>
+          </div>
+
+          {challengeActionError && <p style={{ color: 'red' }}>{challengeActionError}</p>}
+          {challengeListError && <p style={{ color: 'red' }}>{challengeListError}</p>}
+          {challengeListLoading && <p>กำลังโหลด...</p>}
+
+          {!challengeListLoading && challenges.length === 0 && <p>ยังไม่มี challenge</p>}
+
+          {!challengeListLoading && challenges.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
+                    <th style={{ padding: 8 }}>#</th>
+                    <th style={{ padding: 8 }}>ชื่อ Challenge</th>
+                    <th style={{ padding: 8 }}>หมวดกิจกรรม</th>
+                    <th style={{ padding: 8 }}>ช่วงเวลา</th>
+                    <th style={{ padding: 8 }}>สถานะ</th>
+                    <th style={{ padding: 8 }}>ผู้เข้าร่วม</th>
+                    <th style={{ padding: 8 }}>จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {challenges.map((c) => (
+                    <tr key={c.challenge_id} style={{ borderBottom: '1px solid #eee' }}>
+                      <td style={{ padding: 8 }}>{c.challenge_id}</td>
+                      <td style={{ padding: 8 }}>
+                        {c.challenge_name}
+                        {c.description && (
+                          <>
+                            <br />
+                            <small style={{ color: '#888' }}>{c.description}</small>
+                          </>
+                        )}
+                      </td>
+                      <td style={{ padding: 8 }}>{c.category_name}</td>
+                      <td style={{ padding: 8 }}>
+                        {new Date(c.start_date).toLocaleDateString('th-TH')} -{' '}
+                        {new Date(c.end_date).toLocaleDateString('th-TH')}
+                      </td>
+                      <td style={{ padding: 8 }}>{CHALLENGE_STATUS_LABEL_TH[c.status] || c.status}</td>
+                      <td style={{ padding: 8 }}>{c.participant_count}</td>
+                      <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                        {['UPCOMING', 'ONGOING'].includes(c.status) ? (
+                          <button
+                            onClick={() => handleCancelChallenge(c.challenge_id)}
+                            disabled={challengeActioningId === c.challenge_id}
+                          >
+                            {challengeActioningId === c.challenge_id ? '...' : 'ยกเลิก'}
+                          </button>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

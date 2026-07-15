@@ -558,7 +558,7 @@ app.post('/api/admin/submissions/:id/approve', requireAdmin, async (req, res) =>
     await connection.beginTransaction();
 
     const [subRows] = await connection.query(
-      `SELECT rs.submission_id, rs.employee_id, rs.status, at.score
+      `SELECT rs.submission_id, rs.employee_id, rs.status, rs.activity_id, at.category_id, rs.submitted_at, at.score
        FROM running_submission rs
        JOIN activity_type at ON at.activity_id = rs.activity_id
        WHERE rs.submission_id = ?
@@ -598,6 +598,40 @@ app.post('/api/admin/submissions/:id/approve', requireAdmin, async (req, res) =>
         VALUES (?, ?, ?, 'EARN', ?, ?, NOW())`,
       [submissionId, submission.employee_id, submission.score, remark, req.adminEmployeeId]
     );
+
+    // Phase 3: submission ที่เพิ่งอนุมัติ ถ้าอยู่ในหมวดกิจกรรมเดียวกับ challenge ที่กำลัง ONGOING อยู่
+    // และพนักงานคนนี้ join challenge นั้นไว้ก่อนวันที่ส่ง submission -> นับเข้า challenge อัตโนมัติ
+    // จับคู่ด้วย category_id ไม่ใช่ activity_id เพราะ challenge วัดระยะทางรวมทั้งหมวด (เช่น "วิ่ง" ทุกระยะ)
+    await connection.query(
+      `UPDATE challenge SET status = 'ONGOING'
+       WHERE status = 'UPCOMING' AND start_date <= NOW() AND end_date > NOW()`
+    );
+    await connection.query(
+      `UPDATE challenge SET status = 'ENDED'
+       WHERE status IN ('UPCOMING', 'ONGOING') AND end_date <= NOW()`
+    );
+
+    const [matchingChallenges] = await connection.query(
+      `SELECT challenge_id FROM challenge WHERE category_id = ? AND status = 'ONGOING'`,
+      [submission.category_id]
+    );
+
+    for (const ch of matchingChallenges) {
+      const [participantRows] = await connection.query(
+        `SELECT participant_id FROM challenge_participant
+         WHERE challenge_id = ? AND employee_id = ? AND joined_at <= ?`,
+        [ch.challenge_id, submission.employee_id, submission.submitted_at]
+      );
+
+      if (participantRows.length > 0) {
+        // INSERT IGNORE เผื่อกรณี edge case, ปกติ submission หนึ่งอนุมัติได้ครั้งเดียวอยู่แล้ว
+        await connection.query(
+          `INSERT IGNORE INTO challenge_submission (participant_id, submission_id, added_at)
+           VALUES (?, ?, NOW())`,
+          [participantRows[0].participant_id, submissionId]
+        );
+      }
+    }
 
     await connection.commit();
     res.json({ submissionId: Number(submissionId), status: 'APPROVED', scoreAwarded: submission.score });
@@ -787,6 +821,279 @@ app.post('/api/admin/redeems/:id/reject', requireAdmin, async (req, res) => {
     res.status(500).json({ message: 'ปฏิเสธไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
   } finally {
     connection.release();
+  }
+});
+
+// ---- Phase 3: challenge + leaderboard ----
+// ใช้ตารางจริงจาก wellness.sql: challenge, challenge_participant, challenge_submission
+// หลักการ: status ของ challenge ไม่ได้ผูก cron job แยก แต่ "lazy sync" ทุกครั้งก่อน query
+// (UPCOMING -> ONGOING เมื่อถึง start_date, ONGOING/UPCOMING -> ENDED เมื่อเลย end_date)
+// ไม่แตะ CANCELLED เพราะเป็นการยกเลิกโดย admin เท่านั้น ระบบจะไม่เปลี่ยนสถานะนี้เอง
+async function syncChallengeStatuses(runner = pool) {
+  await runner.query(
+    `UPDATE challenge SET status = 'ONGOING'
+     WHERE status = 'UPCOMING' AND start_date <= NOW() AND end_date > NOW()`
+  );
+  await runner.query(
+    `UPDATE challenge SET status = 'ENDED'
+     WHERE status IN ('UPCOMING', 'ONGOING') AND end_date <= NOW()`
+  );
+}
+
+// รายการ challenge ที่เปิดให้เห็น/เข้าร่วมได้ (UPCOMING, ONGOING) พร้อมสถานะว่าพนักงานคนนี้เข้าร่วมแล้วหรือยัง
+app.get('/api/challenges', requireAuth, async (req, res) => {
+  try {
+    await syncChallengeStatuses();
+
+    const [rows] = await pool.query(
+      `SELECT
+        c.challenge_id, c.challenge_name, c.description, c.ranking_type,
+        c.start_date, c.end_date, c.status,
+        ac.category_id, ac.category_name,
+        (SELECT COUNT(*) FROM challenge_participant cp WHERE cp.challenge_id = c.challenge_id) AS participant_count,
+        me.join_mode AS my_join_mode
+       FROM challenge c
+       JOIN activity_category ac ON ac.category_id = c.category_id
+       LEFT JOIN challenge_participant me
+         ON me.challenge_id = c.challenge_id AND me.employee_id = ?
+       WHERE c.status IN ('UPCOMING', 'ONGOING')
+       ORDER BY c.start_date ASC`,
+      [req.employeeId]
+    );
+
+    res.json(rows.map((r) => ({ ...r, joined: r.my_join_mode !== null })));
+  } catch (err) {
+    console.error('get challenges error:', err);
+    res.status(500).json({ message: 'โหลดรายการ challenge ไม่สำเร็จ' });
+  }
+});
+
+// challenge ที่พนักงานคนนี้เข้าร่วมอยู่ (ทุกสถานะ รวมที่จบไปแล้ว เพื่อดูประวัติ) พร้อมระยะทางสะสมของตัวเอง
+app.get('/api/my-challenges', requireAuth, async (req, res) => {
+  try {
+    await syncChallengeStatuses();
+
+    const [rows] = await pool.query(
+      `SELECT
+        c.challenge_id, c.challenge_name, c.status, c.start_date, c.end_date,
+        ac.category_name,
+        cp.participant_id, cp.join_mode, cp.joined_at,
+        COALESCE(SUM(rs.distance), 0) AS my_distance
+       FROM challenge_participant cp
+       JOIN challenge c ON c.challenge_id = cp.challenge_id
+       JOIN activity_category ac ON ac.category_id = c.category_id
+       LEFT JOIN challenge_submission cs ON cs.participant_id = cp.participant_id
+       LEFT JOIN running_submission rs ON rs.submission_id = cs.submission_id
+       WHERE cp.employee_id = ?
+       GROUP BY cp.participant_id
+       ORDER BY c.start_date DESC`,
+      [req.employeeId]
+    );
+
+    res.json(rows);
+  } catch (err) {
+    console.error('get my challenges error:', err);
+    res.status(500).json({ message: 'โหลดรายการ challenge ของฉันไม่สำเร็จ' });
+  }
+});
+
+// เข้าร่วม challenge -> joined_at คือจุดเริ่มนับ (submission ที่ส่งก่อนหน้านี้จะไม่ถูกนับย้อนหลัง)
+app.post('/api/challenges/:id/join', requireAuth, async (req, res) => {
+  const challengeId = req.params.id;
+  const joinMode = req.body.joinMode === 'ANONYMOUS' ? 'ANONYMOUS' : 'PUBLIC';
+
+  try {
+    await syncChallengeStatuses();
+
+    const [challengeRows] = await pool.query(`SELECT challenge_id, status FROM challenge WHERE challenge_id = ?`, [
+      challengeId,
+    ]);
+
+    if (challengeRows.length === 0) {
+      return res.status(404).json({ message: 'ไม่พบ challenge นี้' });
+    }
+    if (!['UPCOMING', 'ONGOING'].includes(challengeRows[0].status)) {
+      return res.status(400).json({ message: 'challenge นี้ปิดรับการเข้าร่วมแล้ว' });
+    }
+
+    await pool.query(
+      `INSERT INTO challenge_participant (challenge_id, employee_id, join_mode, joined_at)
+       VALUES (?, ?, ?, NOW())`,
+      [challengeId, req.employeeId, joinMode]
+    );
+
+    res.status(201).json({ challengeId: Number(challengeId), joinMode, message: 'เข้าร่วม challenge สำเร็จ' });
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ message: 'คุณเข้าร่วม challenge นี้ไปแล้ว' });
+    }
+    console.error('join challenge error:', err);
+    res.status(500).json({ message: 'เข้าร่วม challenge ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
+});
+
+// leaderboard ของ challenge หนึ่งๆ จัดอันดับตามระยะทางสะสม (ranking_type = DISTANCE เท่านั้นตอนนี้)
+// ผู้เข้าร่วมแบบ ANONYMOUS จะถูกซ่อนชื่อ/รหัสพนักงาน ยกเว้นแถวของตัวเอง
+app.get('/api/challenges/:id/leaderboard', requireAuth, async (req, res) => {
+  const challengeId = req.params.id;
+
+  try {
+    const [challengeRows] = await pool.query(`SELECT challenge_id FROM challenge WHERE challenge_id = ?`, [
+      challengeId,
+    ]);
+    if (challengeRows.length === 0) {
+      return res.status(404).json({ message: 'ไม่พบ challenge นี้' });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT
+        cp.participant_id, cp.employee_id, cp.join_mode, e.full_name,
+        COALESCE(SUM(rs.distance), 0) AS total_distance,
+        COUNT(cs.challenge_submission_id) AS run_count
+       FROM challenge_participant cp
+       JOIN employee e ON e.employee_id = cp.employee_id
+       LEFT JOIN challenge_submission cs ON cs.participant_id = cp.participant_id
+       LEFT JOIN running_submission rs ON rs.submission_id = cs.submission_id
+       WHERE cp.challenge_id = ?
+       GROUP BY cp.participant_id
+       ORDER BY total_distance DESC, cp.joined_at ASC`,
+      [challengeId]
+    );
+
+    const leaderboard = rows.map((r, index) => {
+      const isMe = r.employee_id === req.employeeId;
+      const isAnonymous = r.join_mode === 'ANONYMOUS' && !isMe;
+      return {
+        rank: index + 1,
+        isMe,
+        displayName: isAnonymous ? 'ผู้เข้าร่วมไม่ระบุตัวตน' : r.full_name,
+        totalDistance: r.total_distance,
+        runCount: r.run_count,
+      };
+    });
+
+    res.json(leaderboard);
+  } catch (err) {
+    console.error('get leaderboard error:', err);
+    res.status(500).json({ message: 'โหลด leaderboard ไม่สำเร็จ' });
+  }
+});
+
+// ---- Phase 3: admin จัดการ challenge ----
+
+// รายการกิจกรรมสำหรับ dropdown ตอนสร้าง challenge (แอดมินไม่มี session พนักงาน เลยต้องมี route แยก)
+app.get('/api/admin/activities', requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT at.activity_id, at.activity_name, ac.category_name
+       FROM activity_type at
+       JOIN activity_category ac ON ac.category_id = at.category_id
+       WHERE at.status = 'ACTIVE' AND ac.status = 'ACTIVE'
+       ORDER BY ac.category_name, at.activity_name`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('get admin activities error:', err);
+    res.status(500).json({ message: 'โหลดรายการกิจกรรมไม่สำเร็จ' });
+  }
+});
+
+// รายการหมวดหมู่กิจกรรมสำหรับ dropdown ตอนสร้าง challenge (challenge วัดระยะทางรวมทั้งหมวด ไม่ผูกกับ activity_type เดียว)
+app.get('/api/admin/activity-categories', requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT category_id, category_name
+       FROM activity_category
+       WHERE status = 'ACTIVE'
+       ORDER BY category_name`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('get admin activity categories error:', err);
+    res.status(500).json({ message: 'โหลดรายการหมวดหมู่กิจกรรมไม่สำเร็จ' });
+  }
+});
+
+// รายการ challenge ทั้งหมดทุกสถานะ สำหรับหน้าแอดมิน
+app.get('/api/admin/challenges', requireAdmin, async (req, res) => {
+  try {
+    await syncChallengeStatuses();
+
+    const [rows] = await pool.query(
+      `SELECT
+        c.challenge_id, c.challenge_name, c.description, c.start_date, c.end_date, c.status,
+        ac.category_id, ac.category_name,
+        (SELECT COUNT(*) FROM challenge_participant cp WHERE cp.challenge_id = c.challenge_id) AS participant_count
+       FROM challenge c
+       JOIN activity_category ac ON ac.category_id = c.category_id
+       ORDER BY c.start_date DESC`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('get admin challenges error:', err);
+    res.status(500).json({ message: 'โหลดรายการ challenge ไม่สำเร็จ' });
+  }
+});
+
+// สร้าง challenge ใหม่
+app.post('/api/admin/challenges', requireAdmin, async (req, res) => {
+  const { categoryId, challengeName, description, startDate, endDate } = req.body;
+
+  if (!categoryId || !challengeName || !startDate || !endDate) {
+    return res.status(400).json({ message: 'กรุณากรอกข้อมูลให้ครบ (หมวดกิจกรรม, ชื่อ, วันเริ่ม, วันจบ)' });
+  }
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start >= end) {
+    return res.status(400).json({ message: 'ช่วงวันที่ไม่ถูกต้อง (วันเริ่มต้องก่อนวันจบ)' });
+  }
+
+  try {
+    const [categoryRows] = await pool.query(
+      `SELECT category_id FROM activity_category WHERE category_id = ? AND status = 'ACTIVE'`,
+      [categoryId]
+    );
+    if (categoryRows.length === 0) {
+      return res.status(400).json({ message: 'ไม่พบหมวดหมู่กิจกรรมนี้ หรือถูกปิดใช้งานแล้ว' });
+    }
+
+    const now = new Date();
+    const initialStatus = now < start ? 'UPCOMING' : now < end ? 'ONGOING' : 'ENDED';
+
+    const [result] = await pool.query(
+      `INSERT INTO challenge
+        (category_id, challenge_name, description, ranking_type, start_date, end_date, status)
+        VALUES (?, ?, ?, 'DISTANCE', ?, ?, ?)`,
+      [categoryId, challengeName.trim(), description ? description.trim() : null, start, end, initialStatus]
+    );
+
+    res.status(201).json({ challengeId: result.insertId, status: initialStatus });
+  } catch (err) {
+    console.error('create challenge error:', err);
+    res.status(500).json({ message: 'สร้าง challenge ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
+});
+
+// ยกเลิก challenge (เฉพาะที่ยังไม่จบ) -> ไม่กระทบคะแนน เพราะ challenge ไม่มีระบบให้คะแนนโดยตรง
+app.post('/api/admin/challenges/:id/cancel', requireAdmin, async (req, res) => {
+  const challengeId = req.params.id;
+
+  try {
+    const [result] = await pool.query(
+      `UPDATE challenge SET status = 'CANCELLED'
+       WHERE challenge_id = ? AND status IN ('UPCOMING', 'ONGOING')`,
+      [challengeId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(400).json({ message: 'ไม่พบ challenge นี้ หรือจบ/ถูกยกเลิกไปแล้ว' });
+    }
+
+    res.json({ challengeId: Number(challengeId), status: 'CANCELLED' });
+  } catch (err) {
+    console.error('cancel challenge error:', err);
+    res.status(500).json({ message: 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
   }
 });
 

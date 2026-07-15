@@ -35,6 +35,18 @@ export default function App() {
   const [rewardMessage, setRewardMessage] = useState('');
   const [rewardMessageType, setRewardMessageType] = useState('info'); // 'success' | 'error'
 
+  // ---- Phase 3: challenge + leaderboard ----
+  const [challenges, setChallenges] = useState([]);
+  const [myChallenges, setMyChallenges] = useState([]);
+  const [challengeMessage, setChallengeMessage] = useState('');
+  const [challengeMessageType, setChallengeMessageType] = useState('info'); // 'success' | 'error'
+  const [joiningChallengeId, setJoiningChallengeId] = useState(null);
+  const [joinModeByChallenge, setJoinModeByChallenge] = useState({}); // { [challengeId]: 'PUBLIC' | 'ANONYMOUS' }
+  const [leaderboardChallengeId, setLeaderboardChallengeId] = useState(null);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardError, setLeaderboardError] = useState('');
+
   useEffect(() => {
     let cancelled = false;
 
@@ -143,6 +155,93 @@ export default function App() {
     if (status !== 'done') return;
     loadRewardData();
   }, [status]);
+
+  async function loadChallengeData() {
+    try {
+      const [challengesRes, myChallengesRes] = await Promise.all([
+        fetch(`${API_BASE}/api/challenges`, { credentials: 'include' }),
+        fetch(`${API_BASE}/api/my-challenges`, { credentials: 'include' }),
+      ]);
+
+      if (challengesRes.ok) {
+        setChallenges(await challengesRes.json());
+      }
+      if (myChallengesRes.ok) {
+        setMyChallenges(await myChallengesRes.json());
+      }
+    } catch (err) {
+      console.error('load challenge data error:', err);
+    }
+  }
+
+  useEffect(() => {
+    if (status !== 'done') return;
+    loadChallengeData();
+  }, [status]);
+
+  async function handleJoinChallenge(challengeId) {
+    setJoiningChallengeId(challengeId);
+    setChallengeMessage('');
+
+    try {
+      const res = await fetch(`${API_BASE}/api/challenges/${challengeId}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ joinMode: joinModeByChallenge[challengeId] || 'PUBLIC' }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.message || 'เข้าร่วม challenge ไม่สำเร็จ');
+      }
+
+      setChallengeMessageType('success');
+      setChallengeMessage(data.message || 'เข้าร่วม challenge สำเร็จ');
+      await loadChallengeData();
+    } catch (err) {
+      setChallengeMessageType('error');
+      setChallengeMessage(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setJoiningChallengeId(null);
+    }
+  }
+
+  async function openLeaderboard(challengeId) {
+    setLeaderboardChallengeId(challengeId);
+    setLeaderboardLoading(true);
+    setLeaderboardError('');
+    setLeaderboard([]);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/challenges/${challengeId}/leaderboard`, {
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) {
+        throw new Error(data.message || 'โหลด leaderboard ไม่สำเร็จ');
+      }
+      setLeaderboard(data);
+    } catch (err) {
+      setLeaderboardError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  }
+
+  function closeLeaderboard() {
+    setLeaderboardChallengeId(null);
+    setLeaderboard([]);
+    setLeaderboardError('');
+  }
+
+  const CHALLENGE_STATUS_LABEL_TH = {
+    UPCOMING: 'ยังไม่เริ่ม',
+    ONGOING: 'กำลังแข่งขัน',
+    ENDED: 'จบแล้ว',
+    CANCELLED: 'ยกเลิกแล้ว',
+  };
 
   async function handleRedeem(rewardId) {
     setRedeemingRewardId(rewardId);
@@ -319,6 +418,7 @@ export default function App() {
 
   if (status === 'done') {
     return (
+      <>
       <div style={{ padding: 24 }}>
         <div style={{ textAlign: 'center' }}>
           <p>เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ {user?.displayName}</p>
@@ -509,7 +609,173 @@ export default function App() {
             ))}
           </div>
         )}
+
+        <hr style={{ margin: '16px 0' }} />
+
+        <h3>Challenge</h3>
+
+        {challengeMessage && (
+          <p style={{ color: challengeMessageType === 'error' ? 'red' : 'green' }}>{challengeMessage}</p>
+        )}
+
+        {myChallenges.length > 0 && (
+          <>
+            <h4>Challenge ที่เข้าร่วมอยู่</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+              {myChallenges.map((mc) => (
+                <div
+                  key={mc.participant_id}
+                  style={{
+                    border: '1px solid #ddd',
+                    borderRadius: 6,
+                    padding: 12,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 'bold' }}>{mc.challenge_name}</div>
+                    <div style={{ fontSize: 14, color: '#666' }}>
+                      {mc.category_name} · {CHALLENGE_STATUS_LABEL_TH[mc.status] || mc.status} · ระยะทางสะสมของฉัน{' '}
+                      {mc.my_distance} กม.
+                      {mc.join_mode === 'ANONYMOUS' && ' · เข้าร่วมแบบไม่ระบุตัวตน'}
+                    </div>
+                  </div>
+                  <button onClick={() => openLeaderboard(mc.challenge_id)}>ดู Leaderboard</button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        <h4>Challenge ที่เปิดอยู่</h4>
+        {challenges.length === 0 && <p>ยังไม่มี challenge ที่เปิดอยู่ตอนนี้</p>}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {challenges.map((c) => {
+            const isJoining = joiningChallengeId === c.challenge_id;
+            return (
+              <div
+                key={c.challenge_id}
+                style={{
+                  border: '1px solid #ddd',
+                  borderRadius: 6,
+                  padding: 12,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 8,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 'bold' }}>{c.challenge_name}</div>
+                  <div style={{ fontSize: 14, color: '#666' }}>
+                    {c.category_name} · {CHALLENGE_STATUS_LABEL_TH[c.status] || c.status} · ผู้เข้าร่วม{' '}
+                    {c.participant_count} คน
+                  </div>
+                  <div style={{ fontSize: 13, color: '#888' }}>
+                    {new Date(c.start_date).toLocaleDateString('th-TH')} -{' '}
+                    {new Date(c.end_date).toLocaleDateString('th-TH')}
+                  </div>
+                  {c.description && <div style={{ fontSize: 13, color: '#888' }}>{c.description}</div>}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {c.joined ? (
+                    <button onClick={() => openLeaderboard(c.challenge_id)}>ดู Leaderboard</button>
+                  ) : (
+                    <>
+                      <select
+                        value={joinModeByChallenge[c.challenge_id] || 'PUBLIC'}
+                        onChange={(e) =>
+                          setJoinModeByChallenge((prev) => ({ ...prev, [c.challenge_id]: e.target.value }))
+                        }
+                        style={{ padding: 6 }}
+                      >
+                        <option value="PUBLIC">แสดงชื่อจริง</option>
+                        <option value="ANONYMOUS">ไม่ระบุตัวตน</option>
+                      </select>
+                      <button onClick={() => handleJoinChallenge(c.challenge_id)} disabled={isJoining}>
+                        {isJoining ? 'กำลังเข้าร่วม...' : 'เข้าร่วม'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
+
+      {leaderboardChallengeId !== null && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: 8,
+              padding: 24,
+              width: '90%',
+              maxWidth: 420,
+              maxHeight: '80vh',
+              overflowY: 'auto',
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>Leaderboard</h3>
+
+            {leaderboardLoading && <p>กำลังโหลด...</p>}
+            {leaderboardError && <p style={{ color: 'red' }}>{leaderboardError}</p>}
+
+            {!leaderboardLoading && !leaderboardError && leaderboard.length === 0 && (
+              <p>ยังไม่มีผู้เข้าร่วม</p>
+            )}
+
+            {!leaderboardLoading && leaderboard.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {leaderboard.map((row) => (
+                  <div
+                    key={row.rank}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      padding: '6px 0',
+                      borderBottom: '1px solid #eee',
+                      fontWeight: row.isMe ? 'bold' : 'normal',
+                    }}
+                  >
+                    <span>
+                      #{row.rank} {row.displayName} {row.isMe && '(คุณ)'}
+                    </span>
+                    <span>
+                      {row.totalDistance} กม. · {row.runCount} ครั้ง
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ textAlign: 'right', marginTop: 16 }}>
+              <button onClick={closeLeaderboard}>ปิด</button>
+            </div>
+          </div>
+        </div>
+      )}
+      </>
     );
   }
 
