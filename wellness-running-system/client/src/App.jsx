@@ -47,6 +47,17 @@ export default function App() {
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState('');
 
+  // ---- Phase 4: badge ----
+  const [badges, setBadges] = useState([]);
+  const [newBadgesToShow, setNewBadgesToShow] = useState([]); // badge ที่เพิ่งได้ใหม่ รอเด้ง popup
+
+  const BADGE_CONDITION_LABEL_TH = {
+    DISTANCE: 'สะสมระยะทาง',
+    SUBMISSION_COUNT: 'ส่งกิจกรรมสำเร็จ',
+    SCORE: 'สะสมคะแนน',
+    STREAK_DAYS: 'วิ่งติดต่อกัน',
+  };
+
   useEffect(() => {
     let cancelled = false;
 
@@ -178,6 +189,50 @@ export default function App() {
     if (status !== 'done') return;
     loadChallengeData();
   }, [status]);
+
+  // localStorage เก็บเวลา badge ล่าสุดที่พนักงานคนนี้ "เห็น" popup ไปแล้ว กันเด้งซ้ำทุกครั้งที่เปิดแอป
+  function getLastSeenBadgeAt(employeeId) {
+    return localStorage.getItem(`wellness_last_seen_badge_${employeeId}`);
+  }
+  function setLastSeenBadgeAt(employeeId, isoString) {
+    localStorage.setItem(`wellness_last_seen_badge_${employeeId}`, isoString);
+  }
+
+  async function loadBadgeData() {
+    try {
+      const res = await fetch(`${API_BASE}/api/my-badges`, { credentials: 'include' });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) return;
+      setBadges(data);
+      return data;
+    } catch (err) {
+      console.error('load badge data error:', err);
+      return [];
+    }
+  }
+
+  useEffect(() => {
+    if (status !== 'done' || !user?.employeeId) return;
+
+    (async () => {
+      const data = await loadBadgeData();
+      const lastSeen = getLastSeenBadgeAt(user.employeeId);
+      const earned = (data || []).filter((b) => b.earned);
+      const unseen = lastSeen
+        ? earned.filter((b) => new Date(b.receivedAt).getTime() > new Date(lastSeen).getTime())
+        : earned; // ยังไม่เคยเปิดแอปนี้เลย ให้เห็น badge ที่มีอยู่ทั้งหมดเป็น "ใหม่" ครั้งแรกครั้งเดียว
+      if (unseen.length > 0) {
+        setNewBadgesToShow(unseen);
+      }
+    })();
+  }, [status, user?.employeeId]);
+
+  function closeNewBadgePopup() {
+    if (user?.employeeId) {
+      setLastSeenBadgeAt(user.employeeId, new Date().toISOString());
+    }
+    setNewBadgesToShow([]);
+  }
 
   async function handleJoinChallenge(challengeId) {
     setJoiningChallengeId(challengeId);
@@ -424,6 +479,52 @@ export default function App() {
           <p>เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ {user?.displayName}</p>
           <p>รหัสพนักงาน: {user?.employeeId}</p>
         </div>
+
+        <hr style={{ margin: '16px 0' }} />
+
+        <h3>เหรียญตราของฉัน</h3>
+        {badges.length === 0 && <p>ยังไม่มี badge ให้เก็บตอนนี้</p>}
+        {badges.length > 0 && (
+          <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
+            {badges.map((b) => (
+              <div
+                key={b.badgeId}
+                title={b.description || ''}
+                style={{
+                  minWidth: 100,
+                  textAlign: 'center',
+                  opacity: b.earned ? 1 : 0.35,
+                  flexShrink: 0,
+                }}
+              >
+                <div
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: '50%',
+                    margin: '0 auto 6px',
+                    border: '2px solid #ddd',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                    backgroundColor: '#fafafa',
+                  }}
+                >
+                  {b.icon ? (
+                    <img src={b.icon} alt={b.badgeName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ fontSize: 24 }}>🏅</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 'bold' }}>{b.badgeName}</div>
+                <div style={{ fontSize: 11, color: '#888' }}>
+                  {BADGE_CONDITION_LABEL_TH[b.conditionType] || b.conditionType} ≥ {b.conditionValue}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <hr style={{ margin: '16px 0' }} />
 
@@ -709,6 +810,65 @@ export default function App() {
           })}
         </div>
       </div>
+
+      {newBadgesToShow.length > 0 && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: 8,
+              padding: 24,
+              width: '90%',
+              maxWidth: 360,
+              textAlign: 'center',
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>🎉 ได้ Badge ใหม่!</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+              {newBadgesToShow.map((b) => (
+                <div key={b.badgeId}>
+                  <div
+                    style={{
+                      width: 72,
+                      height: 72,
+                      borderRadius: '50%',
+                      margin: '0 auto 6px',
+                      border: '2px solid #f5c518',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'hidden',
+                      backgroundColor: '#fffbe6',
+                    }}
+                  >
+                    {b.icon ? (
+                      <img src={b.icon} alt={b.badgeName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ fontSize: 32 }}>🏅</span>
+                    )}
+                  </div>
+                  <div style={{ fontWeight: 'bold' }}>{b.badgeName}</div>
+                  {b.description && <div style={{ fontSize: 13, color: '#666' }}>{b.description}</div>}
+                </div>
+              ))}
+            </div>
+            <button onClick={closeNewBadgePopup}>รับทราบ</button>
+          </div>
+        </div>
+      )}
 
       {leaderboardChallengeId !== null && (
         <div

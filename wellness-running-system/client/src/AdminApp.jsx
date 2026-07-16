@@ -54,6 +54,28 @@ export default function AdminApp() {
   const [createChallengeSubmitting, setCreateChallengeSubmitting] = useState(false);
   const [createChallengeError, setCreateChallengeError] = useState('');
 
+  // ---- Phase 4: badge management ----
+  const BADGE_CONDITION_LABEL_TH = {
+    DISTANCE: 'ระยะทางสะสม (กม.)',
+    SUBMISSION_COUNT: 'จำนวนครั้งที่อนุมัติ',
+    SCORE: 'คะแนนสะสมที่เคยได้',
+    STREAK_DAYS: 'จำนวนวันติดกัน',
+  };
+  const emptyBadgeForm = { badgeName: '', description: '', icon: '', conditionType: 'DISTANCE', conditionValue: '' };
+
+  const [badges, setBadges] = useState([]);
+  const [badgeListLoading, setBadgeListLoading] = useState(false);
+  const [badgeListError, setBadgeListError] = useState('');
+
+  const [badgeForm, setBadgeForm] = useState(emptyBadgeForm);
+  const [badgeFormError, setBadgeFormError] = useState('');
+  const [badgeFormSubmitting, setBadgeFormSubmitting] = useState(false);
+
+  const [editingBadgeId, setEditingBadgeId] = useState(null);
+  const [editBadgeForm, setEditBadgeForm] = useState(emptyBadgeForm);
+  const [editBadgeError, setEditBadgeError] = useState('');
+  const [badgeActioningId, setBadgeActioningId] = useState(null);
+
   // เช็คว่ามี admin session ที่ยัง valid อยู่ไหมตอนโหลดหน้า กันต้อง login ใหม่ทุกครั้งที่ refresh
   useEffect(() => {
     async function checkAuth() {
@@ -342,6 +364,145 @@ export default function AdminApp() {
     CANCELLED: 'ยกเลิกแล้ว',
   };
 
+  async function loadBadges() {
+    setBadgeListLoading(true);
+    setBadgeListError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/badges`, { credentials: 'include' });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) {
+        throw new Error(data.message || 'โหลดรายการ badge ไม่สำเร็จ');
+      }
+      setBadges(data);
+    } catch (err) {
+      setBadgeListError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setBadgeListLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!isLoggedIn || activeTab !== 'badges') return;
+    loadBadges();
+  }, [isLoggedIn, activeTab]);
+
+  async function handleCreateBadge(e) {
+    e.preventDefault();
+    setBadgeFormError('');
+
+    if (!badgeForm.badgeName.trim() || !badgeForm.conditionValue) {
+      setBadgeFormError('กรุณากรอกชื่อ badge และค่าเงื่อนไข');
+      return;
+    }
+
+    setBadgeFormSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/badges`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          badgeName: badgeForm.badgeName.trim(),
+          description: badgeForm.description.trim(),
+          icon: badgeForm.icon.trim(),
+          conditionType: badgeForm.conditionType,
+          conditionValue: Number(badgeForm.conditionValue),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'สร้าง badge ไม่สำเร็จ');
+      }
+      setBadgeForm(emptyBadgeForm);
+      await loadBadges();
+    } catch (err) {
+      setBadgeFormError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setBadgeFormSubmitting(false);
+    }
+  }
+
+  function startEditBadge(badge) {
+    setEditingBadgeId(badge.badge_id);
+    setEditBadgeError('');
+    setEditBadgeForm({
+      badgeName: badge.badge_name,
+      description: badge.description || '',
+      icon: badge.icon || '',
+      conditionType: badge.condition_type,
+      conditionValue: String(badge.condition_value),
+      status: badge.status,
+    });
+  }
+
+  function cancelEditBadge() {
+    setEditingBadgeId(null);
+    setEditBadgeError('');
+  }
+
+  async function handleSaveBadge(badgeId) {
+    setEditBadgeError('');
+    if (!editBadgeForm.badgeName.trim() || !editBadgeForm.conditionValue) {
+      setEditBadgeError('กรุณากรอกชื่อ badge และค่าเงื่อนไข');
+      return;
+    }
+
+    setBadgeActioningId(badgeId);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/badges/${badgeId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          badgeName: editBadgeForm.badgeName.trim(),
+          description: editBadgeForm.description.trim(),
+          icon: editBadgeForm.icon.trim(),
+          conditionType: editBadgeForm.conditionType,
+          conditionValue: Number(editBadgeForm.conditionValue),
+          status: editBadgeForm.status,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'แก้ไข badge ไม่สำเร็จ');
+      }
+      setEditingBadgeId(null);
+      await loadBadges();
+    } catch (err) {
+      setEditBadgeError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setBadgeActioningId(null);
+    }
+  }
+
+  async function handleToggleBadgeStatus(badge) {
+    setBadgeActioningId(badge.badge_id);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/badges/${badge.badge_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          badgeName: badge.badge_name,
+          description: badge.description,
+          icon: badge.icon,
+          conditionType: badge.condition_type,
+          conditionValue: badge.condition_value,
+          status: badge.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'เปลี่ยนสถานะไม่สำเร็จ');
+      }
+      await loadBadges();
+    } catch (err) {
+      setBadgeListError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setBadgeActioningId(null);
+    }
+  }
+
   async function handleApprove(submissionId) {
     setActioningId(submissionId);
     setActionError('');
@@ -502,6 +663,12 @@ export default function AdminApp() {
           style={{ fontWeight: activeTab === 'challenges' ? 'bold' : 'normal' }}
         >
           Challenge
+        </button>
+        <button
+          onClick={() => setActiveTab('badges')}
+          style={{ fontWeight: activeTab === 'badges' ? 'bold' : 'normal' }}
+        >
+          Badge
         </button>
       </div>
 
@@ -916,6 +1083,236 @@ export default function AdminApp() {
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'badges' && (
+        <>
+          <div
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 6,
+              padding: 16,
+              marginBottom: 16,
+              maxWidth: 480,
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>สร้าง Badge ใหม่</h3>
+            <form onSubmit={handleCreateBadge}>
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="newBadgeName">ชื่อ Badge</label>
+                <br />
+                <input
+                  id="newBadgeName"
+                  type="text"
+                  value={badgeForm.badgeName}
+                  onChange={(e) => setBadgeForm((prev) => ({ ...prev, badgeName: e.target.value }))}
+                  placeholder="เช่น วิ่งติดกัน 3 วัน"
+                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="newBadgeDescription">คำอธิบาย (ถ้ามี)</label>
+                <br />
+                <textarea
+                  id="newBadgeDescription"
+                  value={badgeForm.description}
+                  onChange={(e) => setBadgeForm((prev) => ({ ...prev, description: e.target.value }))}
+                  rows={2}
+                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="newBadgeIcon">URL ไอคอน (ถ้ามี)</label>
+                <br />
+                <input
+                  id="newBadgeIcon"
+                  type="text"
+                  value={badgeForm.icon}
+                  onChange={(e) => setBadgeForm((prev) => ({ ...prev, icon: e.target.value }))}
+                  placeholder="https://..."
+                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="newBadgeConditionType">ประเภทเงื่อนไข</label>
+                  <br />
+                  <select
+                    id="newBadgeConditionType"
+                    value={badgeForm.conditionType}
+                    onChange={(e) => setBadgeForm((prev) => ({ ...prev, conditionType: e.target.value }))}
+                    style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  >
+                    {Object.entries(BADGE_CONDITION_LABEL_TH).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="newBadgeConditionValue">ค่าที่ต้องถึง</label>
+                  <br />
+                  <input
+                    id="newBadgeConditionValue"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={badgeForm.conditionValue}
+                    onChange={(e) => setBadgeForm((prev) => ({ ...prev, conditionValue: e.target.value }))}
+                    style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  />
+                </div>
+              </div>
+
+              {badgeFormError && <p style={{ color: 'red' }}>{badgeFormError}</p>}
+
+              <button type="submit" disabled={badgeFormSubmitting}>
+                {badgeFormSubmitting ? 'กำลังสร้าง...' : 'สร้าง Badge'}
+              </button>
+            </form>
+          </div>
+
+          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+            <h3 style={{ margin: 0 }}>รายการ Badge ทั้งหมด</h3>
+            <button onClick={loadBadges}>รีเฟรช</button>
+          </div>
+
+          {badgeListError && <p style={{ color: 'red' }}>{badgeListError}</p>}
+          {badgeListLoading && <p>กำลังโหลด...</p>}
+
+          {!badgeListLoading && badges.length === 0 && <p>ยังไม่มี badge</p>}
+
+          {!badgeListLoading && badges.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
+                    <th style={{ padding: 8 }}>#</th>
+                    <th style={{ padding: 8 }}>ชื่อ Badge</th>
+                    <th style={{ padding: 8 }}>เงื่อนไข</th>
+                    <th style={{ padding: 8 }}>สถานะ</th>
+                    <th style={{ padding: 8 }}>ได้รับแล้ว</th>
+                    <th style={{ padding: 8 }}>จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {badges.map((b) => {
+                    const isEditing = editingBadgeId === b.badge_id;
+                    const isActioning = badgeActioningId === b.badge_id;
+
+                    if (isEditing) {
+                      return (
+                        <tr key={b.badge_id} style={{ borderBottom: '1px solid #eee' }}>
+                          <td style={{ padding: 8 }}>{b.badge_id}</td>
+                          <td style={{ padding: 8 }}>
+                            <input
+                              type="text"
+                              value={editBadgeForm.badgeName}
+                              onChange={(e) =>
+                                setEditBadgeForm((prev) => ({ ...prev, badgeName: e.target.value }))
+                              }
+                              style={{ padding: 6, width: '100%', marginBottom: 6 }}
+                            />
+                            <textarea
+                              value={editBadgeForm.description}
+                              onChange={(e) =>
+                                setEditBadgeForm((prev) => ({ ...prev, description: e.target.value }))
+                              }
+                              rows={2}
+                              style={{ padding: 6, width: '100%' }}
+                              placeholder="คำอธิบาย"
+                            />
+                          </td>
+                          <td style={{ padding: 8 }}>
+                            <select
+                              value={editBadgeForm.conditionType}
+                              onChange={(e) =>
+                                setEditBadgeForm((prev) => ({ ...prev, conditionType: e.target.value }))
+                              }
+                              style={{ padding: 6, width: '100%', marginBottom: 6 }}
+                            >
+                              {Object.entries(BADGE_CONDITION_LABEL_TH).map(([value, label]) => (
+                                <option key={value} value={value}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={editBadgeForm.conditionValue}
+                              onChange={(e) =>
+                                setEditBadgeForm((prev) => ({ ...prev, conditionValue: e.target.value }))
+                              }
+                              style={{ padding: 6, width: '100%' }}
+                            />
+                          </td>
+                          <td style={{ padding: 8 }}>
+                            <select
+                              value={editBadgeForm.status}
+                              onChange={(e) =>
+                                setEditBadgeForm((prev) => ({ ...prev, status: e.target.value }))
+                              }
+                              style={{ padding: 6 }}
+                            >
+                              <option value="ACTIVE">ACTIVE</option>
+                              <option value="INACTIVE">INACTIVE</option>
+                            </select>
+                          </td>
+                          <td style={{ padding: 8 }}>{b.earned_count} คน</td>
+                          <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                            {editBadgeError && (
+                              <p style={{ color: 'red', margin: '0 0 6px' }}>{editBadgeError}</p>
+                            )}
+                            <button onClick={() => handleSaveBadge(b.badge_id)} disabled={isActioning}>
+                              {isActioning ? '...' : 'บันทึก'}
+                            </button>{' '}
+                            <button onClick={cancelEditBadge} disabled={isActioning}>
+                              ยกเลิก
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return (
+                      <tr key={b.badge_id} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: 8 }}>{b.badge_id}</td>
+                        <td style={{ padding: 8 }}>
+                          {b.badge_name}
+                          {b.description && (
+                            <>
+                              <br />
+                              <small style={{ color: '#888' }}>{b.description}</small>
+                            </>
+                          )}
+                        </td>
+                        <td style={{ padding: 8 }}>
+                          {BADGE_CONDITION_LABEL_TH[b.condition_type] || b.condition_type} ≥ {b.condition_value}
+                        </td>
+                        <td style={{ padding: 8 }}>{b.status}</td>
+                        <td style={{ padding: 8 }}>{b.earned_count} คน</td>
+                        <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                          <button onClick={() => startEditBadge(b)} disabled={isActioning}>
+                            แก้ไข
+                          </button>{' '}
+                          <button onClick={() => handleToggleBadgeStatus(b)} disabled={isActioning}>
+                            {isActioning ? '...' : b.status === 'ACTIVE' ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -405,6 +405,39 @@ app.post('/api/redeem/:id/cancel', requireAuth, async (req, res) => {
   }
 });
 
+// ---- Phase 4: badge (employee view) ----
+// แสดง badge ทั้งหมดที่พนักงานคนนี้ "มองเห็นได้" คือ badge ที่ ACTIVE อยู่ (ยังไม่ได้ก็โชว์แบบล็อกไว้)
+// รวมกับ badge ที่เคยได้ไปแล้วทุกใบแม้แอดมินจะปิด (INACTIVE) ไปทีหลัง เพราะที่ได้แล้วต้องไม่หายไปจากหน้าคอลเลกชัน
+app.get('/api/my-badges', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT b.badge_id, b.badge_name, b.description, b.icon, b.condition_type, b.condition_value,
+              eb.received_at
+       FROM badge b
+       LEFT JOIN employee_badge eb ON eb.badge_id = b.badge_id AND eb.employee_id = ?
+       WHERE b.status = 'ACTIVE' OR eb.employee_badge_id IS NOT NULL
+       ORDER BY (eb.received_at IS NULL), eb.received_at DESC, b.badge_id ASC`,
+      [req.employeeId]
+    );
+
+    res.json(
+      rows.map((r) => ({
+        badgeId: r.badge_id,
+        badgeName: r.badge_name,
+        description: r.description,
+        icon: r.icon,
+        conditionType: r.condition_type,
+        conditionValue: r.condition_value,
+        earned: r.received_at !== null,
+        receivedAt: r.received_at,
+      }))
+    );
+  } catch (err) {
+    console.error('get my badges error:', err);
+    res.status(500).json({ message: 'โหลดรายการ badge ไม่สำเร็จ' });
+  }
+});
+
 // ---- admin auth (Phase 1 Part C) ----
 // แยก session/cookie คนละชุดจากฝั่งพนักงาน (LINE) เพราะ use case ต่างกัน (แอดมินรีวิวบนคอมพิวเตอร์)
 // แต่สิทธิ์แอดมินยังผูกกับ employee_id จริงเสมอ ผ่าน employee.role + ตาราง admin_credential
@@ -548,6 +581,94 @@ app.get('/api/admin/submissions', requireAdmin, async (req, res) => {
   }
 });
 
+// ---- Phase 4: badge automation ----
+// เช็คเงื่อนไข badge ที่ยัง ACTIVE และพนักงานคนนี้ยังไม่เคยได้ แล้วแจกให้อัตโนมัติถ้าเงื่อนไขผ่าน
+// เรียกในทรานแซกชันเดียวกับตอน approve submission เพื่อให้ atomic กับคะแนน/ระยะทาง/จำนวนครั้งที่เพิ่งนับเข้าไป
+// คืนค่าเป็น array ของ badge ที่เพิ่งได้รับใหม่รอบนี้เท่านั้น (badge เก่าที่เคยได้แล้วไม่ส่งกลับซ้ำ)
+async function checkAndAwardBadges(connection, employeeId) {
+  const [badges] = await connection.query(
+    `SELECT b.badge_id, b.badge_name, b.description, b.icon, b.condition_type, b.condition_value
+     FROM badge b
+     WHERE b.status = 'ACTIVE'
+       AND NOT EXISTS (
+         SELECT 1 FROM employee_badge eb
+         WHERE eb.badge_id = b.badge_id AND eb.employee_id = ?
+       )`,
+    [employeeId]
+  );
+
+  if (badges.length === 0) return [];
+
+  // ข้อมูลสะสมของพนักงาน ใช้ร่วมกันได้ทุก badge ประเภท DISTANCE / SUBMISSION_COUNT / SCORE
+  const [[cumRow]] = await connection.query(
+    `SELECT COALESCE(SUM(distance), 0) AS total_distance, COUNT(*) AS total_submissions
+     FROM running_submission WHERE employee_id = ? AND status = 'APPROVED'`,
+    [employeeId]
+  );
+  const [[scoreRow]] = await connection.query(
+    `SELECT COALESCE(SUM(score), 0) AS total_score
+     FROM score_transaction WHERE employee_id = ? AND transaction_type = 'EARN'`,
+    [employeeId]
+  );
+
+  const totalDistance = Number(cumRow.total_distance);
+  const totalSubmissions = Number(cumRow.total_submissions);
+  const totalScore = Number(scoreRow.total_score);
+
+  // STREAK_DAYS: หาช่วงวันติดกันที่ยาวที่สุดเท่าที่เคยทำได้ (นับวันที่มี submission APPROVED อย่างน้อย 1 ครั้ง/วัน)
+  let longestStreak = 0;
+  const needsStreak = badges.some((b) => b.condition_type === 'STREAK_DAYS');
+  if (needsStreak) {
+    const [dateRows] = await connection.query(
+      `SELECT DISTINCT DATE(submitted_at) AS d
+       FROM running_submission WHERE employee_id = ? AND status = 'APPROVED'
+       ORDER BY d ASC`,
+      [employeeId]
+    );
+
+    let current = 0;
+    let prevTime = null;
+    for (const row of dateRows) {
+      const dayTime = new Date(row.d).getTime();
+      current = prevTime !== null && dayTime - prevTime === 24 * 60 * 60 * 1000 ? current + 1 : 1;
+      longestStreak = Math.max(longestStreak, current);
+      prevTime = dayTime;
+    }
+  }
+
+  const conditionCheckers = {
+    DISTANCE: () => totalDistance,
+    SUBMISSION_COUNT: () => totalSubmissions,
+    SCORE: () => totalScore,
+    STREAK_DAYS: () => longestStreak,
+  };
+
+  const newlyAwarded = [];
+
+  for (const badge of badges) {
+    const getValue = conditionCheckers[badge.condition_type];
+    const achieved = getValue ? getValue() >= badge.condition_value : false;
+
+    if (achieved) {
+      // INSERT IGNORE กัน race condition ซ้ำ (uq_employee_badge)
+      const [result] = await connection.query(
+        `INSERT IGNORE INTO employee_badge (employee_id, badge_id) VALUES (?, ?)`,
+        [employeeId, badge.badge_id]
+      );
+      if (result.affectedRows > 0) {
+        newlyAwarded.push({
+          badgeId: badge.badge_id,
+          badgeName: badge.badge_name,
+          description: badge.description,
+          icon: badge.icon,
+        });
+      }
+    }
+  }
+
+  return newlyAwarded;
+}
+
 // อนุมัติ submission -> อัปเดตสถานะ + insert score_transaction (EARN) ในทรานแซกชันเดียวกัน
 // ใช้ FOR UPDATE ล็อกแถวกันแอดมิน 2 คนกด approve รายการเดียวกันพร้อมกันจนคะแนนซ้ำ
 app.post('/api/admin/submissions/:id/approve', requireAdmin, async (req, res) => {
@@ -633,8 +754,16 @@ app.post('/api/admin/submissions/:id/approve', requireAdmin, async (req, res) =>
       }
     }
 
+    // Phase 4: เช็คแล้วแจก badge อัตโนมัติถ้าคะแนน/ระยะทาง/จำนวนครั้ง/streak ที่เพิ่งอัปเดตทำให้ผ่านเงื่อนไขแล้ว
+    const newBadges = await checkAndAwardBadges(connection, submission.employee_id);
+
     await connection.commit();
-    res.json({ submissionId: Number(submissionId), status: 'APPROVED', scoreAwarded: submission.score });
+    res.json({
+      submissionId: Number(submissionId),
+      status: 'APPROVED',
+      scoreAwarded: submission.score,
+      newBadges,
+    });
   } catch (err) {
     await connection.rollback();
     console.error('approve submission error:', err);
@@ -1094,6 +1223,92 @@ app.post('/api/admin/challenges/:id/cancel', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('cancel challenge error:', err);
     res.status(500).json({ message: 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
+});
+
+// ---- Phase 4: badge (admin CRUD) ----
+const BADGE_CONDITION_TYPES = ['DISTANCE', 'SUBMISSION_COUNT', 'SCORE', 'STREAK_DAYS'];
+
+// รายการ badge ทั้งหมดทุกสถานะ พร้อมจำนวนคนที่เคยได้ (ไว้เตือนแอดมินก่อนจะปิด/แก้เงื่อนไข)
+app.get('/api/admin/badges', requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT b.badge_id, b.badge_name, b.description, b.icon, b.condition_type, b.condition_value, b.status,
+              COUNT(eb.employee_badge_id) AS earned_count
+       FROM badge b
+       LEFT JOIN employee_badge eb ON eb.badge_id = b.badge_id
+       GROUP BY b.badge_id
+       ORDER BY b.badge_id ASC`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('get admin badges error:', err);
+    res.status(500).json({ message: 'โหลดรายการ badge ไม่สำเร็จ' });
+  }
+});
+
+function validateBadgeInput(body) {
+  const { badgeName, conditionType, conditionValue } = body;
+  if (!badgeName || !String(badgeName).trim()) {
+    return 'กรุณากรอกชื่อ badge';
+  }
+  if (!BADGE_CONDITION_TYPES.includes(conditionType)) {
+    return `ประเภทเงื่อนไขต้องเป็นหนึ่งใน ${BADGE_CONDITION_TYPES.join(', ')}`;
+  }
+  if (!Number.isFinite(Number(conditionValue)) || Number(conditionValue) <= 0) {
+    return 'ค่าเงื่อนไขต้องเป็นตัวเลขมากกว่า 0';
+  }
+  return null;
+}
+
+// สร้าง badge ใหม่
+app.post('/api/admin/badges', requireAdmin, async (req, res) => {
+  const { badgeName, description, icon, conditionType, conditionValue } = req.body;
+  const validationError = validateBadgeInput(req.body);
+  if (validationError) {
+    return res.status(400).json({ message: validationError });
+  }
+
+  try {
+    const [result] = await pool.query(
+      `INSERT INTO badge (badge_name, description, icon, condition_type, condition_value)
+       VALUES (?, ?, ?, ?, ?)`,
+      [badgeName.trim(), description || null, icon || null, conditionType, conditionValue]
+    );
+    res.status(201).json({ badgeId: result.insertId });
+  } catch (err) {
+    console.error('create badge error:', err);
+    res.status(500).json({ message: 'สร้าง badge ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
+});
+
+// แก้ไข badge ที่มีอยู่ (ชื่อ/คำอธิบาย/ไอคอน/เงื่อนไข/สถานะ ACTIVE-INACTIVE)
+// หมายเหตุ: แก้ condition_type/condition_value ของ badge ที่มีคนได้ไปแล้วจะไม่กระทบคนที่ได้ไปแล้ว (employee_badge ไม่ผูกค่า ณ ตอนนั้นไว้)
+app.put('/api/admin/badges/:id', requireAdmin, async (req, res) => {
+  const badgeId = req.params.id;
+  const { badgeName, description, icon, conditionType, conditionValue, status } = req.body;
+  const validationError = validateBadgeInput(req.body);
+  if (validationError) {
+    return res.status(400).json({ message: validationError });
+  }
+  if (!['ACTIVE', 'INACTIVE'].includes(status)) {
+    return res.status(400).json({ message: 'สถานะต้องเป็น ACTIVE หรือ INACTIVE' });
+  }
+
+  try {
+    const [result] = await pool.query(
+      `UPDATE badge
+       SET badge_name = ?, description = ?, icon = ?, condition_type = ?, condition_value = ?, status = ?
+       WHERE badge_id = ?`,
+      [badgeName.trim(), description || null, icon || null, conditionType, conditionValue, status, badgeId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'ไม่พบ badge นี้' });
+    }
+    res.json({ badgeId: Number(badgeId), status });
+  } catch (err) {
+    console.error('update badge error:', err);
+    res.status(500).json({ message: 'แก้ไข badge ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
   }
 });
 
