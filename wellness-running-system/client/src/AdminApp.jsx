@@ -1146,7 +1146,7 @@ export default function AdminApp() {
               </div>
 
               <div style={{ marginBottom: 12 }}>
-                <label htmlFor="newBadgeIcon">รูปไอคอน (ถ้ามี — อัปโหลดรูปที่วาด/ดีไซน์เอง JPG/PNG/WEBP ไม่เกิน 2MB)</label>
+                <label htmlFor="newBadgeIcon">รูปไอคอน (ถ้ามี — อัปโหลดรูปBadge JPG/PNG/WEBP ไม่เกิน 2MB)</label>
                 <br />
                 <input
                   id="newBadgeIcon"
