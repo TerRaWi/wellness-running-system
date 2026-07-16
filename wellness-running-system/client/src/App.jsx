@@ -512,7 +512,7 @@ export default function App() {
                   }}
                 >
                   {b.icon ? (
-                    <img src={b.icon} alt={b.badgeName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={`${API_BASE}/${b.icon}`} alt={b.badgeName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
                     <span style={{ fontSize: 24 }}>🏅</span>
                   )}
@@ -855,7 +855,7 @@ export default function App() {
                     }}
                   >
                     {b.icon ? (
-                      <img src={b.icon} alt={b.badgeName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img src={`${API_BASE}/${b.icon}`} alt={b.badgeName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
                       <span style={{ fontSize: 32 }}>🏅</span>
                     )}

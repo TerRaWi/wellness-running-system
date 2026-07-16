@@ -61,18 +61,21 @@ export default function AdminApp() {
     SCORE: 'คะแนนสะสมที่เคยได้',
     STREAK_DAYS: 'จำนวนวันติดกัน',
   };
-  const emptyBadgeForm = { badgeName: '', description: '', icon: '', conditionType: 'DISTANCE', conditionValue: '' };
+  const emptyBadgeForm = { badgeName: '', description: '', conditionType: 'DISTANCE', conditionValue: '' };
 
   const [badges, setBadges] = useState([]);
   const [badgeListLoading, setBadgeListLoading] = useState(false);
   const [badgeListError, setBadgeListError] = useState('');
 
   const [badgeForm, setBadgeForm] = useState(emptyBadgeForm);
+  const [badgeIconFile, setBadgeIconFile] = useState(null);
   const [badgeFormError, setBadgeFormError] = useState('');
   const [badgeFormSubmitting, setBadgeFormSubmitting] = useState(false);
 
   const [editingBadgeId, setEditingBadgeId] = useState(null);
   const [editBadgeForm, setEditBadgeForm] = useState(emptyBadgeForm);
+  const [editBadgeIconFile, setEditBadgeIconFile] = useState(null);
+  const [editRemoveIcon, setEditRemoveIcon] = useState(false);
   const [editBadgeError, setEditBadgeError] = useState('');
   const [badgeActioningId, setBadgeActioningId] = useState(null);
 
@@ -397,23 +400,27 @@ export default function AdminApp() {
 
     setBadgeFormSubmitting(true);
     try {
+      const formData = new FormData();
+      formData.append('badgeName', badgeForm.badgeName.trim());
+      formData.append('description', badgeForm.description.trim());
+      formData.append('conditionType', badgeForm.conditionType);
+      formData.append('conditionValue', badgeForm.conditionValue);
+      if (badgeIconFile) {
+        formData.append('iconFile', badgeIconFile);
+      }
+
+      // ห้ามใส่ header Content-Type เอง ปล่อยให้ browser ตั้ง boundary ของ multipart ให้อัตโนมัติ
       const res = await fetch(`${API_BASE}/api/admin/badges`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          badgeName: badgeForm.badgeName.trim(),
-          description: badgeForm.description.trim(),
-          icon: badgeForm.icon.trim(),
-          conditionType: badgeForm.conditionType,
-          conditionValue: Number(badgeForm.conditionValue),
-        }),
+        body: formData,
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'สร้าง badge ไม่สำเร็จ');
       }
       setBadgeForm(emptyBadgeForm);
+      setBadgeIconFile(null);
       await loadBadges();
     } catch (err) {
       setBadgeFormError(err.message || 'เกิดข้อผิดพลาด');
@@ -425,10 +432,12 @@ export default function AdminApp() {
   function startEditBadge(badge) {
     setEditingBadgeId(badge.badge_id);
     setEditBadgeError('');
+    setEditBadgeIconFile(null);
+    setEditRemoveIcon(false);
     setEditBadgeForm({
       badgeName: badge.badge_name,
       description: badge.description || '',
-      icon: badge.icon || '',
+      icon: badge.icon || '', // เก็บไว้แค่โชว์รูปปัจจุบัน ไม่ได้ส่งกลับเป็น text field
       conditionType: badge.condition_type,
       conditionValue: String(badge.condition_value),
       status: badge.status,
@@ -438,6 +447,8 @@ export default function AdminApp() {
   function cancelEditBadge() {
     setEditingBadgeId(null);
     setEditBadgeError('');
+    setEditBadgeIconFile(null);
+    setEditRemoveIcon(false);
   }
 
   async function handleSaveBadge(badgeId) {
@@ -449,24 +460,31 @@ export default function AdminApp() {
 
     setBadgeActioningId(badgeId);
     try {
+      const formData = new FormData();
+      formData.append('badgeName', editBadgeForm.badgeName.trim());
+      formData.append('description', editBadgeForm.description.trim());
+      formData.append('conditionType', editBadgeForm.conditionType);
+      formData.append('conditionValue', editBadgeForm.conditionValue);
+      formData.append('status', editBadgeForm.status);
+      if (editBadgeIconFile) {
+        formData.append('iconFile', editBadgeIconFile); // แนบไฟล์ใหม่ -> เซิร์ฟเวอร์แทนที่รูปเดิมให้อัตโนมัติ
+      } else if (editRemoveIcon) {
+        formData.append('removeIcon', 'true'); // ไม่แนบไฟล์ใหม่ แต่ติ๊กลบรูป -> เซิร์ฟเวอร์ล้าง icon เป็น NULL
+      }
+      // ไม่แนบทั้งไฟล์ใหม่และ removeIcon -> เซิร์ฟเวอร์คงรูปเดิมไว้ตามปกติ
+
       const res = await fetch(`${API_BASE}/api/admin/badges/${badgeId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          badgeName: editBadgeForm.badgeName.trim(),
-          description: editBadgeForm.description.trim(),
-          icon: editBadgeForm.icon.trim(),
-          conditionType: editBadgeForm.conditionType,
-          conditionValue: Number(editBadgeForm.conditionValue),
-          status: editBadgeForm.status,
-        }),
+        body: formData,
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'แก้ไข badge ไม่สำเร็จ');
       }
       setEditingBadgeId(null);
+      setEditBadgeIconFile(null);
+      setEditRemoveIcon(false);
       await loadBadges();
     } catch (err) {
       setEditBadgeError(err.message || 'เกิดข้อผิดพลาด');
@@ -485,7 +503,6 @@ export default function AdminApp() {
         body: JSON.stringify({
           badgeName: badge.badge_name,
           description: badge.description,
-          icon: badge.icon,
           conditionType: badge.condition_type,
           conditionValue: badge.condition_value,
           status: badge.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE',
@@ -1129,15 +1146,13 @@ export default function AdminApp() {
               </div>
 
               <div style={{ marginBottom: 12 }}>
-                <label htmlFor="newBadgeIcon">URL ไอคอน (ถ้ามี)</label>
+                <label htmlFor="newBadgeIcon">รูปไอคอน (ถ้ามี — อัปโหลดรูปที่วาด/ดีไซน์เอง JPG/PNG/WEBP ไม่เกิน 2MB)</label>
                 <br />
                 <input
                   id="newBadgeIcon"
-                  type="text"
-                  value={badgeForm.icon}
-                  onChange={(e) => setBadgeForm((prev) => ({ ...prev, icon: e.target.value }))}
-                  placeholder="https://..."
-                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => setBadgeIconFile(e.target.files?.[0] || null)}
                 />
               </div>
 
@@ -1197,6 +1212,7 @@ export default function AdminApp() {
                 <thead>
                   <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
                     <th style={{ padding: 8 }}>#</th>
+                    <th style={{ padding: 8 }}>ไอคอน</th>
                     <th style={{ padding: 8 }}>ชื่อ Badge</th>
                     <th style={{ padding: 8 }}>เงื่อนไข</th>
                     <th style={{ padding: 8 }}>สถานะ</th>
@@ -1213,6 +1229,44 @@ export default function AdminApp() {
                       return (
                         <tr key={b.badge_id} style={{ borderBottom: '1px solid #eee' }}>
                           <td style={{ padding: 8 }}>{b.badge_id}</td>
+                          <td style={{ padding: 8 }}>
+                            {editBadgeForm.icon && !editRemoveIcon && (
+                              <img
+                                src={`${API_BASE}/${editBadgeForm.icon}`}
+                                alt=""
+                                style={{
+                                  width: 40,
+                                  height: 40,
+                                  borderRadius: '50%',
+                                  objectFit: 'cover',
+                                  display: 'block',
+                                  marginBottom: 6,
+                                }}
+                              />
+                            )}
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={(e) => {
+                                setEditBadgeIconFile(e.target.files?.[0] || null);
+                                setEditRemoveIcon(false);
+                              }}
+                              style={{ fontSize: 12, width: 110 }}
+                            />
+                            {editBadgeForm.icon && (
+                              <label style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={editRemoveIcon}
+                                  onChange={(e) => {
+                                    setEditRemoveIcon(e.target.checked);
+                                    if (e.target.checked) setEditBadgeIconFile(null);
+                                  }}
+                                />{' '}
+                                ลบรูป
+                              </label>
+                            )}
+                          </td>
                           <td style={{ padding: 8 }}>
                             <input
                               type="text"
@@ -1288,6 +1342,17 @@ export default function AdminApp() {
                     return (
                       <tr key={b.badge_id} style={{ borderBottom: '1px solid #eee' }}>
                         <td style={{ padding: 8 }}>{b.badge_id}</td>
+                        <td style={{ padding: 8 }}>
+                          {b.icon ? (
+                            <img
+                              src={`${API_BASE}/${b.icon}`}
+                              alt=""
+                              style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <span style={{ fontSize: 24 }}>🏅</span>
+                          )}
+                        </td>
                         <td style={{ padding: 8 }}>
                           {b.badge_name}
                           {b.description && (

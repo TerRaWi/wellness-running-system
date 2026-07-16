@@ -52,6 +52,43 @@ const uploadProof = multer({
   },
 });
 
+// ---- Phase 4: badge icon upload (แอดมินอัปโหลดรูปไอคอนที่วาด/ดีไซน์เองได้ ไม่ต้องมี URL ภายนอก) ----
+const BADGE_ICON_ROOT = path.join(__dirname, 'uploads', 'badges');
+if (!fs.existsSync(BADGE_ICON_ROOT)) {
+  fs.mkdirSync(BADGE_ICON_ROOT, { recursive: true });
+}
+
+const badgeIconStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, BADGE_ICON_ROOT),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.png';
+    cb(null, `badge_${Date.now()}${ext}`);
+  },
+});
+
+const uploadBadgeIcon = multer({
+  storage: badgeIconStorage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB พอสำหรับไอคอน ไม่ควรใหญ่กว่านี้
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.mimetype)) {
+      return cb(new Error('รองรับเฉพาะไฟล์รูปภาพ JPG, PNG, WEBP เท่านั้น'));
+    }
+    cb(null, true);
+  },
+});
+
+// ครอบ multer เพื่อโยน error ที่อ่านง่ายกลับไป (ไฟล์ใหญ่เกิน/ชนิดไฟล์ผิด) เหมือน handleProofUpload
+function handleBadgeIconUpload(req, res, next) {
+  uploadBadgeIcon.single('iconFile')(req, res, (err) => {
+    if (!err) return next();
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ message: 'ไฟล์รูปใหญ่เกินไป (สูงสุด 2MB)' });
+    }
+    return res.status(400).json({ message: err.message || 'อัปโหลดไฟล์ไม่สำเร็จ' });
+  });
+}
+
 app.get('/api/health', async (req, res) => {
   const [rows] = await pool.query('SELECT COUNT(*) AS total FROM employee');
   res.json({ status: 'ok', employeeCount: rows[0].total });
@@ -1261,52 +1298,86 @@ function validateBadgeInput(body) {
   return null;
 }
 
-// สร้าง badge ใหม่
-app.post('/api/admin/badges', requireAdmin, async (req, res) => {
-  const { badgeName, description, icon, conditionType, conditionValue } = req.body;
+// สร้าง badge ใหม่ — รับไฟล์ไอคอนที่แอดมินวาด/ดีไซน์เองผ่าน field 'iconFile' (multipart/form-data)
+app.post('/api/admin/badges', requireAdmin, handleBadgeIconUpload, async (req, res) => {
+  const cleanupUploadedFile = () => {
+    if (req.file) fs.unlink(req.file.path, () => {});
+  };
+
+  const { badgeName, description, conditionType, conditionValue } = req.body;
   const validationError = validateBadgeInput(req.body);
   if (validationError) {
+    cleanupUploadedFile();
     return res.status(400).json({ message: validationError });
   }
+
+  const iconPath = req.file ? path.posix.join('uploads', 'badges', req.file.filename) : null;
 
   try {
     const [result] = await pool.query(
       `INSERT INTO badge (badge_name, description, icon, condition_type, condition_value)
        VALUES (?, ?, ?, ?, ?)`,
-      [badgeName.trim(), description || null, icon || null, conditionType, conditionValue]
+      [badgeName.trim(), description || null, iconPath, conditionType, conditionValue]
     );
-    res.status(201).json({ badgeId: result.insertId });
+    res.status(201).json({ badgeId: result.insertId, icon: iconPath });
   } catch (err) {
+    cleanupUploadedFile();
     console.error('create badge error:', err);
     res.status(500).json({ message: 'สร้าง badge ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
   }
 });
 
 // แก้ไข badge ที่มีอยู่ (ชื่อ/คำอธิบาย/ไอคอน/เงื่อนไข/สถานะ ACTIVE-INACTIVE)
+// เปลี่ยนไอคอนได้ทีหลังเสมอ: ส่งไฟล์ใหม่มาใน 'iconFile' เพื่อแทนที่รูปเดิม หรือส่ง removeIcon=true เพื่อลบรูปออก (ไม่ส่งอะไรเลย = รูปเดิมยังอยู่)
 // หมายเหตุ: แก้ condition_type/condition_value ของ badge ที่มีคนได้ไปแล้วจะไม่กระทบคนที่ได้ไปแล้ว (employee_badge ไม่ผูกค่า ณ ตอนนั้นไว้)
-app.put('/api/admin/badges/:id', requireAdmin, async (req, res) => {
+app.put('/api/admin/badges/:id', requireAdmin, handleBadgeIconUpload, async (req, res) => {
   const badgeId = req.params.id;
-  const { badgeName, description, icon, conditionType, conditionValue, status } = req.body;
+  const cleanupUploadedFile = () => {
+    if (req.file) fs.unlink(req.file.path, () => {});
+  };
+
+  const { badgeName, description, conditionType, conditionValue, status, removeIcon } = req.body;
   const validationError = validateBadgeInput(req.body);
   if (validationError) {
+    cleanupUploadedFile();
     return res.status(400).json({ message: validationError });
   }
   if (!['ACTIVE', 'INACTIVE'].includes(status)) {
+    cleanupUploadedFile();
     return res.status(400).json({ message: 'สถานะต้องเป็น ACTIVE หรือ INACTIVE' });
   }
 
   try {
-    const [result] = await pool.query(
+    const [existingRows] = await pool.query('SELECT icon FROM badge WHERE badge_id = ?', [badgeId]);
+    if (existingRows.length === 0) {
+      cleanupUploadedFile();
+      return res.status(404).json({ message: 'ไม่พบ badge นี้' });
+    }
+    const oldIcon = existingRows[0].icon;
+
+    // ลำดับความสำคัญ: มีไฟล์ใหม่ > สั่งลบ (removeIcon) > คงรูปเดิมไว้
+    let newIcon = oldIcon;
+    if (req.file) {
+      newIcon = path.posix.join('uploads', 'badges', req.file.filename);
+    } else if (removeIcon === 'true' || removeIcon === true) {
+      newIcon = null;
+    }
+
+    await pool.query(
       `UPDATE badge
        SET badge_name = ?, description = ?, icon = ?, condition_type = ?, condition_value = ?, status = ?
        WHERE badge_id = ?`,
-      [badgeName.trim(), description || null, icon || null, conditionType, conditionValue, status, badgeId]
+      [badgeName.trim(), description || null, newIcon, conditionType, conditionValue, status, badgeId]
     );
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'ไม่พบ badge นี้' });
+
+    // ลบไฟล์ไอคอนเก่าทิ้งถ้าถูกแทนที่/ลบไป และเป็นไฟล์ที่อัปโหลดไว้เอง (ไม่แตะถ้าเป็น URL ภายนอก) กันไฟล์ขยะสะสมบน disk
+    if (oldIcon && oldIcon !== newIcon && oldIcon.startsWith('uploads/badges/')) {
+      fs.unlink(path.join(__dirname, oldIcon), () => {});
     }
-    res.json({ badgeId: Number(badgeId), status });
+
+    res.json({ badgeId: Number(badgeId), status, icon: newIcon });
   } catch (err) {
+    cleanupUploadedFile();
     console.error('update badge error:', err);
     res.status(500).json({ message: 'แก้ไข badge ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
   }
