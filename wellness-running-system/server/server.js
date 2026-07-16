@@ -89,6 +89,42 @@ function handleBadgeIconUpload(req, res, next) {
   });
 }
 
+// ---- Phase 5: reward image upload (แอดมินอัปโหลดรูปของรางวัล) ----
+const REWARD_IMAGE_ROOT = path.join(__dirname, 'uploads', 'rewards');
+if (!fs.existsSync(REWARD_IMAGE_ROOT)) {
+  fs.mkdirSync(REWARD_IMAGE_ROOT, { recursive: true });
+}
+
+const rewardImageStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, REWARD_IMAGE_ROOT),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, `reward_${Date.now()}${ext}`);
+  },
+});
+
+const uploadRewardImage = multer({
+  storage: rewardImageStorage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.mimetype)) {
+      return cb(new Error('รองรับเฉพาะไฟล์รูปภาพ JPG, PNG, WEBP เท่านั้น'));
+    }
+    cb(null, true);
+  },
+});
+
+function handleRewardImageUpload(req, res, next) {
+  uploadRewardImage.single('imageFile')(req, res, (err) => {
+    if (!err) return next();
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ message: 'ไฟล์รูปใหญ่เกินไป (สูงสุด 2MB)' });
+    }
+    return res.status(400).json({ message: err.message || 'อัปโหลดไฟล์ไม่สำเร็จ' });
+  });
+}
+
 app.get('/api/health', async (req, res) => {
   const [rows] = await pool.query('SELECT COUNT(*) AS total FROM employee');
   res.json({ status: 'ok', employeeCount: rows[0].total });
@@ -1380,6 +1416,311 @@ app.put('/api/admin/badges/:id', requireAdmin, handleBadgeIconUpload, async (req
     cleanupUploadedFile();
     console.error('update badge error:', err);
     res.status(500).json({ message: 'แก้ไข badge ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
+});
+
+// ---- Phase 5: activity-category (admin CRUD) ----
+
+// รายการหมวดหมู่กิจกรรมทั้งหมดทุกสถานะ พร้อมจำนวนประเภทกิจกรรมย่อยที่ผูกอยู่ (เตือนแอดมินก่อนปิดใช้งาน)
+app.get('/api/admin/categories', requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT ac.category_id, ac.category_name, ac.status,
+              COUNT(at.activity_id) AS activity_type_count
+       FROM activity_category ac
+       LEFT JOIN activity_type at ON at.category_id = ac.category_id
+       GROUP BY ac.category_id
+       ORDER BY ac.category_id ASC`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('get admin categories error:', err);
+    res.status(500).json({ message: 'โหลดรายการหมวดหมู่กิจกรรมไม่สำเร็จ' });
+  }
+});
+
+function validateCategoryInput(body) {
+  const { categoryName } = body;
+  if (!categoryName || !String(categoryName).trim()) {
+    return 'กรุณากรอกชื่อหมวดหมู่';
+  }
+  return null;
+}
+
+// สร้างหมวดหมู่กิจกรรมใหม่ (ค่าเริ่มต้น status = ACTIVE ตาม schema)
+app.post('/api/admin/categories', requireAdmin, async (req, res) => {
+  const validationError = validateCategoryInput(req.body);
+  if (validationError) {
+    return res.status(400).json({ message: validationError });
+  }
+  const { categoryName } = req.body;
+
+  try {
+    const [result] = await pool.query(`INSERT INTO activity_category (category_name) VALUES (?)`, [
+      categoryName.trim(),
+    ]);
+    res.status(201).json({ categoryId: result.insertId });
+  } catch (err) {
+    console.error('create category error:', err);
+    res.status(500).json({ message: 'สร้างหมวดหมู่ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
+});
+
+// แก้ไขหมวดหมู่ (ชื่อ/สถานะ) — ไม่มีปุ่มลบเพราะมีประเภทกิจกรรมย่อย/challenge ผูกอยู่ ใช้ INACTIVE แทนเสมอ
+app.put('/api/admin/categories/:id', requireAdmin, async (req, res) => {
+  const categoryId = req.params.id;
+  const validationError = validateCategoryInput(req.body);
+  if (validationError) {
+    return res.status(400).json({ message: validationError });
+  }
+  const { categoryName, status } = req.body;
+  if (!['ACTIVE', 'INACTIVE'].includes(status)) {
+    return res.status(400).json({ message: 'สถานะต้องเป็น ACTIVE หรือ INACTIVE' });
+  }
+
+  try {
+    const [result] = await pool.query(
+      `UPDATE activity_category SET category_name = ?, status = ? WHERE category_id = ?`,
+      [categoryName.trim(), status, categoryId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'ไม่พบหมวดหมู่นี้' });
+    }
+    res.json({ categoryId: Number(categoryId), status });
+  } catch (err) {
+    console.error('update category error:', err);
+    res.status(500).json({ message: 'แก้ไขหมวดหมู่ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
+});
+
+// ---- Phase 5: activity-type (admin CRUD) ----
+
+// รายการประเภทกิจกรรมย่อยทั้งหมดทุกสถานะ พร้อมจำนวนครั้งที่เคยถูกส่ง (เตือนแอดมินก่อนปิดใช้งาน/แก้คะแนน)
+app.get('/api/admin/activity-types', requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT at.activity_id, at.activity_name, at.score, at.require_image, at.description, at.status,
+              ac.category_id, ac.category_name,
+              (SELECT COUNT(*) FROM running_submission rs WHERE rs.activity_id = at.activity_id) AS submission_count
+       FROM activity_type at
+       JOIN activity_category ac ON ac.category_id = at.category_id
+       ORDER BY ac.category_name, at.activity_name`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('get admin activity types error:', err);
+    res.status(500).json({ message: 'โหลดรายการประเภทกิจกรรมไม่สำเร็จ' });
+  }
+});
+
+function validateActivityTypeInput(body) {
+  const { categoryId, activityName, score } = body;
+  if (!categoryId) {
+    return 'กรุณาเลือกหมวดหมู่';
+  }
+  if (!activityName || !String(activityName).trim()) {
+    return 'กรุณากรอกชื่อกิจกรรม';
+  }
+  if (!Number.isFinite(Number(score)) || Number(score) < 0) {
+    return 'คะแนนต้องเป็นตัวเลขไม่ติดลบ';
+  }
+  return null;
+}
+
+// สร้างประเภทกิจกรรมย่อยใหม่ — ต้องผูกกับหมวดหมู่ที่ยัง ACTIVE เท่านั้น
+app.post('/api/admin/activity-types', requireAdmin, async (req, res) => {
+  const validationError = validateActivityTypeInput(req.body);
+  if (validationError) {
+    return res.status(400).json({ message: validationError });
+  }
+  const { categoryId, activityName, score, requireImage, description } = req.body;
+
+  try {
+    const [categoryRows] = await pool.query(
+      `SELECT category_id FROM activity_category WHERE category_id = ? AND status = 'ACTIVE'`,
+      [categoryId]
+    );
+    if (categoryRows.length === 0) {
+      return res.status(400).json({ message: 'ไม่พบหมวดหมู่นี้ หรือถูกปิดใช้งานแล้ว' });
+    }
+
+    const [result] = await pool.query(
+      `INSERT INTO activity_type (category_id, activity_name, score, require_image, description)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        categoryId,
+        activityName.trim(),
+        score,
+        requireImage === true || requireImage === 'true' ? 1 : 0,
+        description ? description.trim() : null,
+      ]
+    );
+    res.status(201).json({ activityId: result.insertId });
+  } catch (err) {
+    console.error('create activity type error:', err);
+    res.status(500).json({ message: 'สร้างประเภทกิจกรรมไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
+});
+
+// แก้ไขประเภทกิจกรรมย่อย (ชื่อ/คะแนน/บังคับรูป/หมวดหมู่/สถานะ)
+// หมายเหตุ: แก้ score ของกิจกรรมที่มีคนส่งไปแล้วจะไม่กระทบคะแนนที่อนุมัติไปแล้ว (running_submission ไม่ snapshot score ไว้ ใช้ activity_type.score ปัจจุบัน ณ ตอน approve เท่านั้น)
+app.put('/api/admin/activity-types/:id', requireAdmin, async (req, res) => {
+  const activityId = req.params.id;
+  const validationError = validateActivityTypeInput(req.body);
+  if (validationError) {
+    return res.status(400).json({ message: validationError });
+  }
+  const { categoryId, activityName, score, requireImage, description, status } = req.body;
+  if (!['ACTIVE', 'INACTIVE'].includes(status)) {
+    return res.status(400).json({ message: 'สถานะต้องเป็น ACTIVE หรือ INACTIVE' });
+  }
+
+  try {
+    const [categoryRows] = await pool.query(`SELECT category_id FROM activity_category WHERE category_id = ?`, [
+      categoryId,
+    ]);
+    if (categoryRows.length === 0) {
+      return res.status(400).json({ message: 'ไม่พบหมวดหมู่นี้' });
+    }
+
+    const [result] = await pool.query(
+      `UPDATE activity_type
+       SET category_id = ?, activity_name = ?, score = ?, require_image = ?, description = ?, status = ?
+       WHERE activity_id = ?`,
+      [
+        categoryId,
+        activityName.trim(),
+        score,
+        requireImage === true || requireImage === 'true' ? 1 : 0,
+        description ? description.trim() : null,
+        status,
+        activityId,
+      ]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'ไม่พบประเภทกิจกรรมนี้' });
+    }
+    res.json({ activityId: Number(activityId), status });
+  } catch (err) {
+    console.error('update activity type error:', err);
+    res.status(500).json({ message: 'แก้ไขประเภทกิจกรรมไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
+});
+
+// ---- Phase 5: reward (admin CRUD) ----
+
+// รายการของรางวัลทั้งหมดทุกสถานะ พร้อมจำนวนครั้งที่เคยถูกแลก (เตือนแอดมินก่อนปิดใช้งาน)
+app.get('/api/admin/rewards', requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT r.reward_id, r.reward_name, r.required_score, r.stock, r.image, r.description, r.status,
+              (SELECT COUNT(*) FROM reward_redeem rr WHERE rr.reward_id = r.reward_id) AS redeem_count
+       FROM reward r
+       ORDER BY r.reward_id ASC`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('get admin rewards error:', err);
+    res.status(500).json({ message: 'โหลดรายการของรางวัลไม่สำเร็จ' });
+  }
+});
+
+function validateRewardInput(body) {
+  const { rewardName, requiredScore, stock } = body;
+  if (!rewardName || !String(rewardName).trim()) {
+    return 'กรุณากรอกชื่อของรางวัล';
+  }
+  if (!Number.isFinite(Number(requiredScore)) || Number(requiredScore) <= 0) {
+    return 'คะแนนที่ใช้แลกต้องเป็นตัวเลขมากกว่า 0';
+  }
+  if (!Number.isFinite(Number(stock)) || Number(stock) < 0) {
+    return 'จำนวนคงเหลือต้องเป็นตัวเลขไม่ติดลบ';
+  }
+  return null;
+}
+
+// สร้างของรางวัลใหม่ — รับไฟล์รูปผ่าน field 'imageFile' (multipart/form-data) เหมือนแนวทาง badge icon
+app.post('/api/admin/rewards', requireAdmin, handleRewardImageUpload, async (req, res) => {
+  const cleanupUploadedFile = () => {
+    if (req.file) fs.unlink(req.file.path, () => {});
+  };
+
+  const { rewardName, requiredScore, stock, description } = req.body;
+  const validationError = validateRewardInput(req.body);
+  if (validationError) {
+    cleanupUploadedFile();
+    return res.status(400).json({ message: validationError });
+  }
+
+  const imagePath = req.file ? path.posix.join('uploads', 'rewards', req.file.filename) : null;
+
+  try {
+    const [result] = await pool.query(
+      `INSERT INTO reward (reward_name, required_score, stock, image, description)
+       VALUES (?, ?, ?, ?, ?)`,
+      [rewardName.trim(), requiredScore, stock, imagePath, description ? description.trim() : null]
+    );
+    res.status(201).json({ rewardId: result.insertId, image: imagePath });
+  } catch (err) {
+    cleanupUploadedFile();
+    console.error('create reward error:', err);
+    res.status(500).json({ message: 'สร้างของรางวัลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
+});
+
+// แก้ไขของรางวัล (ชื่อ/คะแนนที่ใช้แลก/จำนวนคงเหลือ/รูป/คำอธิบาย/สถานะ)
+// เปลี่ยนรูปได้ทีหลังเสมอ: ส่งไฟล์ใหม่มาใน 'imageFile' เพื่อแทนที่รูปเดิม หรือส่ง removeImage=true เพื่อลบรูปออก (ไม่ส่งอะไรเลย = รูปเดิมยังอยู่)
+// หมายเหตุ: แก้ stock ตรงนี้เป็นการ set ค่าตรงๆ แอดมินต้องเผื่อ stock ที่ถูกจองไว้จาก redeem สถานะ PENDING เอง
+app.put('/api/admin/rewards/:id', requireAdmin, handleRewardImageUpload, async (req, res) => {
+  const rewardId = req.params.id;
+  const cleanupUploadedFile = () => {
+    if (req.file) fs.unlink(req.file.path, () => {});
+  };
+
+  const { rewardName, requiredScore, stock, description, status, removeImage } = req.body;
+  const validationError = validateRewardInput(req.body);
+  if (validationError) {
+    cleanupUploadedFile();
+    return res.status(400).json({ message: validationError });
+  }
+  if (!['ACTIVE', 'INACTIVE'].includes(status)) {
+    cleanupUploadedFile();
+    return res.status(400).json({ message: 'สถานะต้องเป็น ACTIVE หรือ INACTIVE' });
+  }
+
+  try {
+    const [existingRows] = await pool.query('SELECT image FROM reward WHERE reward_id = ?', [rewardId]);
+    if (existingRows.length === 0) {
+      cleanupUploadedFile();
+      return res.status(404).json({ message: 'ไม่พบของรางวัลนี้' });
+    }
+    const oldImage = existingRows[0].image;
+
+    // ลำดับความสำคัญ: มีไฟล์ใหม่ > สั่งลบ (removeImage) > คงรูปเดิมไว้
+    let newImage = oldImage;
+    if (req.file) {
+      newImage = path.posix.join('uploads', 'rewards', req.file.filename);
+    } else if (removeImage === 'true' || removeImage === true) {
+      newImage = null;
+    }
+
+    await pool.query(
+      `UPDATE reward
+       SET reward_name = ?, required_score = ?, stock = ?, image = ?, description = ?, status = ?
+       WHERE reward_id = ?`,
+      [rewardName.trim(), requiredScore, stock, newImage, description ? description.trim() : null, status, rewardId]
+    );
+
+    // ลบไฟล์รูปเก่าทิ้งถ้าถูกแทนที่/ลบไป กันไฟล์ขยะสะสมบน disk
+    if (oldImage && oldImage !== newImage && oldImage.startsWith('uploads/rewards/')) {
+      fs.unlink(path.join(__dirname, oldImage), () => {});
+    }
+
+    res.json({ rewardId: Number(rewardId), status, image: newImage });
+  } catch (err) {
+    cleanupUploadedFile();
+    console.error('update reward error:', err);
+    res.status(500).json({ message: 'แก้ไขของรางวัลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
   }
 });
 

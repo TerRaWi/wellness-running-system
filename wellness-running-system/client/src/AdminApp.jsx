@@ -79,6 +79,54 @@ export default function AdminApp() {
   const [editBadgeError, setEditBadgeError] = useState('');
   const [badgeActioningId, setBadgeActioningId] = useState(null);
 
+  // ---- Phase 5: activity-category CRUD state ----
+  const emptyCategoryForm = { categoryName: '' };
+  const [categories, setCategories] = useState([]);
+  const [categoryListLoading, setCategoryListLoading] = useState(false);
+  const [categoryListError, setCategoryListError] = useState('');
+  const [categoryForm, setCategoryForm] = useState(emptyCategoryForm);
+  const [categoryFormError, setCategoryFormError] = useState('');
+  const [categoryFormSubmitting, setCategoryFormSubmitting] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState(null);
+  const [editCategoryForm, setEditCategoryForm] = useState({ categoryName: '', status: 'ACTIVE' });
+  const [editCategoryError, setEditCategoryError] = useState('');
+  const [categoryActioningId, setCategoryActioningId] = useState(null);
+
+  // ---- Phase 5: activity-type CRUD state ----
+  const emptyActivityTypeForm = {
+    categoryId: '',
+    activityName: '',
+    score: '',
+    requireImage: true,
+    description: '',
+  };
+  const [activityTypes, setActivityTypes] = useState([]);
+  const [activityTypeListLoading, setActivityTypeListLoading] = useState(false);
+  const [activityTypeListError, setActivityTypeListError] = useState('');
+  const [activityTypeForm, setActivityTypeForm] = useState(emptyActivityTypeForm);
+  const [activityTypeFormError, setActivityTypeFormError] = useState('');
+  const [activityTypeFormSubmitting, setActivityTypeFormSubmitting] = useState(false);
+  const [editingActivityTypeId, setEditingActivityTypeId] = useState(null);
+  const [editActivityTypeForm, setEditActivityTypeForm] = useState({ ...emptyActivityTypeForm, status: 'ACTIVE' });
+  const [editActivityTypeError, setEditActivityTypeError] = useState('');
+  const [activityTypeActioningId, setActivityTypeActioningId] = useState(null);
+
+  // ---- Phase 5: reward CRUD state ----
+  const emptyRewardForm = { rewardName: '', requiredScore: '', stock: '', description: '' };
+  const [rewards, setRewards] = useState([]);
+  const [rewardListLoading, setRewardListLoading] = useState(false);
+  const [rewardListError, setRewardListError] = useState('');
+  const [rewardForm, setRewardForm] = useState(emptyRewardForm);
+  const [rewardImageFile, setRewardImageFile] = useState(null);
+  const [rewardFormError, setRewardFormError] = useState('');
+  const [rewardFormSubmitting, setRewardFormSubmitting] = useState(false);
+  const [editingRewardId, setEditingRewardId] = useState(null);
+  const [editRewardForm, setEditRewardForm] = useState({ ...emptyRewardForm, image: '', status: 'ACTIVE' });
+  const [editRewardImageFile, setEditRewardImageFile] = useState(null);
+  const [editRemoveRewardImage, setEditRemoveRewardImage] = useState(false);
+  const [editRewardError, setEditRewardError] = useState('');
+  const [rewardActioningId, setRewardActioningId] = useState(null);
+
   // เช็คว่ามี admin session ที่ยัง valid อยู่ไหมตอนโหลดหน้า กันต้อง login ใหม่ทุกครั้งที่ refresh
   useEffect(() => {
     async function checkAuth() {
@@ -520,6 +568,414 @@ export default function AdminApp() {
     }
   }
 
+  // ---- Phase 5: activity-category CRUD handlers ----
+  async function loadCategories() {
+    setCategoryListLoading(true);
+    setCategoryListError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/categories`, { credentials: 'include' });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) {
+        throw new Error(data.message || 'โหลดรายการหมวดหมู่ไม่สำเร็จ');
+      }
+      setCategories(data);
+    } catch (err) {
+      setCategoryListError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setCategoryListLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!isLoggedIn || activeTab !== 'categories') return;
+    loadCategories();
+  }, [isLoggedIn, activeTab]);
+
+  async function handleCreateCategory(e) {
+    e.preventDefault();
+    setCategoryFormError('');
+    if (!categoryForm.categoryName.trim()) {
+      setCategoryFormError('กรุณากรอกชื่อหมวดหมู่');
+      return;
+    }
+    setCategoryFormSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/categories`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ categoryName: categoryForm.categoryName.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'สร้างหมวดหมู่ไม่สำเร็จ');
+      }
+      setCategoryForm(emptyCategoryForm);
+      await loadCategories();
+    } catch (err) {
+      setCategoryFormError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setCategoryFormSubmitting(false);
+    }
+  }
+
+  function startEditCategory(cat) {
+    setEditingCategoryId(cat.category_id);
+    setEditCategoryError('');
+    setEditCategoryForm({ categoryName: cat.category_name, status: cat.status });
+  }
+
+  function cancelEditCategory() {
+    setEditingCategoryId(null);
+    setEditCategoryError('');
+  }
+
+  async function handleSaveCategory(categoryId) {
+    setEditCategoryError('');
+    if (!editCategoryForm.categoryName.trim()) {
+      setEditCategoryError('กรุณากรอกชื่อหมวดหมู่');
+      return;
+    }
+    setCategoryActioningId(categoryId);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/categories/${categoryId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          categoryName: editCategoryForm.categoryName.trim(),
+          status: editCategoryForm.status,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'แก้ไขหมวดหมู่ไม่สำเร็จ');
+      }
+      setEditingCategoryId(null);
+      await loadCategories();
+    } catch (err) {
+      setEditCategoryError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setCategoryActioningId(null);
+    }
+  }
+
+  async function handleToggleCategoryStatus(cat) {
+    setCategoryActioningId(cat.category_id);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/categories/${cat.category_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          categoryName: cat.category_name,
+          status: cat.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'เปลี่ยนสถานะไม่สำเร็จ');
+      }
+      await loadCategories();
+    } catch (err) {
+      setCategoryListError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setCategoryActioningId(null);
+    }
+  }
+
+  // ---- Phase 5: activity-type CRUD handlers ----
+  async function loadActivityTypes() {
+    setActivityTypeListLoading(true);
+    setActivityTypeListError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/activity-types`, { credentials: 'include' });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) {
+        throw new Error(data.message || 'โหลดรายการประเภทกิจกรรมไม่สำเร็จ');
+      }
+      setActivityTypes(data);
+    } catch (err) {
+      setActivityTypeListError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setActivityTypeListLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!isLoggedIn || activeTab !== 'activityTypes') return;
+    loadActivityTypes();
+    // โหลดหมวดหมู่ (ACTIVE) มาเติม dropdown ตอนสร้าง/แก้ไขกิจกรรมด้วย ถ้ายังไม่มีข้อมูล
+    if (categories.length === 0) loadCategories();
+  }, [isLoggedIn, activeTab]);
+
+  async function handleCreateActivityType(e) {
+    e.preventDefault();
+    setActivityTypeFormError('');
+    if (!activityTypeForm.categoryId || !activityTypeForm.activityName.trim() || activityTypeForm.score === '') {
+      setActivityTypeFormError('กรุณากรอกหมวดหมู่ ชื่อกิจกรรม และคะแนนให้ครบ');
+      return;
+    }
+    setActivityTypeFormSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/activity-types`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          categoryId: activityTypeForm.categoryId,
+          activityName: activityTypeForm.activityName.trim(),
+          score: activityTypeForm.score,
+          requireImage: activityTypeForm.requireImage,
+          description: activityTypeForm.description.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'สร้างประเภทกิจกรรมไม่สำเร็จ');
+      }
+      setActivityTypeForm(emptyActivityTypeForm);
+      await loadActivityTypes();
+    } catch (err) {
+      setActivityTypeFormError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setActivityTypeFormSubmitting(false);
+    }
+  }
+
+  function startEditActivityType(a) {
+    setEditingActivityTypeId(a.activity_id);
+    setEditActivityTypeError('');
+    setEditActivityTypeForm({
+      categoryId: a.category_id,
+      activityName: a.activity_name,
+      score: String(a.score),
+      requireImage: !!a.require_image,
+      description: a.description || '',
+      status: a.status,
+    });
+  }
+
+  function cancelEditActivityType() {
+    setEditingActivityTypeId(null);
+    setEditActivityTypeError('');
+  }
+
+  async function handleSaveActivityType(activityId) {
+    setEditActivityTypeError('');
+    if (
+      !editActivityTypeForm.categoryId ||
+      !editActivityTypeForm.activityName.trim() ||
+      editActivityTypeForm.score === ''
+    ) {
+      setEditActivityTypeError('กรุณากรอกหมวดหมู่ ชื่อกิจกรรม และคะแนนให้ครบ');
+      return;
+    }
+    setActivityTypeActioningId(activityId);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/activity-types/${activityId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          categoryId: editActivityTypeForm.categoryId,
+          activityName: editActivityTypeForm.activityName.trim(),
+          score: editActivityTypeForm.score,
+          requireImage: editActivityTypeForm.requireImage,
+          description: editActivityTypeForm.description.trim(),
+          status: editActivityTypeForm.status,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'แก้ไขประเภทกิจกรรมไม่สำเร็จ');
+      }
+      setEditingActivityTypeId(null);
+      await loadActivityTypes();
+    } catch (err) {
+      setEditActivityTypeError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setActivityTypeActioningId(null);
+    }
+  }
+
+  async function handleToggleActivityTypeStatus(a) {
+    setActivityTypeActioningId(a.activity_id);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/activity-types/${a.activity_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          categoryId: a.category_id,
+          activityName: a.activity_name,
+          score: a.score,
+          requireImage: !!a.require_image,
+          description: a.description,
+          status: a.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'เปลี่ยนสถานะไม่สำเร็จ');
+      }
+      await loadActivityTypes();
+    } catch (err) {
+      setActivityTypeListError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setActivityTypeActioningId(null);
+    }
+  }
+
+  // ---- Phase 5: reward CRUD handlers ----
+  async function loadRewards() {
+    setRewardListLoading(true);
+    setRewardListError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/rewards`, { credentials: 'include' });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) {
+        throw new Error(data.message || 'โหลดรายการของรางวัลไม่สำเร็จ');
+      }
+      setRewards(data);
+    } catch (err) {
+      setRewardListError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setRewardListLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!isLoggedIn || activeTab !== 'rewards') return;
+    loadRewards();
+  }, [isLoggedIn, activeTab]);
+
+  async function handleCreateReward(e) {
+    e.preventDefault();
+    setRewardFormError('');
+    if (!rewardForm.rewardName.trim() || !rewardForm.requiredScore || rewardForm.stock === '') {
+      setRewardFormError('กรุณากรอกชื่อ คะแนนที่ใช้แลก และจำนวนคงเหลือให้ครบ');
+      return;
+    }
+    setRewardFormSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append('rewardName', rewardForm.rewardName.trim());
+      formData.append('requiredScore', rewardForm.requiredScore);
+      formData.append('stock', rewardForm.stock);
+      formData.append('description', rewardForm.description.trim());
+      if (rewardImageFile) {
+        formData.append('imageFile', rewardImageFile);
+      }
+
+      const res = await fetch(`${API_BASE}/api/admin/rewards`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'สร้างของรางวัลไม่สำเร็จ');
+      }
+      setRewardForm(emptyRewardForm);
+      setRewardImageFile(null);
+      await loadRewards();
+    } catch (err) {
+      setRewardFormError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setRewardFormSubmitting(false);
+    }
+  }
+
+  function startEditReward(r) {
+    setEditingRewardId(r.reward_id);
+    setEditRewardError('');
+    setEditRewardImageFile(null);
+    setEditRemoveRewardImage(false);
+    setEditRewardForm({
+      rewardName: r.reward_name,
+      requiredScore: String(r.required_score),
+      stock: String(r.stock),
+      description: r.description || '',
+      image: r.image || '',
+      status: r.status,
+    });
+  }
+
+  function cancelEditReward() {
+    setEditingRewardId(null);
+    setEditRewardError('');
+    setEditRewardImageFile(null);
+    setEditRemoveRewardImage(false);
+  }
+
+  async function handleSaveReward(rewardId) {
+    setEditRewardError('');
+    if (!editRewardForm.rewardName.trim() || !editRewardForm.requiredScore || editRewardForm.stock === '') {
+      setEditRewardError('กรุณากรอกชื่อ คะแนนที่ใช้แลก และจำนวนคงเหลือให้ครบ');
+      return;
+    }
+    setRewardActioningId(rewardId);
+    try {
+      const formData = new FormData();
+      formData.append('rewardName', editRewardForm.rewardName.trim());
+      formData.append('requiredScore', editRewardForm.requiredScore);
+      formData.append('stock', editRewardForm.stock);
+      formData.append('description', editRewardForm.description.trim());
+      formData.append('status', editRewardForm.status);
+      if (editRewardImageFile) {
+        formData.append('imageFile', editRewardImageFile);
+      } else if (editRemoveRewardImage) {
+        formData.append('removeImage', 'true');
+      }
+
+      const res = await fetch(`${API_BASE}/api/admin/rewards/${rewardId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'แก้ไขของรางวัลไม่สำเร็จ');
+      }
+      setEditingRewardId(null);
+      setEditRewardImageFile(null);
+      setEditRemoveRewardImage(false);
+      await loadRewards();
+    } catch (err) {
+      setEditRewardError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setRewardActioningId(null);
+    }
+  }
+
+  async function handleToggleRewardStatus(r) {
+    setRewardActioningId(r.reward_id);
+    try {
+      const formData = new FormData();
+      formData.append('rewardName', r.reward_name);
+      formData.append('requiredScore', r.required_score);
+      formData.append('stock', r.stock);
+      formData.append('description', r.description || '');
+      formData.append('status', r.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE');
+
+      const res = await fetch(`${API_BASE}/api/admin/rewards/${r.reward_id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'เปลี่ยนสถานะไม่สำเร็จ');
+      }
+      await loadRewards();
+    } catch (err) {
+      setRewardListError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setRewardActioningId(null);
+    }
+  }
+
   async function handleApprove(submissionId) {
     setActioningId(submissionId);
     setActionError('');
@@ -686,6 +1142,24 @@ export default function AdminApp() {
           style={{ fontWeight: activeTab === 'badges' ? 'bold' : 'normal' }}
         >
           Badge
+        </button>
+        <button
+          onClick={() => setActiveTab('categories')}
+          style={{ fontWeight: activeTab === 'categories' ? 'bold' : 'normal' }}
+        >
+          หมวดหมู่กิจกรรม
+        </button>
+        <button
+          onClick={() => setActiveTab('activityTypes')}
+          style={{ fontWeight: activeTab === 'activityTypes' ? 'bold' : 'normal' }}
+        >
+          ประเภทกิจกรรม
+        </button>
+        <button
+          onClick={() => setActiveTab('rewards')}
+          style={{ fontWeight: activeTab === 'rewards' ? 'bold' : 'normal' }}
+        >
+          ของรางวัล
         </button>
       </div>
 
@@ -1373,6 +1847,653 @@ export default function AdminApp() {
                           </button>{' '}
                           <button onClick={() => handleToggleBadgeStatus(b)} disabled={isActioning}>
                             {isActioning ? '...' : b.status === 'ACTIVE' ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'categories' && (
+        <>
+          <div
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 6,
+              padding: 16,
+              marginBottom: 16,
+              maxWidth: 480,
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>สร้างหมวดหมู่กิจกรรมใหม่</h3>
+            <form onSubmit={handleCreateCategory}>
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="newCategoryName">ชื่อหมวดหมู่</label>
+                <br />
+                <input
+                  id="newCategoryName"
+                  type="text"
+                  value={categoryForm.categoryName}
+                  onChange={(e) => setCategoryForm({ categoryName: e.target.value })}
+                  placeholder="เช่น วิ่ง, ปั่นจักรยาน, ว่ายน้ำ"
+                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                />
+              </div>
+
+              {categoryFormError && <p style={{ color: 'red' }}>{categoryFormError}</p>}
+
+              <button type="submit" disabled={categoryFormSubmitting}>
+                {categoryFormSubmitting ? 'กำลังสร้าง...' : 'สร้างหมวดหมู่'}
+              </button>
+            </form>
+          </div>
+
+          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+            <h3 style={{ margin: 0 }}>รายการหมวดหมู่กิจกรรมทั้งหมด</h3>
+            <button onClick={loadCategories}>รีเฟรช</button>
+          </div>
+
+          {categoryListError && <p style={{ color: 'red' }}>{categoryListError}</p>}
+          {categoryListLoading && <p>กำลังโหลด...</p>}
+          {!categoryListLoading && categories.length === 0 && <p>ยังไม่มีหมวดหมู่</p>}
+
+          {!categoryListLoading && categories.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
+                    <th style={{ padding: 8 }}>#</th>
+                    <th style={{ padding: 8 }}>ชื่อหมวดหมู่</th>
+                    <th style={{ padding: 8 }}>สถานะ</th>
+                    <th style={{ padding: 8 }}>จำนวนประเภทกิจกรรมย่อย</th>
+                    <th style={{ padding: 8 }}>จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categories.map((cat) => {
+                    const isEditing = editingCategoryId === cat.category_id;
+                    const isActioning = categoryActioningId === cat.category_id;
+
+                    if (isEditing) {
+                      return (
+                        <tr key={cat.category_id} style={{ borderBottom: '1px solid #eee' }}>
+                          <td style={{ padding: 8 }}>{cat.category_id}</td>
+                          <td style={{ padding: 8 }}>
+                            <input
+                              type="text"
+                              value={editCategoryForm.categoryName}
+                              onChange={(e) =>
+                                setEditCategoryForm((prev) => ({ ...prev, categoryName: e.target.value }))
+                              }
+                              style={{ padding: 6, width: '100%' }}
+                            />
+                          </td>
+                          <td style={{ padding: 8 }}>
+                            <select
+                              value={editCategoryForm.status}
+                              onChange={(e) =>
+                                setEditCategoryForm((prev) => ({ ...prev, status: e.target.value }))
+                              }
+                              style={{ padding: 6 }}
+                            >
+                              <option value="ACTIVE">ACTIVE</option>
+                              <option value="INACTIVE">INACTIVE</option>
+                            </select>
+                          </td>
+                          <td style={{ padding: 8 }}>{cat.activity_type_count}</td>
+                          <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                            {editCategoryError && (
+                              <p style={{ color: 'red', margin: '0 0 6px' }}>{editCategoryError}</p>
+                            )}
+                            <button onClick={() => handleSaveCategory(cat.category_id)} disabled={isActioning}>
+                              {isActioning ? '...' : 'บันทึก'}
+                            </button>{' '}
+                            <button onClick={cancelEditCategory} disabled={isActioning}>
+                              ยกเลิก
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return (
+                      <tr key={cat.category_id} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: 8 }}>{cat.category_id}</td>
+                        <td style={{ padding: 8 }}>{cat.category_name}</td>
+                        <td style={{ padding: 8 }}>{cat.status}</td>
+                        <td style={{ padding: 8 }}>{cat.activity_type_count}</td>
+                        <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                          <button onClick={() => startEditCategory(cat)} disabled={isActioning}>
+                            แก้ไข
+                          </button>{' '}
+                          <button onClick={() => handleToggleCategoryStatus(cat)} disabled={isActioning}>
+                            {isActioning ? '...' : cat.status === 'ACTIVE' ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'activityTypes' && (
+        <>
+          <div
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 6,
+              padding: 16,
+              marginBottom: 16,
+              maxWidth: 480,
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>สร้างประเภทกิจกรรมใหม่</h3>
+            <form onSubmit={handleCreateActivityType}>
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="newActivityCategory">หมวดหมู่</label>
+                <br />
+                <select
+                  id="newActivityCategory"
+                  value={activityTypeForm.categoryId}
+                  onChange={(e) => setActivityTypeForm((prev) => ({ ...prev, categoryId: e.target.value }))}
+                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                >
+                  <option value="">-- เลือกหมวดหมู่ --</option>
+                  {categories
+                    .filter((c) => c.status === 'ACTIVE')
+                    .map((c) => (
+                      <option key={c.category_id} value={c.category_id}>
+                        {c.category_name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="newActivityName">ชื่อกิจกรรม</label>
+                <br />
+                <input
+                  id="newActivityName"
+                  type="text"
+                  value={activityTypeForm.activityName}
+                  onChange={(e) => setActivityTypeForm((prev) => ({ ...prev, activityName: e.target.value }))}
+                  placeholder='เช่น "วิ่ง 5 km"'
+                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="newActivityScore">คะแนน</label>
+                  <br />
+                  <input
+                    id="newActivityScore"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={activityTypeForm.score}
+                    onChange={(e) => setActivityTypeForm((prev) => ({ ...prev, score: e.target.value }))}
+                    style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  />
+                </div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', paddingBottom: 8 }}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={activityTypeForm.requireImage}
+                      onChange={(e) =>
+                        setActivityTypeForm((prev) => ({ ...prev, requireImage: e.target.checked }))
+                      }
+                    />{' '}
+                    บังคับแนบรูปหลักฐาน
+                  </label>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="newActivityDescription">รายละเอียด (ถ้ามี)</label>
+                <br />
+                <textarea
+                  id="newActivityDescription"
+                  value={activityTypeForm.description}
+                  onChange={(e) => setActivityTypeForm((prev) => ({ ...prev, description: e.target.value }))}
+                  rows={2}
+                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                />
+              </div>
+
+              {activityTypeFormError && <p style={{ color: 'red' }}>{activityTypeFormError}</p>}
+
+              <button type="submit" disabled={activityTypeFormSubmitting}>
+                {activityTypeFormSubmitting ? 'กำลังสร้าง...' : 'สร้างประเภทกิจกรรม'}
+              </button>
+            </form>
+          </div>
+
+          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+            <h3 style={{ margin: 0 }}>รายการประเภทกิจกรรมทั้งหมด</h3>
+            <button onClick={loadActivityTypes}>รีเฟรช</button>
+          </div>
+
+          {activityTypeListError && <p style={{ color: 'red' }}>{activityTypeListError}</p>}
+          {activityTypeListLoading && <p>กำลังโหลด...</p>}
+          {!activityTypeListLoading && activityTypes.length === 0 && <p>ยังไม่มีประเภทกิจกรรม</p>}
+
+          {!activityTypeListLoading && activityTypes.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
+                    <th style={{ padding: 8 }}>#</th>
+                    <th style={{ padding: 8 }}>หมวดหมู่</th>
+                    <th style={{ padding: 8 }}>ชื่อกิจกรรม</th>
+                    <th style={{ padding: 8 }}>คะแนน</th>
+                    <th style={{ padding: 8 }}>บังคับรูป</th>
+                    <th style={{ padding: 8 }}>สถานะ</th>
+                    <th style={{ padding: 8 }}>เคยส่งแล้ว</th>
+                    <th style={{ padding: 8 }}>จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activityTypes.map((a) => {
+                    const isEditing = editingActivityTypeId === a.activity_id;
+                    const isActioning = activityTypeActioningId === a.activity_id;
+
+                    if (isEditing) {
+                      return (
+                        <tr key={a.activity_id} style={{ borderBottom: '1px solid #eee' }}>
+                          <td style={{ padding: 8 }}>{a.activity_id}</td>
+                          <td style={{ padding: 8 }}>
+                            <select
+                              value={editActivityTypeForm.categoryId}
+                              onChange={(e) =>
+                                setEditActivityTypeForm((prev) => ({ ...prev, categoryId: e.target.value }))
+                              }
+                              style={{ padding: 6, width: '100%' }}
+                            >
+                              {categories.map((c) => (
+                                <option key={c.category_id} value={c.category_id}>
+                                  {c.category_name}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td style={{ padding: 8 }}>
+                            <input
+                              type="text"
+                              value={editActivityTypeForm.activityName}
+                              onChange={(e) =>
+                                setEditActivityTypeForm((prev) => ({ ...prev, activityName: e.target.value }))
+                              }
+                              style={{ padding: 6, width: '100%' }}
+                            />
+                            <textarea
+                              value={editActivityTypeForm.description}
+                              onChange={(e) =>
+                                setEditActivityTypeForm((prev) => ({ ...prev, description: e.target.value }))
+                              }
+                              rows={2}
+                              style={{ padding: 6, width: '100%', marginTop: 6 }}
+                              placeholder="รายละเอียด"
+                            />
+                          </td>
+                          <td style={{ padding: 8 }}>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={editActivityTypeForm.score}
+                              onChange={(e) =>
+                                setEditActivityTypeForm((prev) => ({ ...prev, score: e.target.value }))
+                              }
+                              style={{ padding: 6, width: 70 }}
+                            />
+                          </td>
+                          <td style={{ padding: 8 }}>
+                            <input
+                              type="checkbox"
+                              checked={editActivityTypeForm.requireImage}
+                              onChange={(e) =>
+                                setEditActivityTypeForm((prev) => ({ ...prev, requireImage: e.target.checked }))
+                              }
+                            />
+                          </td>
+                          <td style={{ padding: 8 }}>
+                            <select
+                              value={editActivityTypeForm.status}
+                              onChange={(e) =>
+                                setEditActivityTypeForm((prev) => ({ ...prev, status: e.target.value }))
+                              }
+                              style={{ padding: 6 }}
+                            >
+                              <option value="ACTIVE">ACTIVE</option>
+                              <option value="INACTIVE">INACTIVE</option>
+                            </select>
+                          </td>
+                          <td style={{ padding: 8 }}>{a.submission_count}</td>
+                          <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                            {editActivityTypeError && (
+                              <p style={{ color: 'red', margin: '0 0 6px' }}>{editActivityTypeError}</p>
+                            )}
+                            <button
+                              onClick={() => handleSaveActivityType(a.activity_id)}
+                              disabled={isActioning}
+                            >
+                              {isActioning ? '...' : 'บันทึก'}
+                            </button>{' '}
+                            <button onClick={cancelEditActivityType} disabled={isActioning}>
+                              ยกเลิก
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return (
+                      <tr key={a.activity_id} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: 8 }}>{a.activity_id}</td>
+                        <td style={{ padding: 8 }}>{a.category_name}</td>
+                        <td style={{ padding: 8 }}>
+                          {a.activity_name}
+                          {a.description && (
+                            <>
+                              <br />
+                              <small style={{ color: '#888' }}>{a.description}</small>
+                            </>
+                          )}
+                        </td>
+                        <td style={{ padding: 8 }}>{a.score}</td>
+                        <td style={{ padding: 8 }}>{a.require_image ? 'ต้องแนบ' : 'ไม่บังคับ'}</td>
+                        <td style={{ padding: 8 }}>{a.status}</td>
+                        <td style={{ padding: 8 }}>{a.submission_count}</td>
+                        <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                          <button onClick={() => startEditActivityType(a)} disabled={isActioning}>
+                            แก้ไข
+                          </button>{' '}
+                          <button onClick={() => handleToggleActivityTypeStatus(a)} disabled={isActioning}>
+                            {isActioning ? '...' : a.status === 'ACTIVE' ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'rewards' && (
+        <>
+          <div
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 6,
+              padding: 16,
+              marginBottom: 16,
+              maxWidth: 480,
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>สร้างของรางวัลใหม่</h3>
+            <form onSubmit={handleCreateReward}>
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="newRewardName">ชื่อของรางวัล</label>
+                <br />
+                <input
+                  id="newRewardName"
+                  type="text"
+                  value={rewardForm.rewardName}
+                  onChange={(e) => setRewardForm((prev) => ({ ...prev, rewardName: e.target.value }))}
+                  placeholder='เช่น "กระบอกน้ำ"'
+                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="newRewardScore">คะแนนที่ใช้แลก</label>
+                  <br />
+                  <input
+                    id="newRewardScore"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={rewardForm.requiredScore}
+                    onChange={(e) => setRewardForm((prev) => ({ ...prev, requiredScore: e.target.value }))}
+                    style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="newRewardStock">จำนวนคงเหลือ</label>
+                  <br />
+                  <input
+                    id="newRewardStock"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={rewardForm.stock}
+                    onChange={(e) => setRewardForm((prev) => ({ ...prev, stock: e.target.value }))}
+                    style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="newRewardDescription">รายละเอียด (ถ้ามี)</label>
+                <br />
+                <textarea
+                  id="newRewardDescription"
+                  value={rewardForm.description}
+                  onChange={(e) => setRewardForm((prev) => ({ ...prev, description: e.target.value }))}
+                  rows={2}
+                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="newRewardImage">รูปของรางวัล (ถ้ามี — JPG/PNG/WEBP ไม่เกิน 2MB)</label>
+                <br />
+                <input
+                  id="newRewardImage"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => setRewardImageFile(e.target.files?.[0] || null)}
+                />
+              </div>
+
+              {rewardFormError && <p style={{ color: 'red' }}>{rewardFormError}</p>}
+
+              <button type="submit" disabled={rewardFormSubmitting}>
+                {rewardFormSubmitting ? 'กำลังสร้าง...' : 'สร้างของรางวัล'}
+              </button>
+            </form>
+          </div>
+
+          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+            <h3 style={{ margin: 0 }}>รายการของรางวัลทั้งหมด</h3>
+            <button onClick={loadRewards}>รีเฟรช</button>
+          </div>
+
+          {rewardListError && <p style={{ color: 'red' }}>{rewardListError}</p>}
+          {rewardListLoading && <p>กำลังโหลด...</p>}
+          {!rewardListLoading && rewards.length === 0 && <p>ยังไม่มีของรางวัล</p>}
+
+          {!rewardListLoading && rewards.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
+                    <th style={{ padding: 8 }}>#</th>
+                    <th style={{ padding: 8 }}>รูป</th>
+                    <th style={{ padding: 8 }}>ชื่อของรางวัล</th>
+                    <th style={{ padding: 8 }}>คะแนนที่ใช้แลก</th>
+                    <th style={{ padding: 8 }}>คงเหลือ</th>
+                    <th style={{ padding: 8 }}>สถานะ</th>
+                    <th style={{ padding: 8 }}>เคยแลกแล้ว</th>
+                    <th style={{ padding: 8 }}>จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rewards.map((r) => {
+                    const isEditing = editingRewardId === r.reward_id;
+                    const isActioning = rewardActioningId === r.reward_id;
+
+                    if (isEditing) {
+                      return (
+                        <tr key={r.reward_id} style={{ borderBottom: '1px solid #eee' }}>
+                          <td style={{ padding: 8 }}>{r.reward_id}</td>
+                          <td style={{ padding: 8 }}>
+                            {editRewardForm.image && !editRemoveRewardImage && (
+                              <img
+                                src={`${API_BASE}/${editRewardForm.image}`}
+                                alt=""
+                                style={{
+                                  width: 40,
+                                  height: 40,
+                                  borderRadius: 4,
+                                  objectFit: 'cover',
+                                  display: 'block',
+                                  marginBottom: 6,
+                                }}
+                              />
+                            )}
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={(e) => {
+                                setEditRewardImageFile(e.target.files?.[0] || null);
+                                setEditRemoveRewardImage(false);
+                              }}
+                              style={{ fontSize: 12, width: 110 }}
+                            />
+                            {editRewardForm.image && (
+                              <label style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={editRemoveRewardImage}
+                                  onChange={(e) => {
+                                    setEditRemoveRewardImage(e.target.checked);
+                                    if (e.target.checked) setEditRewardImageFile(null);
+                                  }}
+                                />{' '}
+                                ลบรูป
+                              </label>
+                            )}
+                          </td>
+                          <td style={{ padding: 8 }}>
+                            <input
+                              type="text"
+                              value={editRewardForm.rewardName}
+                              onChange={(e) =>
+                                setEditRewardForm((prev) => ({ ...prev, rewardName: e.target.value }))
+                              }
+                              style={{ padding: 6, width: '100%', marginBottom: 6 }}
+                            />
+                            <textarea
+                              value={editRewardForm.description}
+                              onChange={(e) =>
+                                setEditRewardForm((prev) => ({ ...prev, description: e.target.value }))
+                              }
+                              rows={2}
+                              style={{ padding: 6, width: '100%' }}
+                              placeholder="รายละเอียด"
+                            />
+                          </td>
+                          <td style={{ padding: 8 }}>
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={editRewardForm.requiredScore}
+                              onChange={(e) =>
+                                setEditRewardForm((prev) => ({ ...prev, requiredScore: e.target.value }))
+                              }
+                              style={{ padding: 6, width: 80 }}
+                            />
+                          </td>
+                          <td style={{ padding: 8 }}>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={editRewardForm.stock}
+                              onChange={(e) =>
+                                setEditRewardForm((prev) => ({ ...prev, stock: e.target.value }))
+                              }
+                              style={{ padding: 6, width: 70 }}
+                            />
+                          </td>
+                          <td style={{ padding: 8 }}>
+                            <select
+                              value={editRewardForm.status}
+                              onChange={(e) =>
+                                setEditRewardForm((prev) => ({ ...prev, status: e.target.value }))
+                              }
+                              style={{ padding: 6 }}
+                            >
+                              <option value="ACTIVE">ACTIVE</option>
+                              <option value="INACTIVE">INACTIVE</option>
+                            </select>
+                          </td>
+                          <td style={{ padding: 8 }}>{r.redeem_count}</td>
+                          <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                            {editRewardError && (
+                              <p style={{ color: 'red', margin: '0 0 6px' }}>{editRewardError}</p>
+                            )}
+                            <button onClick={() => handleSaveReward(r.reward_id)} disabled={isActioning}>
+                              {isActioning ? '...' : 'บันทึก'}
+                            </button>{' '}
+                            <button onClick={cancelEditReward} disabled={isActioning}>
+                              ยกเลิก
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return (
+                      <tr key={r.reward_id} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: 8 }}>{r.reward_id}</td>
+                        <td style={{ padding: 8 }}>
+                          {r.image ? (
+                            <img
+                              src={`${API_BASE}/${r.image}`}
+                              alt=""
+                              style={{ width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <span style={{ fontSize: 24 }}>🎁</span>
+                          )}
+                        </td>
+                        <td style={{ padding: 8 }}>
+                          {r.reward_name}
+                          {r.description && (
+                            <>
+                              <br />
+                              <small style={{ color: '#888' }}>{r.description}</small>
+                            </>
+                          )}
+                        </td>
+                        <td style={{ padding: 8 }}>{r.required_score}</td>
+                        <td style={{ padding: 8 }}>{r.stock}</td>
+                        <td style={{ padding: 8 }}>{r.status}</td>
+                        <td style={{ padding: 8 }}>{r.redeem_count}</td>
+                        <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                          <button onClick={() => startEditReward(r)} disabled={isActioning}>
+                            แก้ไข
+                          </button>{' '}
+                          <button onClick={() => handleToggleRewardStatus(r)} disabled={isActioning}>
+                            {isActioning ? '...' : r.status === 'ACTIVE' ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
                           </button>
                         </td>
                       </tr>
