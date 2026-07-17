@@ -59,6 +59,13 @@ export default function AdminApp() {
   const [createChallengeSubmitting, setCreateChallengeSubmitting] = useState(false);
   const [createChallengeError, setCreateChallengeError] = useState('');
 
+  // ---- ดูรายชื่อผู้เข้าร่วม / leaderboard ของ challenge (ฝั่งแอดมิน) ----
+  const [participantsChallengeId, setParticipantsChallengeId] = useState(null);
+  const [participantsChallengeName, setParticipantsChallengeName] = useState('');
+  const [participants, setParticipants] = useState([]);
+  const [participantsLoading, setParticipantsLoading] = useState(false);
+  const [participantsError, setParticipantsError] = useState('');
+
   // ---- Phase 4: badge management ----
   const BADGE_CONDITION_LABEL_TH = {
     DISTANCE: 'ระยะทางสะสม (กม.)',
@@ -437,6 +444,36 @@ export default function AdminApp() {
     } finally {
       setChallengeActioningId(null);
     }
+  }
+
+  async function openParticipants(challengeId, challengeName) {
+    setParticipantsChallengeId(challengeId);
+    setParticipantsChallengeName(challengeName);
+    setParticipantsLoading(true);
+    setParticipantsError('');
+    setParticipants([]);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/challenges/${challengeId}/participants`, {
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'โหลดรายชื่อผู้เข้าร่วมไม่สำเร็จ');
+      }
+      setParticipants(data.participants || []);
+    } catch (err) {
+      setParticipantsError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setParticipantsLoading(false);
+    }
+  }
+
+  function closeParticipants() {
+    setParticipantsChallengeId(null);
+    setParticipantsChallengeName('');
+    setParticipants([]);
+    setParticipantsError('');
   }
 
   const CHALLENGE_STATUS_LABEL_TH = {
@@ -1086,7 +1123,7 @@ export default function AdminApp() {
 
   if (!authChecked) {
     return (
-      <div style={{ padding: 24, textAlign: 'center' }}>
+      <div className="ws-app" style={{ padding: 24, textAlign: 'center' }}>
         <p>กำลังตรวจสอบสิทธิ์...</p>
       </div>
     );
@@ -1094,202 +1131,155 @@ export default function AdminApp() {
 
   if (!isLoggedIn) {
     return (
-      <div style={{ padding: 24, maxWidth: 360, margin: '0 auto' }}>
+      <div className="ws-app" style={{ padding: 24, maxWidth: 360, margin: '0 auto' }}>
         <h2 style={{ textAlign: 'center' }}>เข้าสู่ระบบแอดมิน</h2>
-        <form onSubmit={handleLogin}>
-          <div style={{ marginBottom: 12 }}>
-            <label htmlFor="loginEmployeeId">รหัสพนักงาน</label>
-            <br />
+        <form onSubmit={handleLogin} className="ws-stack">
+          <div>
+            <label htmlFor="loginEmployeeId" className="ws-label">รหัสพนักงาน</label>
             <input
               id="loginEmployeeId"
               type="text"
               value={loginEmployeeId}
               onChange={(e) => setLoginEmployeeId(e.target.value)}
-              style={{ padding: 8, fontSize: 16, width: '100%' }}
+              className="ws-input"
               autoComplete="username"
             />
           </div>
-          <div style={{ marginBottom: 12 }}>
-            <label htmlFor="loginPassword">รหัสผ่าน</label>
-            <br />
+          <div>
+            <label htmlFor="loginPassword" className="ws-label">รหัสผ่าน</label>
             <input
               id="loginPassword"
               type="password"
               value={loginPassword}
               onChange={(e) => setLoginPassword(e.target.value)}
-              style={{ padding: 8, fontSize: 16, width: '100%' }}
+              className="ws-input"
               autoComplete="current-password"
             />
           </div>
-          <button type="submit" disabled={loginSubmitting} style={{ width: '100%', padding: 10 }}>
+          <button type="submit" className="ws-btn ws-btn-primary" disabled={loginSubmitting} style={{ width: '100%' }}>
             {loginSubmitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
           </button>
         </form>
-        {loginError && <p style={{ color: 'red', textAlign: 'center' }}>{loginError}</p>}
+        {loginError && <div className="ws-alert ws-alert-danger" style={{ textAlign: 'center' }}>{loginError}</div>}
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 24 }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 16,
-          flexWrap: 'wrap',
-          gap: 8,
-        }}
-      >
+    <div className="ws-app" style={{ padding: 24 }}>
+      <div className="ws-row-between" style={{ marginBottom: 16 }}>
         <h2 style={{ margin: 0 }}>แดชบอร์ดแอดมิน</h2>
-        <div>
-          <span style={{ marginRight: 12 }}>เข้าสู่ระบบเป็น: {adminId}</span>
-          <button onClick={handleLogout}>ออกจากระบบ</button>
+        <div className="ws-row">
+          <span style={{ color: 'var(--ws-text-secondary)' }}>เข้าสู่ระบบเป็น: {adminId}</span>
+          <button className="ws-btn ws-btn-ghost ws-btn-sm" onClick={handleLogout}>ออกจากระบบ</button>
         </div>
       </div>
 
-      <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button
-          onClick={() => setActiveTab('dashboard')}
-          style={{ fontWeight: activeTab === 'dashboard' ? 'bold' : 'normal' }}
-        >
+      <div className="ws-tabs">
+        <button className={`ws-tab ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
           แดชบอร์ด
         </button>
-        <button
-          onClick={() => setActiveTab('submissions')}
-          style={{ fontWeight: activeTab === 'submissions' ? 'bold' : 'normal' }}
-        >
+        <button className={`ws-tab ${activeTab === 'submissions' ? 'active' : ''}`} onClick={() => setActiveTab('submissions')}>
           ตรวจสอบกิจกรรม
         </button>
-        <button
-          onClick={() => setActiveTab('redeems')}
-          style={{ fontWeight: activeTab === 'redeems' ? 'bold' : 'normal' }}
-        >
+        <button className={`ws-tab ${activeTab === 'redeems' ? 'active' : ''}`} onClick={() => setActiveTab('redeems')}>
           คำขอแลกของรางวัล
         </button>
-        <button
-          onClick={() => setActiveTab('challenges')}
-          style={{ fontWeight: activeTab === 'challenges' ? 'bold' : 'normal' }}
-        >
+        <button className={`ws-tab ${activeTab === 'challenges' ? 'active' : ''}`} onClick={() => setActiveTab('challenges')}>
           Challenge
         </button>
-        <button
-          onClick={() => setActiveTab('badges')}
-          style={{ fontWeight: activeTab === 'badges' ? 'bold' : 'normal' }}
-        >
+        <button className={`ws-tab ${activeTab === 'badges' ? 'active' : ''}`} onClick={() => setActiveTab('badges')}>
           Badge
         </button>
-        <button
-          onClick={() => setActiveTab('categories')}
-          style={{ fontWeight: activeTab === 'categories' ? 'bold' : 'normal' }}
-        >
+        <button className={`ws-tab ${activeTab === 'categories' ? 'active' : ''}`} onClick={() => setActiveTab('categories')}>
           หมวดหมู่กิจกรรม
         </button>
-        <button
-          onClick={() => setActiveTab('activityTypes')}
-          style={{ fontWeight: activeTab === 'activityTypes' ? 'bold' : 'normal' }}
-        >
+        <button className={`ws-tab ${activeTab === 'activityTypes' ? 'active' : ''}`} onClick={() => setActiveTab('activityTypes')}>
           ประเภทกิจกรรม
         </button>
-        <button
-          onClick={() => setActiveTab('rewards')}
-          style={{ fontWeight: activeTab === 'rewards' ? 'bold' : 'normal' }}
-        >
+        <button className={`ws-tab ${activeTab === 'rewards' ? 'active' : ''}`} onClick={() => setActiveTab('rewards')}>
           ของรางวัล
         </button>
       </div>
 
       {activeTab === 'dashboard' && (
         <div>
-          {dashboardLoading && <p>กำลังโหลด...</p>}
-          {dashboardError && <p style={{ color: 'red' }}>{dashboardError}</p>}
+          {dashboardLoading && <p className="ws-empty">กำลังโหลด...</p>}
+          {dashboardError && <div className="ws-alert ws-alert-danger">{dashboardError}</div>}
 
           {dashboardData && (
             <>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                  gap: 12,
-                  marginBottom: 24,
-                }}
-              >
-                <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16 }}>
-                  <div style={{ fontSize: 13, color: '#666' }}>พนักงาน active</div>
-                  <div style={{ fontSize: 32, fontWeight: 'bold' }}>{dashboardData.activeEmployeeCount}</div>
+              <div className="ws-grid-stats" style={{ marginBottom: 24 }}>
+                <div className="ws-stat-card">
+                  <div className="ws-stat-label">พนักงาน active</div>
+                  <div className="ws-stat-value">{dashboardData.activeEmployeeCount}</div>
                 </div>
                 <div
-                  style={{
-                    border: '1px solid #ddd',
-                    borderRadius: 8,
-                    padding: 16,
-                    cursor: 'pointer',
-                  }}
+                  className="ws-stat-card ws-card-hover"
+                  style={{ cursor: 'pointer' }}
                   onClick={() => {
                     setStatusFilter('PENDING');
                     setActiveTab('submissions');
                   }}
                 >
-                  <div style={{ fontSize: 13, color: '#666' }}>Submission รอตรวจ</div>
-                  <div style={{ fontSize: 32, fontWeight: 'bold' }}>{dashboardData.pendingSubmissionCount}</div>
+                  <div className="ws-stat-label">Submission รอตรวจ</div>
+                  <div className="ws-stat-value">{dashboardData.pendingSubmissionCount}</div>
                 </div>
                 <div
-                  style={{
-                    border: '1px solid #ddd',
-                    borderRadius: 8,
-                    padding: 16,
-                    cursor: 'pointer',
-                  }}
+                  className="ws-stat-card ws-card-hover"
+                  style={{ cursor: 'pointer' }}
                   onClick={() => {
                     setRedeemStatusFilter('PENDING');
                     setActiveTab('redeems');
                   }}
                 >
-                  <div style={{ fontSize: 13, color: '#666' }}>Redeem รอตรวจ</div>
-                  <div style={{ fontSize: 32, fontWeight: 'bold' }}>{dashboardData.pendingRedeemCount}</div>
+                  <div className="ws-stat-label">Redeem รอตรวจ</div>
+                  <div className="ws-stat-value">{dashboardData.pendingRedeemCount}</div>
                 </div>
-                <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16 }}>
-                  <div style={{ fontSize: 13, color: '#666' }}>Badge ทั้งหมด</div>
-                  <div style={{ fontSize: 32, fontWeight: 'bold' }}>{dashboardData.totalBadgeCount}</div>
+                <div className="ws-stat-card">
+                  <div className="ws-stat-label">Badge ทั้งหมด</div>
+                  <div className="ws-stat-value">{dashboardData.totalBadgeCount}</div>
                 </div>
                 <div
-                  style={{
-                    border: '1px solid #ddd',
-                    borderRadius: 8,
-                    padding: 16,
-                    cursor: 'pointer',
-                  }}
+                  className="ws-stat-card ws-card-hover"
+                  style={{ cursor: 'pointer' }}
                   onClick={() => setActiveTab('challenges')}
                 >
-                  <div style={{ fontSize: 13, color: '#666' }}>Challenge กำลังดำเนินอยู่</div>
-                  <div style={{ fontSize: 32, fontWeight: 'bold' }}>{dashboardData.ongoingChallengeCount}</div>
+                  <div className="ws-stat-label">Challenge กำลังดำเนินอยู่</div>
+                  <div className="ws-stat-value">{dashboardData.ongoingChallengeCount}</div>
                 </div>
               </div>
 
               <h3>Challenge ที่กำลังดำเนินอยู่ตอนนี้</h3>
               {dashboardData.ongoingChallenges.length === 0 ? (
-                <p style={{ color: '#666' }}>ไม่มี challenge ที่กำลังดำเนินอยู่ตอนนี้</p>
+                <p style={{ color: 'var(--ws-text-secondary)' }}>ไม่มี challenge ที่กำลังดำเนินอยู่ตอนนี้</p>
               ) : (
-                <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                <table className="ws-table">
                   <thead>
                     <tr>
-                      <th style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid #ccc' }}>ชื่อ Challenge</th>
-                      <th style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid #ccc' }}>หมวดหมู่</th>
-                      <th style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid #ccc' }}>ช่วงเวลา</th>
-                      <th style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid #ccc' }}>ผู้เข้าร่วม</th>
+                      <th>ชื่อ Challenge</th>
+                      <th>หมวดหมู่</th>
+                      <th>ช่วงเวลา</th>
+                      <th>ผู้เข้าร่วม</th>
                     </tr>
                   </thead>
                   <tbody>
                     {dashboardData.ongoingChallenges.map((c) => (
-                      <tr key={c.challenge_id}>
-                        <td style={{ padding: 8, borderBottom: '1px solid #eee' }}>{c.challenge_name}</td>
-                        <td style={{ padding: 8, borderBottom: '1px solid #eee' }}>{c.category_name}</td>
-                        <td style={{ padding: 8, borderBottom: '1px solid #eee' }}>
+                      <tr
+                        key={c.challenge_id}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => {
+                          setActiveTab('challenges');
+                          openParticipants(c.challenge_id, c.challenge_name);
+                        }}
+                      >
+                        <td>{c.challenge_name}</td>
+                        <td>{c.category_name}</td>
+                        <td>
                           {new Date(c.start_date).toLocaleDateString('th-TH')} -{' '}
                           {new Date(c.end_date).toLocaleDateString('th-TH')}
                         </td>
-                        <td style={{ padding: 8, borderBottom: '1px solid #eee' }}>{c.participant_count}</td>
+                        <td>{c.participant_count}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1302,63 +1292,64 @@ export default function AdminApp() {
 
       {activeTab === 'submissions' && (
         <>
-      <div style={{ marginBottom: 16 }}>
-        <label htmlFor="statusFilter">สถานะ: </label>
+      <div className="ws-row" style={{ marginBottom: 16 }}>
+        <label htmlFor="statusFilter" className="ws-label" style={{ margin: 0 }}>สถานะ: </label>
         <select
           id="statusFilter"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          style={{ padding: 6, fontSize: 14 }}
+          className="ws-select"
+          style={{ width: 'auto' }}
         >
           <option value="PENDING">รอตรวจสอบ (PENDING)</option>
           <option value="APPROVED">อนุมัติแล้ว (APPROVED)</option>
           <option value="REJECTED">ถูกปฏิเสธ (REJECTED)</option>
         </select>
-        <button onClick={loadSubmissions} style={{ marginLeft: 8 }}>
+        <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={loadSubmissions}>
           รีเฟรช
         </button>
       </div>
 
-      {actionError && <p style={{ color: 'red' }}>{actionError}</p>}
-      {listError && <p style={{ color: 'red' }}>{listError}</p>}
-      {listLoading && <p>กำลังโหลด...</p>}
+      {actionError && <div className="ws-alert ws-alert-danger">{actionError}</div>}
+      {listError && <div className="ws-alert ws-alert-danger">{listError}</div>}
+      {listLoading && <p className="ws-empty">กำลังโหลด...</p>}
 
-      {!listLoading && submissions.length === 0 && <p>ไม่มีรายการในสถานะนี้</p>}
+      {!listLoading && submissions.length === 0 && <p className="ws-empty">ไม่มีรายการในสถานะนี้</p>}
 
       {!listLoading && submissions.length > 0 && (
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table className="ws-table">
             <thead>
-              <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
-                <th style={{ padding: 8 }}>#</th>
-                <th style={{ padding: 8 }}>พนักงาน</th>
-                <th style={{ padding: 8 }}>แผนก</th>
-                <th style={{ padding: 8 }}>กิจกรรม</th>
-                <th style={{ padding: 8 }}>คะแนน</th>
-                <th style={{ padding: 8 }}>ระยะทาง</th>
-                <th style={{ padding: 8 }}>เวลา</th>
-                <th style={{ padding: 8 }}>รูปหลักฐาน</th>
-                <th style={{ padding: 8 }}>หมายเหตุ</th>
-                <th style={{ padding: 8 }}>ส่งเมื่อ</th>
-                {statusFilter === 'REJECTED' && <th style={{ padding: 8 }}>เหตุผลที่ปฏิเสธ</th>}
-                {statusFilter === 'PENDING' && <th style={{ padding: 8 }}>จัดการ</th>}
+              <tr>
+                <th>#</th>
+                <th>พนักงาน</th>
+                <th>แผนก</th>
+                <th>กิจกรรม</th>
+                <th>คะแนน</th>
+                <th>ระยะทาง</th>
+                <th>เวลา</th>
+                <th>รูปหลักฐาน</th>
+                <th>หมายเหตุ</th>
+                <th>ส่งเมื่อ</th>
+                {statusFilter === 'REJECTED' && <th>เหตุผลที่ปฏิเสธ</th>}
+                {statusFilter === 'PENDING' && <th>จัดการ</th>}
               </tr>
             </thead>
             <tbody>
               {submissions.map((s) => (
-                <tr key={s.submission_id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: 8 }}>{s.submission_id}</td>
-                  <td style={{ padding: 8 }}>
+                <tr key={s.submission_id}>
+                  <td>{s.submission_id}</td>
+                  <td>
                     {s.full_name}
                     <br />
-                    <small style={{ color: '#888' }}>{s.employee_id}</small>
+                    <small style={{ color: 'var(--ws-text-muted)' }}>{s.employee_id}</small>
                   </td>
-                  <td style={{ padding: 8 }}>{s.department || '-'}</td>
-                  <td style={{ padding: 8 }}>{s.activity_name}</td>
-                  <td style={{ padding: 8 }}>{s.score}</td>
-                  <td style={{ padding: 8 }}>{s.distance != null ? `${s.distance} กม.` : '-'}</td>
-                  <td style={{ padding: 8 }}>{s.duration != null ? `${s.duration} นาที` : '-'}</td>
-                  <td style={{ padding: 8 }}>
+                  <td>{s.department || '-'}</td>
+                  <td>{s.activity_name}</td>
+                  <td>{s.score}</td>
+                  <td>{s.distance != null ? `${s.distance} กม.` : '-'}</td>
+                  <td>{s.duration != null ? `${s.duration} นาที` : '-'}</td>
+                  <td>
                     {s.proof_image ? (
                       <a href={`${API_BASE}/${s.proof_image}`} target="_blank" rel="noreferrer">
                         <img
@@ -1371,22 +1362,23 @@ export default function AdminApp() {
                       'ไม่มีรูป'
                     )}
                   </td>
-                  <td style={{ padding: 8 }}>{s.note || '-'}</td>
-                  <td style={{ padding: 8 }}>{new Date(s.submitted_at).toLocaleString('th-TH')}</td>
+                  <td>{s.note || '-'}</td>
+                  <td>{new Date(s.submitted_at).toLocaleString('th-TH')}</td>
                   {statusFilter === 'REJECTED' && (
-                    <td style={{ padding: 8 }}>
+                    <td>
                       {s.reject_reason_text || '-'}
                       {s.reject_reason_note && (
                         <>
                           <br />
-                          <small style={{ color: '#888' }}>{s.reject_reason_note}</small>
+                          <small style={{ color: 'var(--ws-text-muted)' }}>{s.reject_reason_note}</small>
                         </>
                       )}
                     </td>
                   )}
                   {statusFilter === 'PENDING' && (
-                    <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                    <td style={{ whiteSpace: 'nowrap' }}>
                       <button
+                        className="ws-btn ws-btn-primary ws-btn-sm"
                         onClick={() => handleApprove(s.submission_id)}
                         disabled={actioningId === s.submission_id}
                         style={{ marginRight: 6 }}
@@ -1394,6 +1386,7 @@ export default function AdminApp() {
                         {actioningId === s.submission_id ? '...' : 'อนุมัติ'}
                       </button>
                       <button
+                        className="ws-btn ws-btn-danger ws-btn-sm"
                         onClick={() => openRejectModal(s.submission_id)}
                         disabled={actioningId === s.submission_id}
                       >
@@ -1409,41 +1402,19 @@ export default function AdminApp() {
       )}
 
       {rejectModalSubmissionId !== null && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: '#fff',
-              borderRadius: 8,
-              padding: 24,
-              width: '90%',
-              maxWidth: 420,
-            }}
-          >
-            <h3 style={{ marginTop: 0 }}>
+        <div className="ws-modal-overlay">
+          <div className="ws-modal" style={{ maxWidth: 420 }}>
+            <h3>
               ปฏิเสธ submission #{rejectModalSubmissionId}
             </h3>
 
             <div style={{ marginBottom: 12 }}>
-              <label htmlFor="rejectReasonSelect">เหตุผล</label>
-              <br />
+              <label htmlFor="rejectReasonSelect" className="ws-label">เหตุผล</label>
               <select
                 id="rejectReasonSelect"
                 value={rejectReasonId}
                 onChange={(e) => setRejectReasonId(e.target.value)}
-                style={{ padding: 8, fontSize: 16, width: '100%' }}
+                className="ws-select"
               >
                 <option value="">-- เลือกเหตุผล --</option>
                 {rejectReasons.map((r) => (
@@ -1456,25 +1427,24 @@ export default function AdminApp() {
 
             {rejectNoteRequired && (
               <div style={{ marginBottom: 12 }}>
-                <label htmlFor="rejectNote">ระบุเหตุผลเพิ่มเติม</label>
-                <br />
+                <label htmlFor="rejectNote" className="ws-label">ระบุเหตุผลเพิ่มเติม</label>
                 <textarea
                   id="rejectNote"
                   value={rejectNote}
                   onChange={(e) => setRejectNote(e.target.value)}
                   rows={3}
-                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  className="ws-textarea"
                 />
               </div>
             )}
 
-            {rejectError && <p style={{ color: 'red' }}>{rejectError}</p>}
+            {rejectError && <div className="ws-alert ws-alert-danger">{rejectError}</div>}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button onClick={closeRejectModal} disabled={rejectSubmitting}>
+            <div className="ws-modal-actions">
+              <button className="ws-btn ws-btn-ghost" onClick={closeRejectModal} disabled={rejectSubmitting}>
                 ยกเลิก
               </button>
-              <button onClick={handleConfirmReject} disabled={rejectSubmitting}>
+              <button className="ws-btn ws-btn-danger" onClick={handleConfirmReject} disabled={rejectSubmitting}>
                 {rejectSubmitting ? 'กำลังบันทึก...' : 'ยืนยันปฏิเสธ'}
               </button>
             </div>
@@ -1492,54 +1462,55 @@ export default function AdminApp() {
               id="redeemStatusFilter"
               value={redeemStatusFilter}
               onChange={(e) => setRedeemStatusFilter(e.target.value)}
-              style={{ padding: 6, fontSize: 14 }}
+              className="ws-select" style={{ width: 'auto' }}
             >
               <option value="PENDING">รอดำเนินการ (PENDING)</option>
               <option value="APPROVED">อนุมัติแล้ว (APPROVED)</option>
               <option value="REJECTED">ถูกปฏิเสธ (REJECTED)</option>
               <option value="CANCELLED">ยกเลิกแล้ว (CANCELLED)</option>
             </select>
-            <button onClick={loadRedeems} style={{ marginLeft: 8 }}>
+            <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={loadRedeems} style={{ marginLeft: 8 }}>
               รีเฟรช
             </button>
           </div>
 
-          {redeemActionError && <p style={{ color: 'red' }}>{redeemActionError}</p>}
-          {redeemListError && <p style={{ color: 'red' }}>{redeemListError}</p>}
+          {redeemActionError && <div className="ws-alert ws-alert-danger">{redeemActionError}</div>}
+          {redeemListError && <div className="ws-alert ws-alert-danger">{redeemListError}</div>}
           {redeemListLoading && <p>กำลังโหลด...</p>}
 
           {!redeemListLoading && redeems.length === 0 && <p>ไม่มีรายการในสถานะนี้</p>}
 
           {!redeemListLoading && redeems.length > 0 && (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table className="ws-table">
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
-                    <th style={{ padding: 8 }}>#</th>
-                    <th style={{ padding: 8 }}>พนักงาน</th>
-                    <th style={{ padding: 8 }}>แผนก</th>
-                    <th style={{ padding: 8 }}>ของรางวัล</th>
-                    <th style={{ padding: 8 }}>คะแนนที่ใช้</th>
-                    <th style={{ padding: 8 }}>วันที่แลก</th>
-                    {redeemStatusFilter === 'PENDING' && <th style={{ padding: 8 }}>จัดการ</th>}
+                  <tr>
+                    <th>#</th>
+                    <th>พนักงาน</th>
+                    <th>แผนก</th>
+                    <th>ของรางวัล</th>
+                    <th>คะแนนที่ใช้</th>
+                    <th>วันที่แลก</th>
+                    {redeemStatusFilter === 'PENDING' && <th>จัดการ</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {redeems.map((rd) => (
-                    <tr key={rd.redeem_id} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: 8 }}>{rd.redeem_id}</td>
-                      <td style={{ padding: 8 }}>
+                    <tr key={rd.redeem_id} >
+                      <td>{rd.redeem_id}</td>
+                      <td>
                         {rd.full_name}
                         <br />
-                        <small style={{ color: '#888' }}>{rd.employee_id}</small>
+                        <small style={{ color: 'var(--ws-text-muted)' }}>{rd.employee_id}</small>
                       </td>
-                      <td style={{ padding: 8 }}>{rd.department || '-'}</td>
-                      <td style={{ padding: 8 }}>{rd.reward_name}</td>
-                      <td style={{ padding: 8 }}>{rd.used_score}</td>
-                      <td style={{ padding: 8 }}>{new Date(rd.redeem_date).toLocaleString('th-TH')}</td>
+                      <td>{rd.department || '-'}</td>
+                      <td>{rd.reward_name}</td>
+                      <td>{rd.used_score}</td>
+                      <td>{new Date(rd.redeem_date).toLocaleString('th-TH')}</td>
                       {redeemStatusFilter === 'PENDING' && (
-                        <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                        <td style={{ whiteSpace: 'nowrap' }}>
                           <button
+                            className="ws-btn ws-btn-primary ws-btn-sm"
                             onClick={() => handleApproveRedeem(rd.redeem_id)}
                             disabled={redeemActioningId === rd.redeem_id}
                             style={{ marginRight: 6 }}
@@ -1547,6 +1518,7 @@ export default function AdminApp() {
                             {redeemActioningId === rd.redeem_id ? '...' : 'อนุมัติ (มอบของแล้ว)'}
                           </button>
                           <button
+                            className="ws-btn ws-btn-danger ws-btn-sm"
                             onClick={() => handleRejectRedeem(rd.redeem_id)}
                             disabled={redeemActioningId === rd.redeem_id}
                           >
@@ -1565,15 +1537,7 @@ export default function AdminApp() {
 
       {activeTab === 'challenges' && (
         <>
-          <div
-            style={{
-              border: '1px solid #ddd',
-              borderRadius: 6,
-              padding: 16,
-              marginBottom: 16,
-              maxWidth: 480,
-            }}
-          >
+          <div className="ws-card" style={{ marginBottom: 16, maxWidth: 480 }}>
             <h3 style={{ marginTop: 0 }}>สร้าง Challenge ใหม่</h3>
             <form onSubmit={handleCreateChallenge}>
               <div style={{ marginBottom: 12 }}>
@@ -1583,7 +1547,7 @@ export default function AdminApp() {
                   id="newChallengeCategory"
                   value={newChallengeCategoryId}
                   onChange={(e) => setNewChallengeCategoryId(e.target.value)}
-                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  className="ws-select"
                 >
                   <option value="">-- เลือกหมวดกิจกรรม --</option>
                   {challengeCategories.map((cat) => (
@@ -1603,7 +1567,7 @@ export default function AdminApp() {
                   value={newChallengeName}
                   onChange={(e) => setNewChallengeName(e.target.value)}
                   placeholder="เช่น July Run Challenge"
-                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  className="ws-input"
                 />
               </div>
 
@@ -1615,7 +1579,7 @@ export default function AdminApp() {
                   value={newChallengeDescription}
                   onChange={(e) => setNewChallengeDescription(e.target.value)}
                   rows={2}
-                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  className="ws-textarea"
                 />
               </div>
 
@@ -1628,7 +1592,7 @@ export default function AdminApp() {
                     type="datetime-local"
                     value={newChallengeStartDate}
                     onChange={(e) => setNewChallengeStartDate(e.target.value)}
-                    style={{ padding: 8, fontSize: 16, width: '100%' }}
+                    className="ws-input"
                   />
                 </div>
                 <div style={{ flex: 1 }}>
@@ -1639,67 +1603,75 @@ export default function AdminApp() {
                     type="datetime-local"
                     value={newChallengeEndDate}
                     onChange={(e) => setNewChallengeEndDate(e.target.value)}
-                    style={{ padding: 8, fontSize: 16, width: '100%' }}
+                    className="ws-input"
                   />
                 </div>
               </div>
 
-              {createChallengeError && <p style={{ color: 'red' }}>{createChallengeError}</p>}
+              {createChallengeError && <div className="ws-alert ws-alert-danger">{createChallengeError}</div>}
 
-              <button type="submit" disabled={createChallengeSubmitting}>
+              <button type="submit" className="ws-btn ws-btn-primary" disabled={createChallengeSubmitting}>
                 {createChallengeSubmitting ? 'กำลังสร้าง...' : 'สร้าง Challenge'}
               </button>
             </form>
           </div>
 
-          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+          <div className="ws-row-between" style={{ marginBottom: 16 }}>
             <h3 style={{ margin: 0 }}>รายการ Challenge ทั้งหมด</h3>
-            <button onClick={loadChallenges}>รีเฟรช</button>
+            <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={loadChallenges}>รีเฟรช</button>
           </div>
 
-          {challengeActionError && <p style={{ color: 'red' }}>{challengeActionError}</p>}
-          {challengeListError && <p style={{ color: 'red' }}>{challengeListError}</p>}
-          {challengeListLoading && <p>กำลังโหลด...</p>}
+          {challengeActionError && <div className="ws-alert ws-alert-danger">{challengeActionError}</div>}
+          {challengeListError && <div className="ws-alert ws-alert-danger">{challengeListError}</div>}
+          {challengeListLoading && <p className="ws-empty">กำลังโหลด...</p>}
 
-          {!challengeListLoading && challenges.length === 0 && <p>ยังไม่มี challenge</p>}
+          {!challengeListLoading && challenges.length === 0 && <p className="ws-empty">ยังไม่มี challenge</p>}
 
           {!challengeListLoading && challenges.length > 0 && (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table className="ws-table">
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
-                    <th style={{ padding: 8 }}>#</th>
-                    <th style={{ padding: 8 }}>ชื่อ Challenge</th>
-                    <th style={{ padding: 8 }}>หมวดกิจกรรม</th>
-                    <th style={{ padding: 8 }}>ช่วงเวลา</th>
-                    <th style={{ padding: 8 }}>สถานะ</th>
-                    <th style={{ padding: 8 }}>ผู้เข้าร่วม</th>
-                    <th style={{ padding: 8 }}>จัดการ</th>
+                  <tr>
+                    <th>#</th>
+                    <th>ชื่อ Challenge</th>
+                    <th>หมวดกิจกรรม</th>
+                    <th>ช่วงเวลา</th>
+                    <th>สถานะ</th>
+                    <th>ผู้เข้าร่วม</th>
+                    <th>จัดการ</th>
                   </tr>
                 </thead>
                 <tbody>
                   {challenges.map((c) => (
-                    <tr key={c.challenge_id} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: 8 }}>{c.challenge_id}</td>
-                      <td style={{ padding: 8 }}>
+                    <tr key={c.challenge_id} >
+                      <td>{c.challenge_id}</td>
+                      <td>
                         {c.challenge_name}
                         {c.description && (
                           <>
                             <br />
-                            <small style={{ color: '#888' }}>{c.description}</small>
+                            <small style={{ color: 'var(--ws-text-muted)' }}>{c.description}</small>
                           </>
                         )}
                       </td>
-                      <td style={{ padding: 8 }}>{c.category_name}</td>
-                      <td style={{ padding: 8 }}>
+                      <td>{c.category_name}</td>
+                      <td>
                         {new Date(c.start_date).toLocaleDateString('th-TH')} -{' '}
                         {new Date(c.end_date).toLocaleDateString('th-TH')}
                       </td>
-                      <td style={{ padding: 8 }}>{CHALLENGE_STATUS_LABEL_TH[c.status] || c.status}</td>
-                      <td style={{ padding: 8 }}>{c.participant_count}</td>
-                      <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                      <td><span className="ws-badge ws-badge-info">{CHALLENGE_STATUS_LABEL_TH[c.status] || c.status}</span></td>
+                      <td>{c.participant_count}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <button
+                          className="ws-btn ws-btn-secondary ws-btn-sm"
+                          onClick={() => openParticipants(c.challenge_id, c.challenge_name)}
+                          style={{ marginRight: 6 }}
+                        >
+                          ดูผู้เข้าร่วม
+                        </button>
                         {['UPCOMING', 'ONGOING'].includes(c.status) ? (
                           <button
+                            className="ws-btn ws-btn-danger ws-btn-sm"
                             onClick={() => handleCancelChallenge(c.challenge_id)}
                             disabled={challengeActioningId === c.challenge_id}
                           >
@@ -1715,20 +1687,64 @@ export default function AdminApp() {
               </table>
             </div>
           )}
+
+          {participantsChallengeId !== null && (
+            <div className="ws-modal-overlay">
+              <div className="ws-modal" style={{ maxWidth: 560 }}>
+                <h3>ผู้เข้าร่วม: {participantsChallengeName}</h3>
+
+                {participantsLoading && <p className="ws-empty">กำลังโหลด...</p>}
+                {participantsError && <div className="ws-alert ws-alert-danger">{participantsError}</div>}
+
+                {!participantsLoading && !participantsError && participants.length === 0 && (
+                  <p className="ws-empty">ยังไม่มีผู้เข้าร่วม</p>
+                )}
+
+                {!participantsLoading && participants.length > 0 && (
+                  <table className="ws-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>ชื่อ-สกุล</th>
+                        <th>แผนก</th>
+                        <th>โหมด</th>
+                        <th>ระยะทางสะสม</th>
+                        <th>จำนวนครั้ง</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {participants.map((p) => (
+                        <tr key={p.participantId} >
+                          <td>{p.rank}</td>
+                          <td>
+                            {p.fullName}
+                            <br />
+                            <small style={{ color: 'var(--ws-text-muted)' }}>{p.employeeId}</small>
+                          </td>
+                          <td>{p.department || '-'}</td>
+                          <td>
+                            {p.joinMode === 'ANONYMOUS' ? 'ไม่ระบุตัวตน (leaderboard พนักงาน)' : 'แสดงชื่อ'}
+                          </td>
+                          <td>{p.totalDistance} กม.</td>
+                          <td>{p.runCount}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                <div className="ws-modal-actions">
+                  <button className="ws-btn ws-btn-secondary" onClick={closeParticipants}>ปิด</button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
 
       {activeTab === 'badges' && (
         <>
-          <div
-            style={{
-              border: '1px solid #ddd',
-              borderRadius: 6,
-              padding: 16,
-              marginBottom: 16,
-              maxWidth: 480,
-            }}
-          >
+          <div className="ws-card" style={{ marginBottom: 16, maxWidth: 480 }}>
             <h3 style={{ marginTop: 0 }}>สร้าง Badge ใหม่</h3>
             <form onSubmit={handleCreateBadge}>
               <div style={{ marginBottom: 12 }}>
@@ -1740,7 +1756,7 @@ export default function AdminApp() {
                   value={badgeForm.badgeName}
                   onChange={(e) => setBadgeForm((prev) => ({ ...prev, badgeName: e.target.value }))}
                   placeholder="เช่น วิ่งติดกัน 3 วัน"
-                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  className="ws-input"
                 />
               </div>
 
@@ -1752,7 +1768,7 @@ export default function AdminApp() {
                   value={badgeForm.description}
                   onChange={(e) => setBadgeForm((prev) => ({ ...prev, description: e.target.value }))}
                   rows={2}
-                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  className="ws-textarea"
                 />
               </div>
 
@@ -1775,7 +1791,7 @@ export default function AdminApp() {
                     id="newBadgeConditionType"
                     value={badgeForm.conditionType}
                     onChange={(e) => setBadgeForm((prev) => ({ ...prev, conditionType: e.target.value }))}
-                    style={{ padding: 8, fontSize: 16, width: '100%' }}
+                    className="ws-select"
                   >
                     {Object.entries(BADGE_CONDITION_LABEL_TH).map(([value, label]) => (
                       <option key={value} value={value}>
@@ -1794,41 +1810,41 @@ export default function AdminApp() {
                     step="1"
                     value={badgeForm.conditionValue}
                     onChange={(e) => setBadgeForm((prev) => ({ ...prev, conditionValue: e.target.value }))}
-                    style={{ padding: 8, fontSize: 16, width: '100%' }}
+                    className="ws-input"
                   />
                 </div>
               </div>
 
-              {badgeFormError && <p style={{ color: 'red' }}>{badgeFormError}</p>}
+              {badgeFormError && <div className="ws-alert ws-alert-danger">{badgeFormError}</div>}
 
-              <button type="submit" disabled={badgeFormSubmitting}>
+              <button type="submit" className="ws-btn ws-btn-primary" disabled={badgeFormSubmitting}>
                 {badgeFormSubmitting ? 'กำลังสร้าง...' : 'สร้าง Badge'}
               </button>
             </form>
           </div>
 
-          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+          <div className="ws-row-between" style={{ marginBottom: 16 }}>
             <h3 style={{ margin: 0 }}>รายการ Badge ทั้งหมด</h3>
-            <button onClick={loadBadges}>รีเฟรช</button>
+            <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={loadBadges}>รีเฟรช</button>
           </div>
 
-          {badgeListError && <p style={{ color: 'red' }}>{badgeListError}</p>}
-          {badgeListLoading && <p>กำลังโหลด...</p>}
+          {badgeListError && <div className="ws-alert ws-alert-danger">{badgeListError}</div>}
+          {badgeListLoading && <p className="ws-empty">กำลังโหลด...</p>}
 
-          {!badgeListLoading && badges.length === 0 && <p>ยังไม่มี badge</p>}
+          {!badgeListLoading && badges.length === 0 && <p className="ws-empty">ยังไม่มี badge</p>}
 
           {!badgeListLoading && badges.length > 0 && (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table className="ws-table">
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
-                    <th style={{ padding: 8 }}>#</th>
-                    <th style={{ padding: 8 }}>ไอคอน</th>
-                    <th style={{ padding: 8 }}>ชื่อ Badge</th>
-                    <th style={{ padding: 8 }}>เงื่อนไข</th>
-                    <th style={{ padding: 8 }}>สถานะ</th>
-                    <th style={{ padding: 8 }}>ได้รับแล้ว</th>
-                    <th style={{ padding: 8 }}>จัดการ</th>
+                  <tr>
+                    <th>#</th>
+                    <th>ไอคอน</th>
+                    <th>ชื่อ Badge</th>
+                    <th>เงื่อนไข</th>
+                    <th>สถานะ</th>
+                    <th>ได้รับแล้ว</th>
+                    <th>จัดการ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1838,9 +1854,9 @@ export default function AdminApp() {
 
                     if (isEditing) {
                       return (
-                        <tr key={b.badge_id} style={{ borderBottom: '1px solid #eee' }}>
-                          <td style={{ padding: 8 }}>{b.badge_id}</td>
-                          <td style={{ padding: 8 }}>
+                        <tr key={b.badge_id} >
+                          <td>{b.badge_id}</td>
+                          <td>
                             {editBadgeForm.icon && !editRemoveIcon && (
                               <img
                                 src={`${API_BASE}/${editBadgeForm.icon}`}
@@ -1878,14 +1894,15 @@ export default function AdminApp() {
                               </label>
                             )}
                           </td>
-                          <td style={{ padding: 8 }}>
+                          <td>
                             <input
                               type="text"
                               value={editBadgeForm.badgeName}
                               onChange={(e) =>
                                 setEditBadgeForm((prev) => ({ ...prev, badgeName: e.target.value }))
                               }
-                              style={{ padding: 6, width: '100%', marginBottom: 6 }}
+                              className="ws-input"
+                              style={{ marginBottom: 6 }}
                             />
                             <textarea
                               value={editBadgeForm.description}
@@ -1893,17 +1910,18 @@ export default function AdminApp() {
                                 setEditBadgeForm((prev) => ({ ...prev, description: e.target.value }))
                               }
                               rows={2}
-                              style={{ padding: 6, width: '100%' }}
+                              className="ws-textarea"
                               placeholder="คำอธิบาย"
                             />
                           </td>
-                          <td style={{ padding: 8 }}>
+                          <td>
                             <select
                               value={editBadgeForm.conditionType}
                               onChange={(e) =>
                                 setEditBadgeForm((prev) => ({ ...prev, conditionType: e.target.value }))
                               }
-                              style={{ padding: 6, width: '100%', marginBottom: 6 }}
+                              className="ws-select"
+                              style={{ marginBottom: 6 }}
                             >
                               {Object.entries(BADGE_CONDITION_LABEL_TH).map(([value, label]) => (
                                 <option key={value} value={value}>
@@ -1919,30 +1937,30 @@ export default function AdminApp() {
                               onChange={(e) =>
                                 setEditBadgeForm((prev) => ({ ...prev, conditionValue: e.target.value }))
                               }
-                              style={{ padding: 6, width: '100%' }}
+                              className="ws-input"
                             />
                           </td>
-                          <td style={{ padding: 8 }}>
+                          <td>
                             <select
                               value={editBadgeForm.status}
                               onChange={(e) =>
                                 setEditBadgeForm((prev) => ({ ...prev, status: e.target.value }))
                               }
-                              style={{ padding: 6 }}
+                              className="ws-select"
                             >
                               <option value="ACTIVE">ACTIVE</option>
                               <option value="INACTIVE">INACTIVE</option>
                             </select>
                           </td>
-                          <td style={{ padding: 8 }}>{b.earned_count} คน</td>
-                          <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                          <td>{b.earned_count} คน</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
                             {editBadgeError && (
-                              <p style={{ color: 'red', margin: '0 0 6px' }}>{editBadgeError}</p>
+                              <div className="ws-alert ws-alert-danger" style={{ margin: '0 0 6px' }}>{editBadgeError}</div>
                             )}
-                            <button onClick={() => handleSaveBadge(b.badge_id)} disabled={isActioning}>
+                            <button className="ws-btn ws-btn-primary ws-btn-sm" onClick={() => handleSaveBadge(b.badge_id)} disabled={isActioning}>
                               {isActioning ? '...' : 'บันทึก'}
                             </button>{' '}
-                            <button onClick={cancelEditBadge} disabled={isActioning}>
+                            <button className="ws-btn ws-btn-ghost ws-btn-sm" onClick={cancelEditBadge} disabled={isActioning}>
                               ยกเลิก
                             </button>
                           </td>
@@ -1951,9 +1969,9 @@ export default function AdminApp() {
                     }
 
                     return (
-                      <tr key={b.badge_id} style={{ borderBottom: '1px solid #eee' }}>
-                        <td style={{ padding: 8 }}>{b.badge_id}</td>
-                        <td style={{ padding: 8 }}>
+                      <tr key={b.badge_id} >
+                        <td>{b.badge_id}</td>
+                        <td>
                           {b.icon ? (
                             <img
                               src={`${API_BASE}/${b.icon}`}
@@ -1964,25 +1982,25 @@ export default function AdminApp() {
                             <span style={{ fontSize: 24 }}>🏅</span>
                           )}
                         </td>
-                        <td style={{ padding: 8 }}>
+                        <td>
                           {b.badge_name}
                           {b.description && (
                             <>
                               <br />
-                              <small style={{ color: '#888' }}>{b.description}</small>
+                              <small style={{ color: 'var(--ws-text-muted)' }}>{b.description}</small>
                             </>
                           )}
                         </td>
-                        <td style={{ padding: 8 }}>
+                        <td>
                           {BADGE_CONDITION_LABEL_TH[b.condition_type] || b.condition_type} ≥ {b.condition_value}
                         </td>
-                        <td style={{ padding: 8 }}>{b.status}</td>
-                        <td style={{ padding: 8 }}>{b.earned_count} คน</td>
-                        <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
-                          <button onClick={() => startEditBadge(b)} disabled={isActioning}>
+                        <td><span className={`ws-badge ${b.status === 'ACTIVE' ? 'ws-badge-success' : 'ws-badge-neutral'}`}>{b.status}</span></td>
+                        <td>{b.earned_count} คน</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={() => startEditBadge(b)} disabled={isActioning}>
                             แก้ไข
                           </button>{' '}
-                          <button onClick={() => handleToggleBadgeStatus(b)} disabled={isActioning}>
+                          <button className="ws-btn ws-btn-ghost ws-btn-sm" onClick={() => handleToggleBadgeStatus(b)} disabled={isActioning}>
                             {isActioning ? '...' : b.status === 'ACTIVE' ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
                           </button>
                         </td>
@@ -1998,15 +2016,7 @@ export default function AdminApp() {
 
       {activeTab === 'categories' && (
         <>
-          <div
-            style={{
-              border: '1px solid #ddd',
-              borderRadius: 6,
-              padding: 16,
-              marginBottom: 16,
-              maxWidth: 480,
-            }}
-          >
+          <div className="ws-card" style={{ marginBottom: 16, maxWidth: 480 }}>
             <h3 style={{ marginTop: 0 }}>สร้างหมวดหมู่กิจกรรมใหม่</h3>
             <form onSubmit={handleCreateCategory}>
               <div style={{ marginBottom: 12 }}>
@@ -2018,37 +2028,37 @@ export default function AdminApp() {
                   value={categoryForm.categoryName}
                   onChange={(e) => setCategoryForm({ categoryName: e.target.value })}
                   placeholder="เช่น วิ่ง, ปั่นจักรยาน, ว่ายน้ำ"
-                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  className="ws-input"
                 />
               </div>
 
-              {categoryFormError && <p style={{ color: 'red' }}>{categoryFormError}</p>}
+              {categoryFormError && <div className="ws-alert ws-alert-danger">{categoryFormError}</div>}
 
-              <button type="submit" disabled={categoryFormSubmitting}>
+              <button type="submit" className="ws-btn ws-btn-primary" disabled={categoryFormSubmitting}>
                 {categoryFormSubmitting ? 'กำลังสร้าง...' : 'สร้างหมวดหมู่'}
               </button>
             </form>
           </div>
 
-          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+          <div className="ws-row-between" style={{ marginBottom: 16 }}>
             <h3 style={{ margin: 0 }}>รายการหมวดหมู่กิจกรรมทั้งหมด</h3>
-            <button onClick={loadCategories}>รีเฟรช</button>
+            <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={loadCategories}>รีเฟรช</button>
           </div>
 
-          {categoryListError && <p style={{ color: 'red' }}>{categoryListError}</p>}
-          {categoryListLoading && <p>กำลังโหลด...</p>}
-          {!categoryListLoading && categories.length === 0 && <p>ยังไม่มีหมวดหมู่</p>}
+          {categoryListError && <div className="ws-alert ws-alert-danger">{categoryListError}</div>}
+          {categoryListLoading && <p className="ws-empty">กำลังโหลด...</p>}
+          {!categoryListLoading && categories.length === 0 && <p className="ws-empty">ยังไม่มีหมวดหมู่</p>}
 
           {!categoryListLoading && categories.length > 0 && (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table className="ws-table">
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
-                    <th style={{ padding: 8 }}>#</th>
-                    <th style={{ padding: 8 }}>ชื่อหมวดหมู่</th>
-                    <th style={{ padding: 8 }}>สถานะ</th>
-                    <th style={{ padding: 8 }}>จำนวนประเภทกิจกรรมย่อย</th>
-                    <th style={{ padding: 8 }}>จัดการ</th>
+                  <tr>
+                    <th>#</th>
+                    <th>ชื่อหมวดหมู่</th>
+                    <th>สถานะ</th>
+                    <th>จำนวนประเภทกิจกรรมย่อย</th>
+                    <th>จัดการ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2058,39 +2068,39 @@ export default function AdminApp() {
 
                     if (isEditing) {
                       return (
-                        <tr key={cat.category_id} style={{ borderBottom: '1px solid #eee' }}>
-                          <td style={{ padding: 8 }}>{cat.category_id}</td>
-                          <td style={{ padding: 8 }}>
+                        <tr key={cat.category_id} >
+                          <td>{cat.category_id}</td>
+                          <td>
                             <input
                               type="text"
                               value={editCategoryForm.categoryName}
                               onChange={(e) =>
                                 setEditCategoryForm((prev) => ({ ...prev, categoryName: e.target.value }))
                               }
-                              style={{ padding: 6, width: '100%' }}
+                              className="ws-input"
                             />
                           </td>
-                          <td style={{ padding: 8 }}>
+                          <td>
                             <select
                               value={editCategoryForm.status}
                               onChange={(e) =>
                                 setEditCategoryForm((prev) => ({ ...prev, status: e.target.value }))
                               }
-                              style={{ padding: 6 }}
+                              className="ws-select"
                             >
                               <option value="ACTIVE">ACTIVE</option>
                               <option value="INACTIVE">INACTIVE</option>
                             </select>
                           </td>
-                          <td style={{ padding: 8 }}>{cat.activity_type_count}</td>
-                          <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                          <td>{cat.activity_type_count}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
                             {editCategoryError && (
-                              <p style={{ color: 'red', margin: '0 0 6px' }}>{editCategoryError}</p>
+                              <div className="ws-alert ws-alert-danger" style={{ margin: '0 0 6px' }}>{editCategoryError}</div>
                             )}
-                            <button onClick={() => handleSaveCategory(cat.category_id)} disabled={isActioning}>
+                            <button className="ws-btn ws-btn-primary ws-btn-sm" onClick={() => handleSaveCategory(cat.category_id)} disabled={isActioning}>
                               {isActioning ? '...' : 'บันทึก'}
                             </button>{' '}
-                            <button onClick={cancelEditCategory} disabled={isActioning}>
+                            <button className="ws-btn ws-btn-ghost ws-btn-sm" onClick={cancelEditCategory} disabled={isActioning}>
                               ยกเลิก
                             </button>
                           </td>
@@ -2099,16 +2109,16 @@ export default function AdminApp() {
                     }
 
                     return (
-                      <tr key={cat.category_id} style={{ borderBottom: '1px solid #eee' }}>
-                        <td style={{ padding: 8 }}>{cat.category_id}</td>
-                        <td style={{ padding: 8 }}>{cat.category_name}</td>
-                        <td style={{ padding: 8 }}>{cat.status}</td>
-                        <td style={{ padding: 8 }}>{cat.activity_type_count}</td>
-                        <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
-                          <button onClick={() => startEditCategory(cat)} disabled={isActioning}>
+                      <tr key={cat.category_id} >
+                        <td>{cat.category_id}</td>
+                        <td>{cat.category_name}</td>
+                        <td><span className={`ws-badge ${cat.status === 'ACTIVE' ? 'ws-badge-success' : 'ws-badge-neutral'}`}>{cat.status}</span></td>
+                        <td>{cat.activity_type_count}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={() => startEditCategory(cat)} disabled={isActioning}>
                             แก้ไข
                           </button>{' '}
-                          <button onClick={() => handleToggleCategoryStatus(cat)} disabled={isActioning}>
+                          <button className="ws-btn ws-btn-ghost ws-btn-sm" onClick={() => handleToggleCategoryStatus(cat)} disabled={isActioning}>
                             {isActioning ? '...' : cat.status === 'ACTIVE' ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
                           </button>
                         </td>
@@ -2124,15 +2134,7 @@ export default function AdminApp() {
 
       {activeTab === 'activityTypes' && (
         <>
-          <div
-            style={{
-              border: '1px solid #ddd',
-              borderRadius: 6,
-              padding: 16,
-              marginBottom: 16,
-              maxWidth: 480,
-            }}
-          >
+          <div className="ws-card" style={{ marginBottom: 16, maxWidth: 480 }}>
             <h3 style={{ marginTop: 0 }}>สร้างประเภทกิจกรรมใหม่</h3>
             <form onSubmit={handleCreateActivityType}>
               <div style={{ marginBottom: 12 }}>
@@ -2142,7 +2144,7 @@ export default function AdminApp() {
                   id="newActivityCategory"
                   value={activityTypeForm.categoryId}
                   onChange={(e) => setActivityTypeForm((prev) => ({ ...prev, categoryId: e.target.value }))}
-                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  className="ws-select"
                 >
                   <option value="">-- เลือกหมวดหมู่ --</option>
                   {categories
@@ -2164,7 +2166,7 @@ export default function AdminApp() {
                   value={activityTypeForm.activityName}
                   onChange={(e) => setActivityTypeForm((prev) => ({ ...prev, activityName: e.target.value }))}
                   placeholder='เช่น "วิ่ง 5 km"'
-                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  className="ws-input"
                 />
               </div>
 
@@ -2179,7 +2181,7 @@ export default function AdminApp() {
                     step="1"
                     value={activityTypeForm.score}
                     onChange={(e) => setActivityTypeForm((prev) => ({ ...prev, score: e.target.value }))}
-                    style={{ padding: 8, fontSize: 16, width: '100%' }}
+                    className="ws-input"
                   />
                 </div>
                 <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', paddingBottom: 8 }}>
@@ -2204,40 +2206,40 @@ export default function AdminApp() {
                   value={activityTypeForm.description}
                   onChange={(e) => setActivityTypeForm((prev) => ({ ...prev, description: e.target.value }))}
                   rows={2}
-                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  className="ws-textarea"
                 />
               </div>
 
-              {activityTypeFormError && <p style={{ color: 'red' }}>{activityTypeFormError}</p>}
+              {activityTypeFormError && <div className="ws-alert ws-alert-danger">{activityTypeFormError}</div>}
 
-              <button type="submit" disabled={activityTypeFormSubmitting}>
+              <button type="submit" className="ws-btn ws-btn-primary" disabled={activityTypeFormSubmitting}>
                 {activityTypeFormSubmitting ? 'กำลังสร้าง...' : 'สร้างประเภทกิจกรรม'}
               </button>
             </form>
           </div>
 
-          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+          <div className="ws-row-between" style={{ marginBottom: 16 }}>
             <h3 style={{ margin: 0 }}>รายการประเภทกิจกรรมทั้งหมด</h3>
-            <button onClick={loadActivityTypes}>รีเฟรช</button>
+            <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={loadActivityTypes}>รีเฟรช</button>
           </div>
 
-          {activityTypeListError && <p style={{ color: 'red' }}>{activityTypeListError}</p>}
-          {activityTypeListLoading && <p>กำลังโหลด...</p>}
-          {!activityTypeListLoading && activityTypes.length === 0 && <p>ยังไม่มีประเภทกิจกรรม</p>}
+          {activityTypeListError && <div className="ws-alert ws-alert-danger">{activityTypeListError}</div>}
+          {activityTypeListLoading && <p className="ws-empty">กำลังโหลด...</p>}
+          {!activityTypeListLoading && activityTypes.length === 0 && <p className="ws-empty">ยังไม่มีประเภทกิจกรรม</p>}
 
           {!activityTypeListLoading && activityTypes.length > 0 && (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table className="ws-table">
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
-                    <th style={{ padding: 8 }}>#</th>
-                    <th style={{ padding: 8 }}>หมวดหมู่</th>
-                    <th style={{ padding: 8 }}>ชื่อกิจกรรม</th>
-                    <th style={{ padding: 8 }}>คะแนน</th>
-                    <th style={{ padding: 8 }}>บังคับรูป</th>
-                    <th style={{ padding: 8 }}>สถานะ</th>
-                    <th style={{ padding: 8 }}>เคยส่งแล้ว</th>
-                    <th style={{ padding: 8 }}>จัดการ</th>
+                  <tr>
+                    <th>#</th>
+                    <th>หมวดหมู่</th>
+                    <th>ชื่อกิจกรรม</th>
+                    <th>คะแนน</th>
+                    <th>บังคับรูป</th>
+                    <th>สถานะ</th>
+                    <th>เคยส่งแล้ว</th>
+                    <th>จัดการ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2247,15 +2249,15 @@ export default function AdminApp() {
 
                     if (isEditing) {
                       return (
-                        <tr key={a.activity_id} style={{ borderBottom: '1px solid #eee' }}>
-                          <td style={{ padding: 8 }}>{a.activity_id}</td>
-                          <td style={{ padding: 8 }}>
+                        <tr key={a.activity_id} >
+                          <td>{a.activity_id}</td>
+                          <td>
                             <select
                               value={editActivityTypeForm.categoryId}
                               onChange={(e) =>
                                 setEditActivityTypeForm((prev) => ({ ...prev, categoryId: e.target.value }))
                               }
-                              style={{ padding: 6, width: '100%' }}
+                              className="ws-select"
                             >
                               {categories.map((c) => (
                                 <option key={c.category_id} value={c.category_id}>
@@ -2264,14 +2266,14 @@ export default function AdminApp() {
                               ))}
                             </select>
                           </td>
-                          <td style={{ padding: 8 }}>
+                          <td>
                             <input
                               type="text"
                               value={editActivityTypeForm.activityName}
                               onChange={(e) =>
                                 setEditActivityTypeForm((prev) => ({ ...prev, activityName: e.target.value }))
                               }
-                              style={{ padding: 6, width: '100%' }}
+                              className="ws-input"
                             />
                             <textarea
                               value={editActivityTypeForm.description}
@@ -2279,11 +2281,12 @@ export default function AdminApp() {
                                 setEditActivityTypeForm((prev) => ({ ...prev, description: e.target.value }))
                               }
                               rows={2}
-                              style={{ padding: 6, width: '100%', marginTop: 6 }}
+                              className="ws-textarea"
+                              style={{ marginTop: 6 }}
                               placeholder="รายละเอียด"
                             />
                           </td>
-                          <td style={{ padding: 8 }}>
+                          <td>
                             <input
                               type="number"
                               min="0"
@@ -2292,10 +2295,11 @@ export default function AdminApp() {
                               onChange={(e) =>
                                 setEditActivityTypeForm((prev) => ({ ...prev, score: e.target.value }))
                               }
-                              style={{ padding: 6, width: 70 }}
+                              className="ws-input"
+                              style={{ width: 70 }}
                             />
                           </td>
-                          <td style={{ padding: 8 }}>
+                          <td>
                             <input
                               type="checkbox"
                               checked={editActivityTypeForm.requireImage}
@@ -2304,30 +2308,31 @@ export default function AdminApp() {
                               }
                             />
                           </td>
-                          <td style={{ padding: 8 }}>
+                          <td>
                             <select
                               value={editActivityTypeForm.status}
                               onChange={(e) =>
                                 setEditActivityTypeForm((prev) => ({ ...prev, status: e.target.value }))
                               }
-                              style={{ padding: 6 }}
+                              className="ws-select"
                             >
                               <option value="ACTIVE">ACTIVE</option>
                               <option value="INACTIVE">INACTIVE</option>
                             </select>
                           </td>
-                          <td style={{ padding: 8 }}>{a.submission_count}</td>
-                          <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                          <td>{a.submission_count}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
                             {editActivityTypeError && (
-                              <p style={{ color: 'red', margin: '0 0 6px' }}>{editActivityTypeError}</p>
+                              <div className="ws-alert ws-alert-danger" style={{ margin: '0 0 6px' }}>{editActivityTypeError}</div>
                             )}
                             <button
+                              className="ws-btn ws-btn-primary ws-btn-sm"
                               onClick={() => handleSaveActivityType(a.activity_id)}
                               disabled={isActioning}
                             >
                               {isActioning ? '...' : 'บันทึก'}
                             </button>{' '}
-                            <button onClick={cancelEditActivityType} disabled={isActioning}>
+                            <button className="ws-btn ws-btn-ghost ws-btn-sm" onClick={cancelEditActivityType} disabled={isActioning}>
                               ยกเลิก
                             </button>
                           </td>
@@ -2336,27 +2341,27 @@ export default function AdminApp() {
                     }
 
                     return (
-                      <tr key={a.activity_id} style={{ borderBottom: '1px solid #eee' }}>
-                        <td style={{ padding: 8 }}>{a.activity_id}</td>
-                        <td style={{ padding: 8 }}>{a.category_name}</td>
-                        <td style={{ padding: 8 }}>
+                      <tr key={a.activity_id} >
+                        <td>{a.activity_id}</td>
+                        <td>{a.category_name}</td>
+                        <td>
                           {a.activity_name}
                           {a.description && (
                             <>
                               <br />
-                              <small style={{ color: '#888' }}>{a.description}</small>
+                              <small style={{ color: 'var(--ws-text-muted)' }}>{a.description}</small>
                             </>
                           )}
                         </td>
-                        <td style={{ padding: 8 }}>{a.score}</td>
-                        <td style={{ padding: 8 }}>{a.require_image ? 'ต้องแนบ' : 'ไม่บังคับ'}</td>
-                        <td style={{ padding: 8 }}>{a.status}</td>
-                        <td style={{ padding: 8 }}>{a.submission_count}</td>
-                        <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
-                          <button onClick={() => startEditActivityType(a)} disabled={isActioning}>
+                        <td>{a.score}</td>
+                        <td>{a.require_image ? 'ต้องแนบ' : 'ไม่บังคับ'}</td>
+                        <td><span className={`ws-badge ${a.status === 'ACTIVE' ? 'ws-badge-success' : 'ws-badge-neutral'}`}>{a.status}</span></td>
+                        <td>{a.submission_count}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={() => startEditActivityType(a)} disabled={isActioning}>
                             แก้ไข
                           </button>{' '}
-                          <button onClick={() => handleToggleActivityTypeStatus(a)} disabled={isActioning}>
+                          <button className="ws-btn ws-btn-ghost ws-btn-sm" onClick={() => handleToggleActivityTypeStatus(a)} disabled={isActioning}>
                             {isActioning ? '...' : a.status === 'ACTIVE' ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
                           </button>
                         </td>
@@ -2372,15 +2377,7 @@ export default function AdminApp() {
 
       {activeTab === 'rewards' && (
         <>
-          <div
-            style={{
-              border: '1px solid #ddd',
-              borderRadius: 6,
-              padding: 16,
-              marginBottom: 16,
-              maxWidth: 480,
-            }}
-          >
+          <div className="ws-card" style={{ marginBottom: 16, maxWidth: 480 }}>
             <h3 style={{ marginTop: 0 }}>สร้างของรางวัลใหม่</h3>
             <form onSubmit={handleCreateReward}>
               <div style={{ marginBottom: 12 }}>
@@ -2392,7 +2389,7 @@ export default function AdminApp() {
                   value={rewardForm.rewardName}
                   onChange={(e) => setRewardForm((prev) => ({ ...prev, rewardName: e.target.value }))}
                   placeholder='เช่น "กระบอกน้ำ"'
-                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  className="ws-input"
                 />
               </div>
 
@@ -2407,7 +2404,7 @@ export default function AdminApp() {
                     step="1"
                     value={rewardForm.requiredScore}
                     onChange={(e) => setRewardForm((prev) => ({ ...prev, requiredScore: e.target.value }))}
-                    style={{ padding: 8, fontSize: 16, width: '100%' }}
+                    className="ws-input"
                   />
                 </div>
                 <div style={{ flex: 1 }}>
@@ -2420,7 +2417,7 @@ export default function AdminApp() {
                     step="1"
                     value={rewardForm.stock}
                     onChange={(e) => setRewardForm((prev) => ({ ...prev, stock: e.target.value }))}
-                    style={{ padding: 8, fontSize: 16, width: '100%' }}
+                    className="ws-input"
                   />
                 </div>
               </div>
@@ -2433,7 +2430,7 @@ export default function AdminApp() {
                   value={rewardForm.description}
                   onChange={(e) => setRewardForm((prev) => ({ ...prev, description: e.target.value }))}
                   rows={2}
-                  style={{ padding: 8, fontSize: 16, width: '100%' }}
+                  className="ws-textarea"
                 />
               </div>
 
@@ -2448,36 +2445,36 @@ export default function AdminApp() {
                 />
               </div>
 
-              {rewardFormError && <p style={{ color: 'red' }}>{rewardFormError}</p>}
+              {rewardFormError && <div className="ws-alert ws-alert-danger">{rewardFormError}</div>}
 
-              <button type="submit" disabled={rewardFormSubmitting}>
+              <button type="submit" className="ws-btn ws-btn-primary" disabled={rewardFormSubmitting}>
                 {rewardFormSubmitting ? 'กำลังสร้าง...' : 'สร้างของรางวัล'}
               </button>
             </form>
           </div>
 
-          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+          <div className="ws-row-between" style={{ marginBottom: 16 }}>
             <h3 style={{ margin: 0 }}>รายการของรางวัลทั้งหมด</h3>
-            <button onClick={loadRewards}>รีเฟรช</button>
+            <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={loadRewards}>รีเฟรช</button>
           </div>
 
-          {rewardListError && <p style={{ color: 'red' }}>{rewardListError}</p>}
-          {rewardListLoading && <p>กำลังโหลด...</p>}
-          {!rewardListLoading && rewards.length === 0 && <p>ยังไม่มีของรางวัล</p>}
+          {rewardListError && <div className="ws-alert ws-alert-danger">{rewardListError}</div>}
+          {rewardListLoading && <p className="ws-empty">กำลังโหลด...</p>}
+          {!rewardListLoading && rewards.length === 0 && <p className="ws-empty">ยังไม่มีของรางวัล</p>}
 
           {!rewardListLoading && rewards.length > 0 && (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table className="ws-table">
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #ccc', textAlign: 'left' }}>
-                    <th style={{ padding: 8 }}>#</th>
-                    <th style={{ padding: 8 }}>รูป</th>
-                    <th style={{ padding: 8 }}>ชื่อของรางวัล</th>
-                    <th style={{ padding: 8 }}>คะแนนที่ใช้แลก</th>
-                    <th style={{ padding: 8 }}>คงเหลือ</th>
-                    <th style={{ padding: 8 }}>สถานะ</th>
-                    <th style={{ padding: 8 }}>เคยแลกแล้ว</th>
-                    <th style={{ padding: 8 }}>จัดการ</th>
+                  <tr>
+                    <th>#</th>
+                    <th>รูป</th>
+                    <th>ชื่อของรางวัล</th>
+                    <th>คะแนนที่ใช้แลก</th>
+                    <th>คงเหลือ</th>
+                    <th>สถานะ</th>
+                    <th>เคยแลกแล้ว</th>
+                    <th>จัดการ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2487,9 +2484,9 @@ export default function AdminApp() {
 
                     if (isEditing) {
                       return (
-                        <tr key={r.reward_id} style={{ borderBottom: '1px solid #eee' }}>
-                          <td style={{ padding: 8 }}>{r.reward_id}</td>
-                          <td style={{ padding: 8 }}>
+                        <tr key={r.reward_id} >
+                          <td>{r.reward_id}</td>
+                          <td>
                             {editRewardForm.image && !editRemoveRewardImage && (
                               <img
                                 src={`${API_BASE}/${editRewardForm.image}`}
@@ -2527,14 +2524,15 @@ export default function AdminApp() {
                               </label>
                             )}
                           </td>
-                          <td style={{ padding: 8 }}>
+                          <td>
                             <input
                               type="text"
                               value={editRewardForm.rewardName}
                               onChange={(e) =>
                                 setEditRewardForm((prev) => ({ ...prev, rewardName: e.target.value }))
                               }
-                              style={{ padding: 6, width: '100%', marginBottom: 6 }}
+                              className="ws-input"
+                              style={{ marginBottom: 6 }}
                             />
                             <textarea
                               value={editRewardForm.description}
@@ -2542,11 +2540,11 @@ export default function AdminApp() {
                                 setEditRewardForm((prev) => ({ ...prev, description: e.target.value }))
                               }
                               rows={2}
-                              style={{ padding: 6, width: '100%' }}
+                              className="ws-textarea"
                               placeholder="รายละเอียด"
                             />
                           </td>
-                          <td style={{ padding: 8 }}>
+                          <td>
                             <input
                               type="number"
                               min="1"
@@ -2555,10 +2553,11 @@ export default function AdminApp() {
                               onChange={(e) =>
                                 setEditRewardForm((prev) => ({ ...prev, requiredScore: e.target.value }))
                               }
-                              style={{ padding: 6, width: 80 }}
+                              className="ws-input"
+                              style={{ width: 80 }}
                             />
                           </td>
-                          <td style={{ padding: 8 }}>
+                          <td>
                             <input
                               type="number"
                               min="0"
@@ -2567,30 +2566,31 @@ export default function AdminApp() {
                               onChange={(e) =>
                                 setEditRewardForm((prev) => ({ ...prev, stock: e.target.value }))
                               }
-                              style={{ padding: 6, width: 70 }}
+                              className="ws-input"
+                              style={{ width: 70 }}
                             />
                           </td>
-                          <td style={{ padding: 8 }}>
+                          <td>
                             <select
                               value={editRewardForm.status}
                               onChange={(e) =>
                                 setEditRewardForm((prev) => ({ ...prev, status: e.target.value }))
                               }
-                              style={{ padding: 6 }}
+                              className="ws-select"
                             >
                               <option value="ACTIVE">ACTIVE</option>
                               <option value="INACTIVE">INACTIVE</option>
                             </select>
                           </td>
-                          <td style={{ padding: 8 }}>{r.redeem_count}</td>
-                          <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                          <td>{r.redeem_count}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
                             {editRewardError && (
-                              <p style={{ color: 'red', margin: '0 0 6px' }}>{editRewardError}</p>
+                              <div className="ws-alert ws-alert-danger" style={{ margin: '0 0 6px' }}>{editRewardError}</div>
                             )}
-                            <button onClick={() => handleSaveReward(r.reward_id)} disabled={isActioning}>
+                            <button className="ws-btn ws-btn-primary ws-btn-sm" onClick={() => handleSaveReward(r.reward_id)} disabled={isActioning}>
                               {isActioning ? '...' : 'บันทึก'}
                             </button>{' '}
-                            <button onClick={cancelEditReward} disabled={isActioning}>
+                            <button className="ws-btn ws-btn-ghost ws-btn-sm" onClick={cancelEditReward} disabled={isActioning}>
                               ยกเลิก
                             </button>
                           </td>
@@ -2599,9 +2599,9 @@ export default function AdminApp() {
                     }
 
                     return (
-                      <tr key={r.reward_id} style={{ borderBottom: '1px solid #eee' }}>
-                        <td style={{ padding: 8 }}>{r.reward_id}</td>
-                        <td style={{ padding: 8 }}>
+                      <tr key={r.reward_id} >
+                        <td>{r.reward_id}</td>
+                        <td>
                           {r.image ? (
                             <img
                               src={`${API_BASE}/${r.image}`}
@@ -2612,24 +2612,24 @@ export default function AdminApp() {
                             <span style={{ fontSize: 24 }}>🎁</span>
                           )}
                         </td>
-                        <td style={{ padding: 8 }}>
+                        <td>
                           {r.reward_name}
                           {r.description && (
                             <>
                               <br />
-                              <small style={{ color: '#888' }}>{r.description}</small>
+                              <small style={{ color: 'var(--ws-text-muted)' }}>{r.description}</small>
                             </>
                           )}
                         </td>
-                        <td style={{ padding: 8 }}>{r.required_score}</td>
-                        <td style={{ padding: 8 }}>{r.stock}</td>
-                        <td style={{ padding: 8 }}>{r.status}</td>
-                        <td style={{ padding: 8 }}>{r.redeem_count}</td>
-                        <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
-                          <button onClick={() => startEditReward(r)} disabled={isActioning}>
+                        <td>{r.required_score}</td>
+                        <td>{r.stock}</td>
+                        <td><span className={`ws-badge ${r.status === 'ACTIVE' ? 'ws-badge-success' : 'ws-badge-neutral'}`}>{r.status}</span></td>
+                        <td>{r.redeem_count}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={() => startEditReward(r)} disabled={isActioning}>
                             แก้ไข
                           </button>{' '}
-                          <button onClick={() => handleToggleRewardStatus(r)} disabled={isActioning}>
+                          <button className="ws-btn ws-btn-ghost ws-btn-sm" onClick={() => handleToggleRewardStatus(r)} disabled={isActioning}>
                             {isActioning ? '...' : r.status === 'ACTIVE' ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
                           </button>
                         </td>

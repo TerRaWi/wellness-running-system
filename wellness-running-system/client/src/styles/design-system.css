@@ -1,0 +1,399 @@
+/* =========================================================================
+   WELLNESS RUNNING — SHARED DESIGN SYSTEM
+   ใช้ร่วมกันทั้ง App.jsx (พนักงาน/LIFF) และ AdminApp.jsx (แอดมิน)
+   วางไฟล์นี้ที่: client/src/styles/design-system.css
+   แล้ว import ใน main.jsx (บรรทัดบนสุด ก่อน "./index.css"):
+       import "./styles/design-system.css";
+   ========================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap');
+
+/* -------------------------------------------------------------------------
+   1) DESIGN TOKENS
+   โทนหลัก: เขียวอมฟ้า (teal) สื่อถึงสุขภาพ/ความสดชื่น ไม่ฉูดฉาด
+   สีทอง/อำพัน ใช้เฉพาะจุดที่เกี่ยวกับรางวัล/เหรียญตรา ให้ความรู้สึกพิเศษ
+   ------------------------------------------------------------------------- */
+:root {
+  /* Primary — teal (ปุ่มหลัก, ลิงก์, ไฮไลต์) */
+  --ws-primary: #2f9e8f;
+  --ws-primary-hover: #278a7d;
+  --ws-primary-active: #226f64;
+  --ws-primary-light: #e6f5f3;
+  --ws-primary-border: #bfe3dd;
+
+  /* Accent — amber (รางวัล/เหรียญตรา) */
+  --ws-accent: #e2a23c;
+  --ws-accent-hover: #cc8f31;
+  --ws-accent-light: #fbf1de;
+
+  /* Status */
+  --ws-success: #3f9e5f;
+  --ws-success-bg: #e9f6ed;
+  --ws-warning: #b8791f;
+  --ws-warning-bg: #fdf3e1;
+  --ws-danger: #cf4a42;
+  --ws-danger-hover: #b73f38;
+  --ws-danger-bg: #fbeceb;
+  --ws-info: #3b74c4;
+  --ws-info-bg: #eaf1fb;
+
+  /* Neutrals */
+  --ws-bg: #f5f7f7;
+  --ws-surface: #ffffff;
+  --ws-border: #e2e7e6;
+  --ws-border-strong: #cdd6d4;
+  --ws-text: #202b2a;
+  --ws-text-secondary: #5c6b69;
+  --ws-text-muted: #93a3a1;
+
+  /* Typography */
+  --ws-font: 'Noto Sans Thai', 'Segoe UI', system-ui, Roboto, sans-serif;
+
+  /* Spacing scale */
+  --ws-sp-1: 4px;
+  --ws-sp-2: 8px;
+  --ws-sp-3: 12px;
+  --ws-sp-4: 16px;
+  --ws-sp-5: 20px;
+  --ws-sp-6: 24px;
+  --ws-sp-8: 32px;
+
+  /* Radius — โค้งมนแบบ friendly */
+  --ws-radius-sm: 8px;
+  --ws-radius-md: 12px;
+  --ws-radius-lg: 20px;
+  --ws-radius-pill: 999px;
+
+  /* Shadow */
+  --ws-shadow-sm: 0 1px 2px rgba(20, 40, 38, 0.06);
+  --ws-shadow-md: 0 6px 20px rgba(20, 40, 38, 0.10);
+  --ws-shadow-lg: 0 16px 40px rgba(20, 40, 38, 0.20);
+
+  --ws-transition: 150ms ease;
+}
+
+/* -------------------------------------------------------------------------
+   2) BASE
+   ------------------------------------------------------------------------- */
+.ws-app, body {
+  font-family: var(--ws-font);
+  color: var(--ws-text);
+  background: var(--ws-bg);
+}
+
+.ws-app * {
+  box-sizing: border-box;
+}
+
+/* focus-visible ทุก interactive element ต้องเห็นชัด (accessibility) */
+.ws-app button:focus-visible,
+.ws-app a:focus-visible,
+.ws-app input:focus-visible,
+.ws-app select:focus-visible,
+.ws-app textarea:focus-visible,
+.ws-app [tabindex]:focus-visible {
+  outline: 2px solid var(--ws-primary);
+  outline-offset: 2px;
+}
+
+/* -------------------------------------------------------------------------
+   3) BUTTONS — มน, มี hover/active/disabled ชัดเจน
+   ------------------------------------------------------------------------- */
+.ws-btn {
+  font-family: var(--ws-font);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 10px 18px;
+  border-radius: var(--ws-radius-pill);
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background var(--ws-transition), border-color var(--ws-transition),
+    transform var(--ws-transition), box-shadow var(--ws-transition), opacity var(--ws-transition);
+  white-space: nowrap;
+}
+.ws-btn:active { transform: scale(0.97); }
+.ws-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.ws-btn-primary {
+  background: var(--ws-primary);
+  color: #fff;
+}
+.ws-btn-primary:hover:not(:disabled) { background: var(--ws-primary-hover); box-shadow: var(--ws-shadow-sm); }
+.ws-btn-primary:active:not(:disabled) { background: var(--ws-primary-active); }
+
+.ws-btn-secondary {
+  background: var(--ws-surface);
+  color: var(--ws-primary);
+  border-color: var(--ws-primary-border);
+}
+.ws-btn-secondary:hover:not(:disabled) {
+  background: var(--ws-primary-light);
+  border-color: var(--ws-primary);
+}
+
+.ws-btn-ghost {
+  background: transparent;
+  color: var(--ws-text-secondary);
+  border-color: transparent;
+}
+.ws-btn-ghost:hover:not(:disabled) {
+  background: var(--ws-border);
+  color: var(--ws-text);
+}
+
+.ws-btn-danger {
+  background: var(--ws-danger-bg);
+  color: var(--ws-danger);
+  border-color: transparent;
+}
+.ws-btn-danger:hover:not(:disabled) {
+  background: var(--ws-danger);
+  color: #fff;
+}
+
+.ws-btn-sm { padding: 6px 14px; font-size: 13px; }
+
+/* -------------------------------------------------------------------------
+   4) INPUTS
+   ------------------------------------------------------------------------- */
+.ws-input,
+.ws-select,
+.ws-textarea {
+  font-family: var(--ws-font);
+  font-size: 15px;
+  color: var(--ws-text);
+  background: var(--ws-surface);
+  border: 1.5px solid var(--ws-border);
+  border-radius: var(--ws-radius-sm);
+  padding: 9px 12px;
+  width: 100%;
+  transition: border-color var(--ws-transition), box-shadow var(--ws-transition);
+}
+.ws-input:hover, .ws-select:hover, .ws-textarea:hover {
+  border-color: var(--ws-border-strong);
+}
+.ws-input:focus, .ws-select:focus, .ws-textarea:focus {
+  outline: none;
+  border-color: var(--ws-primary);
+  box-shadow: 0 0 0 3px var(--ws-primary-light);
+}
+.ws-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ws-text-secondary);
+  margin-bottom: 6px;
+}
+
+/* -------------------------------------------------------------------------
+   5) CARDS
+   ------------------------------------------------------------------------- */
+.ws-card {
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-border);
+  border-radius: var(--ws-radius-md);
+  padding: var(--ws-sp-4);
+  transition: box-shadow var(--ws-transition), border-color var(--ws-transition);
+}
+.ws-card-hover:hover {
+  box-shadow: var(--ws-shadow-md);
+  border-color: var(--ws-border-strong);
+}
+.ws-card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--ws-sp-3);
+  flex-wrap: wrap;
+}
+
+/* สถิติแดชบอร์ด */
+.ws-stat-card {
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-border);
+  border-radius: var(--ws-radius-md);
+  padding: var(--ws-sp-4);
+}
+.ws-stat-label {
+  font-size: 13px;
+  color: var(--ws-text-secondary);
+  margin-bottom: 4px;
+}
+.ws-stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--ws-primary);
+}
+
+/* -------------------------------------------------------------------------
+   6) BADGES / STATUS PILLS
+   ------------------------------------------------------------------------- */
+.ws-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--ws-radius-pill);
+  white-space: nowrap;
+}
+.ws-badge-success { background: var(--ws-success-bg); color: var(--ws-success); }
+.ws-badge-warning { background: var(--ws-warning-bg); color: var(--ws-warning); }
+.ws-badge-danger  { background: var(--ws-danger-bg);  color: var(--ws-danger); }
+.ws-badge-info    { background: var(--ws-info-bg);    color: var(--ws-info); }
+.ws-badge-neutral { background: var(--ws-border);     color: var(--ws-text-secondary); }
+.ws-badge-accent  { background: var(--ws-accent-light); color: var(--ws-accent-hover); }
+
+/* วงกลมไอคอนเหรียญตรา (badge/reward icon) */
+.ws-icon-circle {
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ws-accent-light);
+  border: 2px solid var(--ws-accent);
+  flex-shrink: 0;
+}
+.ws-icon-circle img { width: 100%; height: 100%; object-fit: cover; }
+
+/* -------------------------------------------------------------------------
+   7) ALERT / MESSAGE BANNER  (แทน <p style={{color:'red'}}> เดิม)
+   ------------------------------------------------------------------------- */
+.ws-alert {
+  border-radius: var(--ws-radius-sm);
+  padding: 10px 14px;
+  font-size: 14px;
+  margin-bottom: var(--ws-sp-3);
+}
+.ws-alert-success { background: var(--ws-success-bg); color: var(--ws-success); }
+.ws-alert-warning { background: var(--ws-warning-bg); color: var(--ws-warning); }
+.ws-alert-danger  { background: var(--ws-danger-bg);  color: var(--ws-danger); }
+.ws-alert-info    { background: var(--ws-info-bg);    color: var(--ws-info); }
+
+/* -------------------------------------------------------------------------
+   8) TABLE
+   ------------------------------------------------------------------------- */
+.ws-table-wrap {
+  border: 1px solid var(--ws-border);
+  border-radius: var(--ws-radius-md);
+  overflow: hidden;
+}
+.ws-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14.5px;
+}
+.ws-table th {
+  text-align: left;
+  background: var(--ws-primary-light);
+  color: var(--ws-text-secondary);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ws-border);
+}
+.ws-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ws-border);
+  vertical-align: middle;
+}
+.ws-table tbody tr {
+  transition: background var(--ws-transition);
+}
+.ws-table tbody tr:hover {
+  background: var(--ws-primary-light);
+}
+.ws-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* -------------------------------------------------------------------------
+   9) MODAL
+   ------------------------------------------------------------------------- */
+.ws-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 30, 29, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--ws-sp-4);
+}
+.ws-modal {
+  background: var(--ws-surface);
+  border-radius: var(--ws-radius-lg);
+  padding: var(--ws-sp-6);
+  width: 100%;
+  max-width: 420px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: var(--ws-shadow-lg);
+}
+.ws-modal h3 {
+  margin-top: 0;
+}
+.ws-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ws-sp-2);
+  margin-top: var(--ws-sp-4);
+}
+
+/* -------------------------------------------------------------------------
+   10) TABS (ใช้ในหน้าแอดมินที่สลับหลายแท็บ)
+   ------------------------------------------------------------------------- */
+.ws-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--ws-border);
+  margin-bottom: var(--ws-sp-4);
+  overflow-x: auto;
+}
+.ws-tab {
+  font-family: var(--ws-font);
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ws-text-secondary);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--ws-transition), border-color var(--ws-transition);
+}
+.ws-tab:hover { color: var(--ws-primary); }
+.ws-tab.active {
+  color: var(--ws-primary);
+  border-bottom-color: var(--ws-primary);
+}
+
+/* -------------------------------------------------------------------------
+   11) EMPTY STATE
+   ------------------------------------------------------------------------- */
+.ws-empty {
+  text-align: center;
+  color: var(--ws-text-muted);
+  padding: var(--ws-sp-6) var(--ws-sp-4);
+  font-size: 14px;
+}
+
+/* -------------------------------------------------------------------------
+   12) LAYOUT HELPERS
+   ------------------------------------------------------------------------- */
+.ws-stack { display: flex; flex-direction: column; gap: var(--ws-sp-3); }
+.ws-row { display: flex; align-items: center; gap: var(--ws-sp-2); flex-wrap: wrap; }
+.ws-row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--ws-sp-2); flex-wrap: wrap; }
+.ws-grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--ws-sp-4); }

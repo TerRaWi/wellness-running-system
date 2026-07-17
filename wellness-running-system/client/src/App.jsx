@@ -445,28 +445,29 @@ export default function App() {
 
   if (status === 'error') {
     return (
-      <div style={{ padding: 24, textAlign: 'center' }}>
+      <div className="ws-app" style={{ padding: 24, textAlign: 'center' }}>
         <p>เข้าสู่ระบบไม่สำเร็จ: {errorMsg}</p>
-        <button onClick={() => window.location.reload()}>ลองอีกครั้ง</button>
+        <button className="ws-btn ws-btn-primary" onClick={() => window.location.reload()}>ลองอีกครั้ง</button>
       </div>
     );
   }
 
   if (status === 'needsEmployeeId') {
     return (
-      <div style={{ padding: 24, textAlign: 'center' }}>
+      <div className="ws-app" style={{ padding: 24, textAlign: 'center' }}>
         <p>ยืนยันตัวตนครั้งแรก กรุณากรอกรหัสพนักงาน</p>
-        <form onSubmit={handleSubmitEmployeeId}>
+        <form onSubmit={handleSubmitEmployeeId} className="ws-row" style={{ justifyContent: 'center' }}>
           <input
             type="text"
             value={employeeIdInput}
             onChange={(e) => setEmployeeIdInput(e.target.value)}
             placeholder="เช่น EMP001"
-            style={{ padding: 8, fontSize: 16, marginRight: 8 }}
+            className="ws-input"
+            style={{ maxWidth: 220 }}
           />
-          <button type="submit">ยืนยัน</button>
+          <button type="submit" className="ws-btn ws-btn-primary">ยืนยัน</button>
         </form>
-        {errorMsg && <p style={{ color: 'red' }}>{errorMsg}</p>}
+        {errorMsg && <div className="ws-alert ws-alert-danger" style={{ maxWidth: 320, margin: '12px auto 0' }}>{errorMsg}</div>}
       </div>
     );
   }
@@ -474,16 +475,16 @@ export default function App() {
   if (status === 'done') {
     return (
       <>
-      <div style={{ padding: 24 }}>
+      <div className="ws-app" style={{ padding: 24, maxWidth: 640, margin: '0 auto' }}>
         <div style={{ textAlign: 'center' }}>
           <p>เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ {user?.displayName}</p>
           <p>รหัสพนักงาน: {user?.employeeId}</p>
         </div>
 
-        <hr style={{ margin: '16px 0' }} />
+        <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid var(--ws-border)' }} />
 
         <h3>เหรียญตราของฉัน</h3>
-        {badges.length === 0 && <p>ยังไม่มี badge ให้เก็บตอนนี้</p>}
+        {badges.length === 0 && <p className="ws-empty">ยังไม่มี badge ให้เก็บตอนนี้</p>}
         {badges.length > 0 && (
           <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
             {badges.map((b) => (
@@ -497,28 +498,15 @@ export default function App() {
                   flexShrink: 0,
                 }}
               >
-                <div
-                  style={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: '50%',
-                    margin: '0 auto 6px',
-                    border: '2px solid #ddd',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    overflow: 'hidden',
-                    backgroundColor: '#fafafa',
-                  }}
-                >
+                <div className="ws-icon-circle" style={{ width: 64, height: 64, margin: '0 auto 6px' }}>
                   {b.icon ? (
-                    <img src={`${API_BASE}/${b.icon}`} alt={b.badgeName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={`${API_BASE}/${b.icon}`} alt={b.badgeName} />
                   ) : (
                     <span style={{ fontSize: 24 }}>🏅</span>
                   )}
                 </div>
                 <div style={{ fontSize: 12, fontWeight: 'bold' }}>{b.badgeName}</div>
-                <div style={{ fontSize: 11, color: '#888' }}>
+                <div style={{ fontSize: 11, color: 'var(--ws-text-muted)' }}>
                   {BADGE_CONDITION_LABEL_TH[b.conditionType] || b.conditionType} ≥ {b.conditionValue}
                 </div>
               </div>
@@ -526,18 +514,17 @@ export default function App() {
           </div>
         )}
 
-        <hr style={{ margin: '16px 0' }} />
+        <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid var(--ws-border)' }} />
 
         <h3>ส่งกิจกรรมวิ่ง/เดิน</h3>
-        <form onSubmit={handleSubmitActivity}>
-          <div style={{ marginBottom: 12 }}>
-            <label htmlFor="activitySelect">ประเภทกิจกรรม</label>
-            <br />
+        <form onSubmit={handleSubmitActivity} className="ws-stack" style={{ textAlign: 'left' }}>
+          <div>
+            <label htmlFor="activitySelect" className="ws-label">ประเภทกิจกรรม</label>
             <select
               id="activitySelect"
               value={selectedActivityId}
               onChange={(e) => setSelectedActivityId(e.target.value)}
-              style={{ padding: 8, fontSize: 16, width: '100%' }}
+              className="ws-select"
             >
               <option value="">-- เลือกกิจกรรม --</option>
               {Object.entries(
@@ -559,9 +546,8 @@ export default function App() {
             </select>
           </div>
 
-          <div style={{ marginBottom: 12 }}>
-            <label htmlFor="distanceInput">ระยะทาง (กม.)</label>
-            <br />
+          <div>
+            <label htmlFor="distanceInput" className="ws-label">ระยะทาง (กม.)</label>
             <input
               id="distanceInput"
               type="number"
@@ -569,13 +555,12 @@ export default function App() {
               min="0"
               value={distance}
               onChange={(e) => setDistance(e.target.value)}
-              style={{ padding: 8, fontSize: 16, width: '100%' }}
+              className="ws-input"
             />
           </div>
 
-          <div style={{ marginBottom: 12 }}>
-            <label htmlFor="durationInput">ระยะเวลา (นาที)</label>
-            <br />
+          <div>
+            <label htmlFor="durationInput" className="ws-label">ระยะเวลา (นาที)</label>
             <input
               id="durationInput"
               type="number"
@@ -583,27 +568,25 @@ export default function App() {
               min="0"
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
-              style={{ padding: 8, fontSize: 16, width: '100%' }}
+              className="ws-input"
             />
           </div>
 
-          <div style={{ marginBottom: 12 }}>
-            <label htmlFor="noteInput">หมายเหตุ (ถ้ามี)</label>
-            <br />
+          <div>
+            <label htmlFor="noteInput" className="ws-label">หมายเหตุ (ถ้ามี)</label>
             <textarea
               id="noteInput"
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
-              style={{ padding: 8, fontSize: 16, width: '100%' }}
+              className="ws-textarea"
             />
           </div>
 
-          <div style={{ marginBottom: 12 }}>
-            <label htmlFor="proofInput">
+          <div>
+            <label htmlFor="proofInput" className="ws-label">
               รูปหลักฐาน {photoRequired ? '(บังคับ)' : '(ไม่บังคับ)'}
             </label>
-            <br />
             <input
               id="proofInput"
               type="file"
@@ -612,58 +595,48 @@ export default function App() {
             />
           </div>
 
-          <button type="submit" disabled={submitState === 'submitting'}>
+          <button type="submit" className="ws-btn ws-btn-primary" disabled={submitState === 'submitting'}>
             {submitState === 'submitting' ? 'กำลังส่ง...' : 'ส่งข้อมูล'}
           </button>
         </form>
 
         {submitMessage && (
-          <p style={{ color: submitState === 'error' ? 'red' : 'green' }}>{submitMessage}</p>
+          <div className={`ws-alert ${submitState === 'error' ? 'ws-alert-danger' : 'ws-alert-success'}`}>{submitMessage}</div>
         )}
 
-        <hr style={{ margin: '16px 0' }} />
+        <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid var(--ws-border)' }} />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="ws-row-between">
           <h3 style={{ margin: 0 }}>แลกของรางวัล</h3>
           <span>
-            คะแนนคงเหลือ: <strong>{scoreBalance}</strong>
+            คะแนนคงเหลือ: <strong style={{ color: 'var(--ws-primary)' }}>{scoreBalance}</strong>
           </span>
         </div>
 
         {rewardMessage && (
-          <p style={{ color: rewardMessageType === 'error' ? 'red' : 'green' }}>{rewardMessage}</p>
+          <div className={`ws-alert ${rewardMessageType === 'error' ? 'ws-alert-danger' : 'ws-alert-success'}`}>{rewardMessage}</div>
         )}
 
-        {rewards.length === 0 && <p>ยังไม่มีของรางวัลให้แลกตอนนี้</p>}
+        {rewards.length === 0 && <p className="ws-empty">ยังไม่มีของรางวัลให้แลกตอนนี้</p>}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="ws-stack">
           {rewards.map((r) => {
             const canAfford = scoreBalance >= r.required_score;
             const inStock = r.stock > 0;
             const isRedeeming = redeemingRewardId === r.reward_id;
             return (
-              <div
-                key={r.reward_id}
-                style={{
-                  border: '1px solid #ddd',
-                  borderRadius: 6,
-                  padding: 12,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
+              <div key={r.reward_id} className="ws-card ws-card-row">
                 <div>
                   <div style={{ fontWeight: 'bold' }}>{r.reward_name}</div>
-                  <div style={{ fontSize: 14, color: '#666' }}>
+                  <div style={{ fontSize: 14, color: 'var(--ws-text-secondary)' }}>
                     {r.required_score} คะแนน · เหลือ {r.stock} ชิ้น
                   </div>
                   {r.description && (
-                    <div style={{ fontSize: 13, color: '#888' }}>{r.description}</div>
+                    <div style={{ fontSize: 13, color: 'var(--ws-text-muted)' }}>{r.description}</div>
                   )}
                 </div>
                 <button
+                  className="ws-btn ws-btn-primary"
                   onClick={() => handleRedeem(r.reward_id)}
                   disabled={!canAfford || !inStock || isRedeeming}
                 >
@@ -675,31 +648,26 @@ export default function App() {
         </div>
 
         <h4 style={{ marginTop: 20 }}>ประวัติการแลกของ</h4>
-        {myRedeems.length === 0 && <p>ยังไม่มีประวัติการแลกของ</p>}
+        {myRedeems.length === 0 && <p className="ws-empty">ยังไม่มีประวัติการแลกของ</p>}
         {myRedeems.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div className="ws-stack">
             {myRedeems.map((rd) => (
-              <div
-                key={rd.redeem_id}
-                style={{
-                  border: '1px solid #eee',
-                  borderRadius: 6,
-                  padding: 12,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
+              <div key={rd.redeem_id} className="ws-card ws-card-row">
                 <div>
                   <div style={{ fontWeight: 'bold' }}>{rd.reward_name}</div>
-                  <div style={{ fontSize: 14, color: '#666' }}>
-                    ใช้ {rd.used_score} คะแนน · {STATUS_LABEL_TH[rd.status] || rd.status} ·{' '}
-                    {new Date(rd.redeem_date).toLocaleString('th-TH')}
+                  <div style={{ fontSize: 14, color: 'var(--ws-text-secondary)' }}>
+                    ใช้ {rd.used_score} คะแนน ·{' '}
+                    <span className={`ws-badge ${
+                      rd.status === 'APPROVED' ? 'ws-badge-success' :
+                      rd.status === 'REJECTED' || rd.status === 'CANCELLED' ? 'ws-badge-danger' :
+                      'ws-badge-warning'
+                    }`}>{STATUS_LABEL_TH[rd.status] || rd.status}</span>
+                    {' '}· {new Date(rd.redeem_date).toLocaleString('th-TH')}
                   </div>
                 </div>
                 {rd.status === 'PENDING' && (
                   <button
+                    className="ws-btn ws-btn-danger ws-btn-sm"
                     onClick={() => handleCancelRedeem(rd.redeem_id)}
                     disabled={cancelingRedeemId === rd.redeem_id}
                   >
@@ -711,40 +679,29 @@ export default function App() {
           </div>
         )}
 
-        <hr style={{ margin: '16px 0' }} />
+        <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid var(--ws-border)' }} />
 
         <h3>Challenge</h3>
 
         {challengeMessage && (
-          <p style={{ color: challengeMessageType === 'error' ? 'red' : 'green' }}>{challengeMessage}</p>
+          <div className={`ws-alert ${challengeMessageType === 'error' ? 'ws-alert-danger' : 'ws-alert-success'}`}>{challengeMessage}</div>
         )}
 
         {myChallenges.length > 0 && (
           <>
             <h4>Challenge ที่เข้าร่วมอยู่</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+            <div className="ws-stack" style={{ marginBottom: 16 }}>
               {myChallenges.map((mc) => (
-                <div
-                  key={mc.participant_id}
-                  style={{
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    padding: 12,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: 8,
-                  }}
-                >
+                <div key={mc.participant_id} className="ws-card ws-card-row">
                   <div>
                     <div style={{ fontWeight: 'bold' }}>{mc.challenge_name}</div>
-                    <div style={{ fontSize: 14, color: '#666' }}>
-                      {mc.category_name} · {CHALLENGE_STATUS_LABEL_TH[mc.status] || mc.status} · ระยะทางสะสมของฉัน{' '}
+                    <div style={{ fontSize: 14, color: 'var(--ws-text-secondary)' }}>
+                      {mc.category_name} · <span className="ws-badge ws-badge-info">{CHALLENGE_STATUS_LABEL_TH[mc.status] || mc.status}</span> · ระยะทางสะสมของฉัน{' '}
                       {mc.my_distance} กม.
                       {mc.join_mode === 'ANONYMOUS' && ' · เข้าร่วมแบบไม่ระบุตัวตน'}
                     </div>
                   </div>
-                  <button onClick={() => openLeaderboard(mc.challenge_id)}>ดู Leaderboard</button>
+                  <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={() => openLeaderboard(mc.challenge_id)}>ดู Leaderboard</button>
                 </div>
               ))}
             </div>
@@ -752,41 +709,29 @@ export default function App() {
         )}
 
         <h4>Challenge ที่เปิดอยู่</h4>
-        {challenges.length === 0 && <p>ยังไม่มี challenge ที่เปิดอยู่ตอนนี้</p>}
+        {challenges.length === 0 && <p className="ws-empty">ยังไม่มี challenge ที่เปิดอยู่ตอนนี้</p>}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="ws-stack">
           {challenges.map((c) => {
             const isJoining = joiningChallengeId === c.challenge_id;
             return (
-              <div
-                key={c.challenge_id}
-                style={{
-                  border: '1px solid #ddd',
-                  borderRadius: 6,
-                  padding: 12,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 8,
-                  flexWrap: 'wrap',
-                }}
-              >
+              <div key={c.challenge_id} className="ws-card ws-card-row">
                 <div>
                   <div style={{ fontWeight: 'bold' }}>{c.challenge_name}</div>
-                  <div style={{ fontSize: 14, color: '#666' }}>
-                    {c.category_name} · {CHALLENGE_STATUS_LABEL_TH[c.status] || c.status} · ผู้เข้าร่วม{' '}
+                  <div style={{ fontSize: 14, color: 'var(--ws-text-secondary)' }}>
+                    {c.category_name} · <span className="ws-badge ws-badge-info">{CHALLENGE_STATUS_LABEL_TH[c.status] || c.status}</span> · ผู้เข้าร่วม{' '}
                     {c.participant_count} คน
                   </div>
-                  <div style={{ fontSize: 13, color: '#888' }}>
+                  <div style={{ fontSize: 13, color: 'var(--ws-text-muted)' }}>
                     {new Date(c.start_date).toLocaleDateString('th-TH')} -{' '}
                     {new Date(c.end_date).toLocaleDateString('th-TH')}
                   </div>
-                  {c.description && <div style={{ fontSize: 13, color: '#888' }}>{c.description}</div>}
+                  {c.description && <div style={{ fontSize: 13, color: 'var(--ws-text-muted)' }}>{c.description}</div>}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className="ws-row">
                   {c.joined ? (
-                    <button onClick={() => openLeaderboard(c.challenge_id)}>ดู Leaderboard</button>
+                    <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={() => openLeaderboard(c.challenge_id)}>ดู Leaderboard</button>
                   ) : (
                     <>
                       <select
@@ -794,12 +739,13 @@ export default function App() {
                         onChange={(e) =>
                           setJoinModeByChallenge((prev) => ({ ...prev, [c.challenge_id]: e.target.value }))
                         }
-                        style={{ padding: 6 }}
+                        className="ws-select"
+                        style={{ width: 'auto' }}
                       >
                         <option value="PUBLIC">แสดงชื่อจริง</option>
                         <option value="ANONYMOUS">ไม่ระบุตัวตน</option>
                       </select>
-                      <button onClick={() => handleJoinChallenge(c.challenge_id)} disabled={isJoining}>
+                      <button className="ws-btn ws-btn-primary ws-btn-sm" onClick={() => handleJoinChallenge(c.challenge_id)} disabled={isJoining}>
                         {isJoining ? 'กำลังเข้าร่วม...' : 'เข้าร่วม'}
                       </button>
                     </>
@@ -812,101 +758,43 @@ export default function App() {
       </div>
 
       {newBadgesToShow.length > 0 && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1100,
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: '#fff',
-              borderRadius: 8,
-              padding: 24,
-              width: '90%',
-              maxWidth: 360,
-              textAlign: 'center',
-            }}
-          >
-            <h3 style={{ marginTop: 0 }}>🎉 ได้ Badge ใหม่!</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+        <div className="ws-modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="ws-modal" style={{ maxWidth: 360, textAlign: 'center' }}>
+            <h3>🎉 ได้ Badge ใหม่!</h3>
+            <div className="ws-stack" style={{ marginBottom: 16 }}>
               {newBadgesToShow.map((b) => (
                 <div key={b.badgeId}>
-                  <div
-                    style={{
-                      width: 72,
-                      height: 72,
-                      borderRadius: '50%',
-                      margin: '0 auto 6px',
-                      border: '2px solid #f5c518',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      overflow: 'hidden',
-                      backgroundColor: '#fffbe6',
-                    }}
-                  >
+                  <div className="ws-icon-circle" style={{ width: 72, height: 72, margin: '0 auto 6px' }}>
                     {b.icon ? (
-                      <img src={`${API_BASE}/${b.icon}`} alt={b.badgeName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img src={`${API_BASE}/${b.icon}`} alt={b.badgeName} />
                     ) : (
                       <span style={{ fontSize: 32 }}>🏅</span>
                     )}
                   </div>
                   <div style={{ fontWeight: 'bold' }}>{b.badgeName}</div>
-                  {b.description && <div style={{ fontSize: 13, color: '#666' }}>{b.description}</div>}
+                  {b.description && <div style={{ fontSize: 13, color: 'var(--ws-text-secondary)' }}>{b.description}</div>}
                 </div>
               ))}
             </div>
-            <button onClick={closeNewBadgePopup}>รับทราบ</button>
+            <button className="ws-btn ws-btn-primary" onClick={closeNewBadgePopup}>รับทราบ</button>
           </div>
         </div>
       )}
 
       {leaderboardChallengeId !== null && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: '#fff',
-              borderRadius: 8,
-              padding: 24,
-              width: '90%',
-              maxWidth: 420,
-              maxHeight: '80vh',
-              overflowY: 'auto',
-            }}
-          >
-            <h3 style={{ marginTop: 0 }}>Leaderboard</h3>
+        <div className="ws-modal-overlay">
+          <div className="ws-modal" style={{ maxWidth: 420 }}>
+            <h3>Leaderboard</h3>
 
-            {leaderboardLoading && <p>กำลังโหลด...</p>}
-            {leaderboardError && <p style={{ color: 'red' }}>{leaderboardError}</p>}
+            {leaderboardLoading && <p className="ws-empty">กำลังโหลด...</p>}
+            {leaderboardError && <div className="ws-alert ws-alert-danger">{leaderboardError}</div>}
 
             {!leaderboardLoading && !leaderboardError && leaderboard.length === 0 && (
-              <p>ยังไม่มีผู้เข้าร่วม</p>
+              <p className="ws-empty">ยังไม่มีผู้เข้าร่วม</p>
             )}
 
             {!leaderboardLoading && leaderboard.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="ws-stack" style={{ gap: 6 }}>
                 {leaderboard.map((row) => (
                   <div
                     key={row.rank}
@@ -914,8 +802,9 @@ export default function App() {
                       display: 'flex',
                       justifyContent: 'space-between',
                       padding: '6px 0',
-                      borderBottom: '1px solid #eee',
+                      borderBottom: '1px solid var(--ws-border)',
                       fontWeight: row.isMe ? 'bold' : 'normal',
+                      color: row.isMe ? 'var(--ws-primary)' : 'inherit',
                     }}
                   >
                     <span>
@@ -929,8 +818,8 @@ export default function App() {
               </div>
             )}
 
-            <div style={{ textAlign: 'right', marginTop: 16 }}>
-              <button onClick={closeLeaderboard}>ปิด</button>
+            <div className="ws-modal-actions">
+              <button className="ws-btn ws-btn-secondary" onClick={closeLeaderboard}>ปิด</button>
             </div>
           </div>
         </div>
@@ -940,7 +829,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ padding: 24, textAlign: 'center' }}>
+    <div className="ws-app" style={{ padding: 24, textAlign: 'center' }}>
       <p>กำลังเข้าสู่ระบบผ่าน LINE...</p>
     </div>
   );

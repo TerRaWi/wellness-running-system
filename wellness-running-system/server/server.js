@@ -1341,6 +1341,59 @@ app.post('/api/admin/challenges/:id/cancel', requireAdmin, async (req, res) => {
   }
 });
 
+// ผู้เข้าร่วม challenge หนึ่งๆ พร้อมระยะทางสะสม/จำนวนครั้ง เรียงจากระยะทางมาก-น้อย (เหมือน leaderboard ฝั่งพนักงาน)
+// ฝั่งแอดมินเห็นชื่อจริงของทุกคนเสมอ แม้จะเลือก join_mode = ANONYMOUS ไว้ก็ตาม (การซ่อนชื่อมีผลแค่ฝั่งพนักงานด้วยกัน)
+app.get('/api/admin/challenges/:id/participants', requireAdmin, async (req, res) => {
+  const challengeId = req.params.id;
+
+  try {
+    const [challengeRows] = await pool.query(
+      `SELECT challenge_id, challenge_name FROM challenge WHERE challenge_id = ?`,
+      [challengeId]
+    );
+    if (challengeRows.length === 0) {
+      return res.status(404).json({ message: 'ไม่พบ challenge นี้' });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT
+        cp.participant_id, cp.employee_id, cp.join_mode, cp.joined_at,
+        e.full_name, e.department,
+        COALESCE(SUM(rs.distance), 0) AS total_distance,
+        COUNT(cs.challenge_submission_id) AS run_count
+       FROM challenge_participant cp
+       JOIN employee e ON e.employee_id = cp.employee_id
+       LEFT JOIN challenge_submission cs ON cs.participant_id = cp.participant_id
+       LEFT JOIN running_submission rs ON rs.submission_id = cs.submission_id
+       WHERE cp.challenge_id = ?
+       GROUP BY cp.participant_id
+       ORDER BY total_distance DESC, cp.joined_at ASC`,
+      [challengeId]
+    );
+
+    const participants = rows.map((r, index) => ({
+      rank: index + 1,
+      participantId: r.participant_id,
+      employeeId: r.employee_id,
+      fullName: r.full_name,
+      department: r.department,
+      joinMode: r.join_mode,
+      joinedAt: r.joined_at,
+      totalDistance: r.total_distance,
+      runCount: r.run_count,
+    }));
+
+    res.json({
+      challengeId: challengeRows[0].challenge_id,
+      challengeName: challengeRows[0].challenge_name,
+      participants,
+    });
+  } catch (err) {
+    console.error('get admin challenge participants error:', err);
+    res.status(500).json({ message: 'โหลดรายชื่อผู้เข้าร่วมไม่สำเร็จ' });
+  }
+});
+
 // ---- Phase 4: badge (admin CRUD) ----
 const BADGE_CONDITION_TYPES = ['DISTANCE', 'SUBMISSION_COUNT', 'SCORE', 'STREAK_DAYS'];
 
