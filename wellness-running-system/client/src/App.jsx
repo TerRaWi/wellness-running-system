@@ -1,8 +1,22 @@
 import { useEffect, useState } from 'react';
 import liff from '@line/liff';
+import BadgesSection from './components/BadgesSection.jsx';
+import SubmitActivitySection from './components/SubmitActivitySection.jsx';
+import RewardsSection from './components/RewardsSection.jsx';
+import ChallengesSection from './components/ChallengesSection.jsx';
+import NewBadgePopup from './components/NewBadgePopup.jsx';
+import LeaderboardModal from './components/LeaderboardModal.jsx';
 
 const LIFF_ID = import.meta.env.VITE_LIFF_ID;
 const API_BASE = import.meta.env.VITE_API_BASE;
+
+// แท็บหน้าพนักงาน — สลับกันแสดงทีละหน้าแทนการยาวสกอลรวด
+const TABS = [
+  { key: 'submit', label: 'ส่งกิจกรรม' },
+  { key: 'challenges', label: 'Challenge' },
+  { key: 'rewards', label: 'แลกของรางวัล' },
+  { key: 'badges', label: 'เหรียญตรา' },
+];
 
 export default function App() {
   const [status, setStatus] = useState('initializing'); // initializing | loading | needsEmployeeId | done | error
@@ -10,6 +24,9 @@ export default function App() {
   const [idToken, setIdToken] = useState(null);
   const [employeeIdInput, setEmployeeIdInput] = useState('');
   const [user, setUser] = useState(null);
+
+  // แท็บที่กำลังเปิดอยู่ในหน้าพนักงาน
+  const [activeTab, setActiveTab] = useState('submit');
 
   // ---- Phase 1 Part B: activity submission ----
   const [activities, setActivities] = useState([]);
@@ -50,13 +67,6 @@ export default function App() {
   // ---- Phase 4: badge ----
   const [badges, setBadges] = useState([]);
   const [newBadgesToShow, setNewBadgesToShow] = useState([]); // badge ที่เพิ่งได้ใหม่ รอเด้ง popup
-
-  const BADGE_CONDITION_LABEL_TH = {
-    DISTANCE: 'สะสมระยะทาง',
-    SUBMISSION_COUNT: 'ส่งกิจกรรมสำเร็จ',
-    SCORE: 'สะสมคะแนน',
-    STREAK_DAYS: 'วิ่งติดต่อกัน',
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -291,13 +301,6 @@ export default function App() {
     setLeaderboardError('');
   }
 
-  const CHALLENGE_STATUS_LABEL_TH = {
-    UPCOMING: 'ยังไม่เริ่ม',
-    ONGOING: 'กำลังแข่งขัน',
-    ENDED: 'จบแล้ว',
-    CANCELLED: 'ยกเลิกแล้ว',
-  };
-
   async function handleRedeem(rewardId) {
     setRedeemingRewardId(rewardId);
     setRewardMessage('');
@@ -353,13 +356,6 @@ export default function App() {
       setCancelingRedeemId(null);
     }
   }
-
-  const STATUS_LABEL_TH = {
-    PENDING: 'รอดำเนินการ',
-    APPROVED: 'อนุมัติแล้ว',
-    REJECTED: 'ถูกปฏิเสธ',
-    CANCELLED: 'ยกเลิกแล้ว',
-  };
 
   async function handleSubmitActivity(e) {
     e.preventDefault();
@@ -475,355 +471,86 @@ export default function App() {
   if (status === 'done') {
     return (
       <>
-      <div className="ws-app" style={{ padding: 24, maxWidth: 640, margin: '0 auto' }}>
-        <div style={{ textAlign: 'center' }}>
-          <p>เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ {user?.displayName}</p>
-          <p>รหัสพนักงาน: {user?.employeeId}</p>
-        </div>
+        <div className="ws-app" style={{ padding: 24, maxWidth: 640, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center' }}>
+            <p>เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ {user?.displayName}</p>
+            <p>รหัสพนักงาน: {user?.employeeId}</p>
+          </div>
 
-        <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid var(--ws-border)' }} />
-
-        <h3>เหรียญตราของฉัน</h3>
-        {badges.length === 0 && <p className="ws-empty">ยังไม่มี badge ให้เก็บตอนนี้</p>}
-        {badges.length > 0 && (
-          <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
-            {badges.map((b) => (
-              <div
-                key={b.badgeId}
-                title={b.description || ''}
-                style={{
-                  minWidth: 100,
-                  textAlign: 'center',
-                  opacity: b.earned ? 1 : 0.35,
-                  flexShrink: 0,
-                }}
+          <div className="ws-tabs ws-tabs-fill">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                className={`ws-tab ${activeTab === tab.key ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab.key)}
               >
-                <div className="ws-icon-circle" style={{ width: 64, height: 64, margin: '0 auto 6px' }}>
-                  {b.icon ? (
-                    <img src={`${API_BASE}/${b.icon}`} alt={b.badgeName} />
-                  ) : (
-                    <span style={{ fontSize: 24 }}>🏅</span>
-                  )}
-                </div>
-                <div style={{ fontSize: 12, fontWeight: 'bold' }}>{b.badgeName}</div>
-                <div style={{ fontSize: 11, color: 'var(--ws-text-muted)' }}>
-                  {BADGE_CONDITION_LABEL_TH[b.conditionType] || b.conditionType} ≥ {b.conditionValue}
-                </div>
-              </div>
+                {tab.label}
+              </button>
             ))}
           </div>
-        )}
 
-        <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid var(--ws-border)' }} />
+          {activeTab === 'badges' && (
+            <BadgesSection badges={badges} apiBase={API_BASE} />
+          )}
 
-        <h3>ส่งกิจกรรมวิ่ง/เดิน</h3>
-        <form onSubmit={handleSubmitActivity} className="ws-stack" style={{ textAlign: 'left' }}>
-          <div>
-            <label htmlFor="activitySelect" className="ws-label">ประเภทกิจกรรม</label>
-            <select
-              id="activitySelect"
-              value={selectedActivityId}
-              onChange={(e) => setSelectedActivityId(e.target.value)}
-              className="ws-select"
-            >
-              <option value="">-- เลือกกิจกรรม --</option>
-              {Object.entries(
-                activities.reduce((groups, a) => {
-                  const key = a.category_name;
-                  if (!groups[key]) groups[key] = [];
-                  groups[key].push(a);
-                  return groups;
-                }, {})
-              ).map(([categoryName, items]) => (
-                <optgroup key={categoryName} label={categoryName}>
-                  {items.map((a) => (
-                    <option key={a.activity_id} value={a.activity_id}>
-                      {a.activity_name} ({a.score} คะแนน)
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="distanceInput" className="ws-label">ระยะทาง (กม.)</label>
-            <input
-              id="distanceInput"
-              type="number"
-              step="0.1"
-              min="0"
-              value={distance}
-              onChange={(e) => setDistance(e.target.value)}
-              className="ws-input"
+          {activeTab === 'submit' && (
+            <SubmitActivitySection
+              activities={activities}
+              selectedActivityId={selectedActivityId}
+              setSelectedActivityId={setSelectedActivityId}
+              distance={distance}
+              setDistance={setDistance}
+              duration={duration}
+              setDuration={setDuration}
+              note={note}
+              setNote={setNote}
+              setProofFile={setProofFile}
+              photoRequired={photoRequired}
+              submitState={submitState}
+              submitMessage={submitMessage}
+              onSubmit={handleSubmitActivity}
             />
-          </div>
+          )}
 
-          <div>
-            <label htmlFor="durationInput" className="ws-label">ระยะเวลา (นาที)</label>
-            <input
-              id="durationInput"
-              type="number"
-              step="1"
-              min="0"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              className="ws-input"
+          {activeTab === 'rewards' && (
+            <RewardsSection
+              rewards={rewards}
+              scoreBalance={scoreBalance}
+              rewardMessage={rewardMessage}
+              rewardMessageType={rewardMessageType}
+              redeemingRewardId={redeemingRewardId}
+              onRedeem={handleRedeem}
+              apiBase={API_BASE}
+              myRedeems={myRedeems}
+              cancelingRedeemId={cancelingRedeemId}
+              onCancelRedeem={handleCancelRedeem}
             />
-          </div>
+          )}
 
-          <div>
-            <label htmlFor="noteInput" className="ws-label">หมายเหตุ (ถ้ามี)</label>
-            <textarea
-              id="noteInput"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              rows={2}
-              className="ws-textarea"
+          {activeTab === 'challenges' && (
+            <ChallengesSection
+              myChallenges={myChallenges}
+              challenges={challenges}
+              challengeMessage={challengeMessage}
+              challengeMessageType={challengeMessageType}
+              joiningChallengeId={joiningChallengeId}
+              joinModeByChallenge={joinModeByChallenge}
+              setJoinModeByChallenge={setJoinModeByChallenge}
+              onJoinChallenge={handleJoinChallenge}
+              onOpenLeaderboard={openLeaderboard}
             />
-          </div>
-
-          <div>
-            <label htmlFor="proofInput" className="ws-label">
-              รูปหลักฐาน {photoRequired ? '(บังคับ)' : '(ไม่บังคับ)'}
-            </label>
-            <input
-              id="proofInput"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={(e) => setProofFile(e.target.files?.[0] || null)}
-            />
-          </div>
-
-          <button type="submit" className="ws-btn ws-btn-primary" disabled={submitState === 'submitting'}>
-            {submitState === 'submitting' ? 'กำลังส่ง...' : 'ส่งข้อมูล'}
-          </button>
-        </form>
-
-        {submitMessage && (
-          <div className={`ws-alert ${submitState === 'error' ? 'ws-alert-danger' : 'ws-alert-success'}`}>{submitMessage}</div>
-        )}
-
-        <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid var(--ws-border)' }} />
-
-        <div className="ws-row-between">
-          <h3 style={{ margin: 0 }}>แลกของรางวัล</h3>
-          <span>
-            คะแนนคงเหลือ: <strong style={{ color: 'var(--ws-primary)' }}>{scoreBalance}</strong>
-          </span>
+          )}
         </div>
 
-        {rewardMessage && (
-          <div className={`ws-alert ${rewardMessageType === 'error' ? 'ws-alert-danger' : 'ws-alert-success'}`}>{rewardMessage}</div>
-        )}
+        <NewBadgePopup badges={newBadgesToShow} apiBase={API_BASE} onClose={closeNewBadgePopup} />
 
-        {rewards.length === 0 && <p className="ws-empty">ยังไม่มีของรางวัลให้แลกตอนนี้</p>}
-
-        <div className="ws-stack">
-          {rewards.map((r) => {
-            const canAfford = scoreBalance >= r.required_score;
-            const inStock = r.stock > 0;
-            const isRedeeming = redeemingRewardId === r.reward_id;
-            return (
-              <div key={r.reward_id} className="ws-card ws-card-row">
-                <div>
-                  <div style={{ fontWeight: 'bold' }}>{r.reward_name}</div>
-                  <div style={{ fontSize: 14, color: 'var(--ws-text-secondary)' }}>
-                    {r.required_score} คะแนน · เหลือ {r.stock} ชิ้น
-                  </div>
-                  {r.description && (
-                    <div style={{ fontSize: 13, color: 'var(--ws-text-muted)' }}>{r.description}</div>
-                  )}
-                </div>
-                <button
-                  className="ws-btn ws-btn-primary"
-                  onClick={() => handleRedeem(r.reward_id)}
-                  disabled={!canAfford || !inStock || isRedeeming}
-                >
-                  {isRedeeming ? 'กำลังแลก...' : !inStock ? 'ของหมด' : !canAfford ? 'คะแนนไม่พอ' : 'แลก'}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
-        <h4 style={{ marginTop: 20 }}>ประวัติการแลกของ</h4>
-        {myRedeems.length === 0 && <p className="ws-empty">ยังไม่มีประวัติการแลกของ</p>}
-        {myRedeems.length > 0 && (
-          <div className="ws-stack">
-            {myRedeems.map((rd) => (
-              <div key={rd.redeem_id} className="ws-card ws-card-row">
-                <div>
-                  <div style={{ fontWeight: 'bold' }}>{rd.reward_name}</div>
-                  <div style={{ fontSize: 14, color: 'var(--ws-text-secondary)' }}>
-                    ใช้ {rd.used_score} คะแนน ·{' '}
-                    <span className={`ws-badge ${
-                      rd.status === 'APPROVED' ? 'ws-badge-success' :
-                      rd.status === 'REJECTED' || rd.status === 'CANCELLED' ? 'ws-badge-danger' :
-                      'ws-badge-warning'
-                    }`}>{STATUS_LABEL_TH[rd.status] || rd.status}</span>
-                    {' '}· {new Date(rd.redeem_date).toLocaleString('th-TH')}
-                  </div>
-                </div>
-                {rd.status === 'PENDING' && (
-                  <button
-                    className="ws-btn ws-btn-danger ws-btn-sm"
-                    onClick={() => handleCancelRedeem(rd.redeem_id)}
-                    disabled={cancelingRedeemId === rd.redeem_id}
-                  >
-                    {cancelingRedeemId === rd.redeem_id ? 'กำลังยกเลิก...' : 'ยกเลิก'}
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid var(--ws-border)' }} />
-
-        <h3>Challenge</h3>
-
-        {challengeMessage && (
-          <div className={`ws-alert ${challengeMessageType === 'error' ? 'ws-alert-danger' : 'ws-alert-success'}`}>{challengeMessage}</div>
-        )}
-
-        {myChallenges.length > 0 && (
-          <>
-            <h4>Challenge ที่เข้าร่วมอยู่</h4>
-            <div className="ws-stack" style={{ marginBottom: 16 }}>
-              {myChallenges.map((mc) => (
-                <div key={mc.participant_id} className="ws-card ws-card-row">
-                  <div>
-                    <div style={{ fontWeight: 'bold' }}>{mc.challenge_name}</div>
-                    <div style={{ fontSize: 14, color: 'var(--ws-text-secondary)' }}>
-                      {mc.category_name} · <span className="ws-badge ws-badge-info">{CHALLENGE_STATUS_LABEL_TH[mc.status] || mc.status}</span> · ระยะทางสะสมของฉัน{' '}
-                      {mc.my_distance} กม.
-                      {mc.join_mode === 'ANONYMOUS' && ' · เข้าร่วมแบบไม่ระบุตัวตน'}
-                    </div>
-                  </div>
-                  <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={() => openLeaderboard(mc.challenge_id)}>ดู Leaderboard</button>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        <h4>Challenge ที่เปิดอยู่</h4>
-        {challenges.length === 0 && <p className="ws-empty">ยังไม่มี challenge ที่เปิดอยู่ตอนนี้</p>}
-
-        <div className="ws-stack">
-          {challenges.map((c) => {
-            const isJoining = joiningChallengeId === c.challenge_id;
-            return (
-              <div key={c.challenge_id} className="ws-card ws-card-row">
-                <div>
-                  <div style={{ fontWeight: 'bold' }}>{c.challenge_name}</div>
-                  <div style={{ fontSize: 14, color: 'var(--ws-text-secondary)' }}>
-                    {c.category_name} · <span className="ws-badge ws-badge-info">{CHALLENGE_STATUS_LABEL_TH[c.status] || c.status}</span> · ผู้เข้าร่วม{' '}
-                    {c.participant_count} คน
-                  </div>
-                  <div style={{ fontSize: 13, color: 'var(--ws-text-muted)' }}>
-                    {new Date(c.start_date).toLocaleDateString('th-TH')} -{' '}
-                    {new Date(c.end_date).toLocaleDateString('th-TH')}
-                  </div>
-                  {c.description && <div style={{ fontSize: 13, color: 'var(--ws-text-muted)' }}>{c.description}</div>}
-                </div>
-
-                <div className="ws-row">
-                  {c.joined ? (
-                    <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={() => openLeaderboard(c.challenge_id)}>ดู Leaderboard</button>
-                  ) : (
-                    <>
-                      <select
-                        value={joinModeByChallenge[c.challenge_id] || 'PUBLIC'}
-                        onChange={(e) =>
-                          setJoinModeByChallenge((prev) => ({ ...prev, [c.challenge_id]: e.target.value }))
-                        }
-                        className="ws-select"
-                        style={{ width: 'auto' }}
-                      >
-                        <option value="PUBLIC">แสดงชื่อจริง</option>
-                        <option value="ANONYMOUS">ไม่ระบุตัวตน</option>
-                      </select>
-                      <button className="ws-btn ws-btn-primary ws-btn-sm" onClick={() => handleJoinChallenge(c.challenge_id)} disabled={isJoining}>
-                        {isJoining ? 'กำลังเข้าร่วม...' : 'เข้าร่วม'}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {newBadgesToShow.length > 0 && (
-        <div className="ws-modal-overlay" style={{ zIndex: 1100 }}>
-          <div className="ws-modal" style={{ maxWidth: 360, textAlign: 'center' }}>
-            <h3>🎉 ได้ Badge ใหม่!</h3>
-            <div className="ws-stack" style={{ marginBottom: 16 }}>
-              {newBadgesToShow.map((b) => (
-                <div key={b.badgeId}>
-                  <div className="ws-icon-circle" style={{ width: 72, height: 72, margin: '0 auto 6px' }}>
-                    {b.icon ? (
-                      <img src={`${API_BASE}/${b.icon}`} alt={b.badgeName} />
-                    ) : (
-                      <span style={{ fontSize: 32 }}>🏅</span>
-                    )}
-                  </div>
-                  <div style={{ fontWeight: 'bold' }}>{b.badgeName}</div>
-                  {b.description && <div style={{ fontSize: 13, color: 'var(--ws-text-secondary)' }}>{b.description}</div>}
-                </div>
-              ))}
-            </div>
-            <button className="ws-btn ws-btn-primary" onClick={closeNewBadgePopup}>รับทราบ</button>
-          </div>
-        </div>
-      )}
-
-      {leaderboardChallengeId !== null && (
-        <div className="ws-modal-overlay">
-          <div className="ws-modal" style={{ maxWidth: 420 }}>
-            <h3>Leaderboard</h3>
-
-            {leaderboardLoading && <p className="ws-empty">กำลังโหลด...</p>}
-            {leaderboardError && <div className="ws-alert ws-alert-danger">{leaderboardError}</div>}
-
-            {!leaderboardLoading && !leaderboardError && leaderboard.length === 0 && (
-              <p className="ws-empty">ยังไม่มีผู้เข้าร่วม</p>
-            )}
-
-            {!leaderboardLoading && leaderboard.length > 0 && (
-              <div className="ws-stack" style={{ gap: 6 }}>
-                {leaderboard.map((row) => (
-                  <div
-                    key={row.rank}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      padding: '6px 0',
-                      borderBottom: '1px solid var(--ws-border)',
-                      fontWeight: row.isMe ? 'bold' : 'normal',
-                      color: row.isMe ? 'var(--ws-primary)' : 'inherit',
-                    }}
-                  >
-                    <span>
-                      #{row.rank} {row.displayName} {row.isMe && '(คุณ)'}
-                    </span>
-                    <span>
-                      {row.totalDistance} กม. · {row.runCount} ครั้ง
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="ws-modal-actions">
-              <button className="ws-btn ws-btn-secondary" onClick={closeLeaderboard}>ปิด</button>
-            </div>
-          </div>
-        </div>
-      )}
+        <LeaderboardModal
+          challengeId={leaderboardChallengeId}
+          leaderboard={leaderboard}
+          loading={leaderboardLoading}
+          error={leaderboardError}
+          onClose={closeLeaderboard}
+        />
       </>
     );
   }
