@@ -12,8 +12,13 @@ export default function AdminApp() {
   const [loginError, setLoginError] = useState('');
   const [loginSubmitting, setLoginSubmitting] = useState(false);
 
-  // สลับระหว่างหน้าตรวจสอบกิจกรรม กับหน้าตรวจสอบการแลกของรางวัล (Phase 2)
-  const [activeTab, setActiveTab] = useState('submissions'); // 'submissions' | 'redeems'
+  // สลับระหว่างแท็บต่างๆ ของหน้าแอดมิน เริ่มที่ dashboard เป็นหน้าแรกเสมอ
+  const [activeTab, setActiveTab] = useState('dashboard');
+
+  // ---- Phase 5: dashboard สรุปภาพรวม ----
+  const [dashboardData, setDashboardData] = useState(null);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState('');
 
   const [statusFilter, setStatusFilter] = useState('PENDING');
   const [submissions, setSubmissions] = useState([]);
@@ -145,6 +150,32 @@ export default function AdminApp() {
     }
     checkAuth();
   }, []);
+
+  async function loadDashboard() {
+    setDashboardLoading(true);
+    setDashboardError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/dashboard`, {
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'โหลดข้อมูลแดชบอร์ดไม่สำเร็จ');
+      }
+      setDashboardData(data);
+    } catch (err) {
+      setDashboardError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setDashboardLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (isLoggedIn && activeTab === 'dashboard') {
+      loadDashboard();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn, activeTab]);
 
   async function loadSubmissions() {
     setListLoading(true);
@@ -1118,7 +1149,13 @@ export default function AdminApp() {
         </div>
       </div>
 
-      <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          style={{ fontWeight: activeTab === 'dashboard' ? 'bold' : 'normal' }}
+        >
+          แดชบอร์ด
+        </button>
         <button
           onClick={() => setActiveTab('submissions')}
           style={{ fontWeight: activeTab === 'submissions' ? 'bold' : 'normal' }}
@@ -1162,6 +1199,106 @@ export default function AdminApp() {
           ของรางวัล
         </button>
       </div>
+
+      {activeTab === 'dashboard' && (
+        <div>
+          {dashboardLoading && <p>กำลังโหลด...</p>}
+          {dashboardError && <p style={{ color: 'red' }}>{dashboardError}</p>}
+
+          {dashboardData && (
+            <>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: 12,
+                  marginBottom: 24,
+                }}
+              >
+                <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16 }}>
+                  <div style={{ fontSize: 13, color: '#666' }}>พนักงาน active</div>
+                  <div style={{ fontSize: 32, fontWeight: 'bold' }}>{dashboardData.activeEmployeeCount}</div>
+                </div>
+                <div
+                  style={{
+                    border: '1px solid #ddd',
+                    borderRadius: 8,
+                    padding: 16,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setStatusFilter('PENDING');
+                    setActiveTab('submissions');
+                  }}
+                >
+                  <div style={{ fontSize: 13, color: '#666' }}>Submission รอตรวจ</div>
+                  <div style={{ fontSize: 32, fontWeight: 'bold' }}>{dashboardData.pendingSubmissionCount}</div>
+                </div>
+                <div
+                  style={{
+                    border: '1px solid #ddd',
+                    borderRadius: 8,
+                    padding: 16,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setRedeemStatusFilter('PENDING');
+                    setActiveTab('redeems');
+                  }}
+                >
+                  <div style={{ fontSize: 13, color: '#666' }}>Redeem รอตรวจ</div>
+                  <div style={{ fontSize: 32, fontWeight: 'bold' }}>{dashboardData.pendingRedeemCount}</div>
+                </div>
+                <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16 }}>
+                  <div style={{ fontSize: 13, color: '#666' }}>Badge ทั้งหมด</div>
+                  <div style={{ fontSize: 32, fontWeight: 'bold' }}>{dashboardData.totalBadgeCount}</div>
+                </div>
+                <div
+                  style={{
+                    border: '1px solid #ddd',
+                    borderRadius: 8,
+                    padding: 16,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setActiveTab('challenges')}
+                >
+                  <div style={{ fontSize: 13, color: '#666' }}>Challenge กำลังดำเนินอยู่</div>
+                  <div style={{ fontSize: 32, fontWeight: 'bold' }}>{dashboardData.ongoingChallengeCount}</div>
+                </div>
+              </div>
+
+              <h3>Challenge ที่กำลังดำเนินอยู่ตอนนี้</h3>
+              {dashboardData.ongoingChallenges.length === 0 ? (
+                <p style={{ color: '#666' }}>ไม่มี challenge ที่กำลังดำเนินอยู่ตอนนี้</p>
+              ) : (
+                <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid #ccc' }}>ชื่อ Challenge</th>
+                      <th style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid #ccc' }}>หมวดหมู่</th>
+                      <th style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid #ccc' }}>ช่วงเวลา</th>
+                      <th style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid #ccc' }}>ผู้เข้าร่วม</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboardData.ongoingChallenges.map((c) => (
+                      <tr key={c.challenge_id}>
+                        <td style={{ padding: 8, borderBottom: '1px solid #eee' }}>{c.challenge_name}</td>
+                        <td style={{ padding: 8, borderBottom: '1px solid #eee' }}>{c.category_name}</td>
+                        <td style={{ padding: 8, borderBottom: '1px solid #eee' }}>
+                          {new Date(c.start_date).toLocaleDateString('th-TH')} -{' '}
+                          {new Date(c.end_date).toLocaleDateString('th-TH')}
+                        </td>
+                        <td style={{ padding: 8, borderBottom: '1px solid #eee' }}>{c.participant_count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {activeTab === 'submissions' && (
         <>

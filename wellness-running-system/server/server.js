@@ -607,6 +607,48 @@ app.get('/api/admin/me', requireAdmin, (req, res) => {
   res.json({ employeeId: req.adminEmployeeId, role: 'ADMIN' });
 });
 
+// ---- Phase 5: dashboard สรุปภาพรวมสำหรับหน้าแรกของแอดมิน ----
+// นับพนักงาน active, งานค้างตรวจ (submission/redeem ที่ PENDING), badge ทั้งหมด, challenge ที่กำลังดำเนินอยู่ตอนนี้
+app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
+  try {
+    // sync สถานะ challenge ตามวันที่ก่อน เพื่อให้ตัวเลข ONGOING ตรงกับความเป็นจริง ณ ตอนนี้
+    await syncChallengeStatuses();
+
+    const [employeeRows] = await pool.query(
+      `SELECT COUNT(*) AS count FROM employee WHERE employment_status = 'ACTIVE'`
+    );
+    const [pendingSubRows] = await pool.query(
+      `SELECT COUNT(*) AS count FROM running_submission WHERE status = 'PENDING'`
+    );
+    const [pendingRedeemRows] = await pool.query(
+      `SELECT COUNT(*) AS count FROM reward_redeem WHERE status = 'PENDING'`
+    );
+    const [badgeRows] = await pool.query(`SELECT COUNT(*) AS count FROM badge`);
+    const [ongoingChallenges] = await pool.query(
+      `SELECT
+        c.challenge_id, c.challenge_name, c.start_date, c.end_date,
+        ac.category_name,
+        (SELECT COUNT(*) FROM challenge_participant cp WHERE cp.challenge_id = c.challenge_id) AS participant_count
+       FROM challenge c
+       JOIN activity_category ac ON ac.category_id = c.category_id
+       WHERE c.status = 'ONGOING'
+       ORDER BY c.end_date ASC`
+    );
+
+    res.json({
+      activeEmployeeCount: employeeRows[0].count,
+      pendingSubmissionCount: pendingSubRows[0].count,
+      pendingRedeemCount: pendingRedeemRows[0].count,
+      totalBadgeCount: badgeRows[0].count,
+      ongoingChallengeCount: ongoingChallenges.length,
+      ongoingChallenges,
+    });
+  } catch (err) {
+    console.error('get admin dashboard error:', err);
+    res.status(500).json({ message: 'โหลดข้อมูลแดชบอร์ดไม่สำเร็จ' });
+  }
+});
+
 // preset เหตุผลปฏิเสธสำหรับ dropdown ฝั่งแอดมิน (is_other บอกว่าแถวไหนต้องให้พิมพ์เหตุผลเอง)
 app.get('/api/admin/reject-reasons', requireAdmin, async (req, res) => {
   try {
