@@ -1537,56 +1537,52 @@ export default function AdminApp() {
 
       {activeTab === 'challenges' && (
         <>
-          <div className="ws-card" style={{ marginBottom: 16, maxWidth: 480 }}>
+          <div className="ws-card" style={{ marginBottom: 16, maxWidth: 720 }}>
             <h3 style={{ marginTop: 0 }}>สร้าง Challenge ใหม่</h3>
             <form onSubmit={handleCreateChallenge}>
-              <div style={{ marginBottom: 12 }}>
-                <label htmlFor="newChallengeCategory">หมวดกิจกรรมที่ใช้วัด (รวมระยะทางทุกกิจกรรมในหมวดนี้)</label>
-                <br />
-                <select
-                  id="newChallengeCategory"
-                  value={newChallengeCategoryId}
-                  onChange={(e) => setNewChallengeCategoryId(e.target.value)}
-                  className="ws-select"
-                >
-                  <option value="">-- เลือกหมวดกิจกรรม --</option>
-                  {challengeCategories.map((cat) => (
-                    <option key={cat.category_id} value={cat.category_id}>
-                      {cat.category_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <div className="ws-form-grid">
+                <div>
+                  <label htmlFor="newChallengeCategory" className="ws-label">หมวดกิจกรรมที่ใช้วัด (รวมระยะทางทุกกิจกรรมในหมวดนี้)</label>
+                  <select
+                    id="newChallengeCategory"
+                    value={newChallengeCategoryId}
+                    onChange={(e) => setNewChallengeCategoryId(e.target.value)}
+                    className="ws-select"
+                  >
+                    <option value="">-- เลือกหมวดกิจกรรม --</option>
+                    {challengeCategories.map((cat) => (
+                      <option key={cat.category_id} value={cat.category_id}>
+                        {cat.category_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <div style={{ marginBottom: 12 }}>
-                <label htmlFor="newChallengeName">ชื่อ Challenge</label>
-                <br />
-                <input
-                  id="newChallengeName"
-                  type="text"
-                  value={newChallengeName}
-                  onChange={(e) => setNewChallengeName(e.target.value)}
-                  placeholder="เช่น July Run Challenge"
-                  className="ws-input"
-                />
-              </div>
+                <div>
+                  <label htmlFor="newChallengeName" className="ws-label">ชื่อ Challenge</label>
+                  <input
+                    id="newChallengeName"
+                    type="text"
+                    value={newChallengeName}
+                    onChange={(e) => setNewChallengeName(e.target.value)}
+                    placeholder="เช่น July Run Challenge"
+                    className="ws-input"
+                  />
+                </div>
 
-              <div style={{ marginBottom: 12 }}>
-                <label htmlFor="newChallengeDescription">รายละเอียด (ถ้ามี)</label>
-                <br />
-                <textarea
-                  id="newChallengeDescription"
-                  value={newChallengeDescription}
-                  onChange={(e) => setNewChallengeDescription(e.target.value)}
-                  rows={2}
-                  className="ws-textarea"
-                />
-              </div>
+                <div className="ws-field-full">
+                  <label htmlFor="newChallengeDescription" className="ws-label">รายละเอียด (ถ้ามี)</label>
+                  <textarea
+                    id="newChallengeDescription"
+                    value={newChallengeDescription}
+                    onChange={(e) => setNewChallengeDescription(e.target.value)}
+                    rows={2}
+                    className="ws-textarea"
+                  />
+                </div>
 
-              <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <label htmlFor="newChallengeStart">วันเริ่ม</label>
-                  <br />
+                <div>
+                  <label htmlFor="newChallengeStart" className="ws-label">วันเริ่ม</label>
                   <input
                     id="newChallengeStart"
                     type="datetime-local"
@@ -1595,9 +1591,8 @@ export default function AdminApp() {
                     className="ws-input"
                   />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <label htmlFor="newChallengeEnd">วันจบ</label>
-                  <br />
+                <div>
+                  <label htmlFor="newChallengeEnd" className="ws-label">วันจบ</label>
                   <input
                     id="newChallengeEnd"
                     type="datetime-local"

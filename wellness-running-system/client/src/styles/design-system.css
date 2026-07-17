@@ -456,3 +456,16 @@
 .ws-tile-actions .ws-btn {
   width: 100%;
 }
+
+/* -------------------------------------------------------------------------
+    14) FORM GRID — จัดฟอร์มเป็น 2 คอลัมน์แทนการเรียงยาวแถวเดียว
+   ------------------------------------------------------------------------- */
+.ws-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--ws-sp-4);
+  margin-bottom: var(--ws-sp-4);
+}
+.ws-form-grid .ws-field-full {
+  grid-column: 1 / -1;
+}
