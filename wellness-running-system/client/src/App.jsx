@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import liff from '@line/liff';
 import BadgesSection from './components/BadgesSection.jsx';
 import SubmitActivitySection from './components/SubmitActivitySection.jsx';
+import SubmissionHistorySection from './components/SubmissionHistorySection.jsx';
 import RewardsSection from './components/RewardsSection.jsx';
 import ChallengesSection from './components/ChallengesSection.jsx';
 import NewBadgePopup from './components/NewBadgePopup.jsx';
@@ -37,6 +38,7 @@ export default function App() {
   const [proofFile, setProofFile] = useState(null);
   const [submitState, setSubmitState] = useState('idle'); // idle | submitting | success | error
   const [submitMessage, setSubmitMessage] = useState('');
+  const [mySubmissions, setMySubmissions] = useState([]);
 
   const selectedActivity = activities.find(
     (a) => String(a.activity_id) === String(selectedActivityId)
@@ -147,6 +149,23 @@ export default function App() {
     return () => {
       cancelled = true;
     };
+  }, [status]);
+
+  async function loadSubmissionData() {
+    try {
+      const res = await fetch(`${API_BASE}/api/my-submissions`, { credentials: 'include' });
+      const data = await res.json().catch(() => []);
+      if (res.ok) {
+        setMySubmissions(data);
+      }
+    } catch (err) {
+      console.error('load submission data error:', err);
+    }
+  }
+
+  useEffect(() => {
+    if (status !== 'done') return;
+    loadSubmissionData();
   }, [status]);
 
   async function loadRewardData() {
@@ -404,6 +423,7 @@ export default function App() {
       setDuration('');
       setNote('');
       setProofFile(null);
+      await loadSubmissionData();
     } catch (err) {
       setSubmitState('error');
       setSubmitMessage(err.message || 'เกิดข้อผิดพลาด');
@@ -510,6 +530,10 @@ export default function App() {
               submitMessage={submitMessage}
               onSubmit={handleSubmitActivity}
             />
+          )}
+
+          {activeTab === 'submit' && (
+            <SubmissionHistorySection mySubmissions={mySubmissions} apiBase={API_BASE} />
           )}
 
           {activeTab === 'rewards' && (

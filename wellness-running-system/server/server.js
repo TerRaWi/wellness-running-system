@@ -273,6 +273,30 @@ app.post('/api/submissions', requireAuth, handleProofUpload, async (req, res) =>
   }
 });
 
+// พนักงานดูประวัติการส่งกิจกรรมของตัวเอง (ทุกสถานะ) พร้อมเหตุผลที่ถูกปฏิเสธถ้ามี
+app.get('/api/my-submissions', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT
+        rs.submission_id, rs.activity_id, at.activity_name, ac.category_name,
+        rs.distance, rs.duration, rs.proof_image, rs.note,
+        rs.status, rs.approved_at, rs.submitted_at,
+        rr.reason_text AS reject_reason_text, rs.reject_reason_note
+       FROM running_submission rs
+       JOIN activity_type at ON at.activity_id = rs.activity_id
+       JOIN activity_category ac ON ac.category_id = at.category_id
+       LEFT JOIN reject_reason rr ON rr.reason_id = rs.reject_reason_id
+       WHERE rs.employee_id = ?
+       ORDER BY rs.submitted_at DESC`,
+      [req.employeeId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('get my submissions error:', err);
+    res.status(500).json({ message: 'โหลดประวัติการส่งกิจกรรมไม่สำเร็จ' });
+  }
+});
+
 // ---- reward redemption (Phase 2) ----
 // ใช้ตารางจริงจาก wellness.sql: reward, reward_redeem, score_transaction
 // หลักการ: หัก stock+คะแนนทันทีตอนกดแลก (status PENDING) แล้วคืนกลับถ้า CANCELLED/REJECTED ภายหลัง
