@@ -2,6 +2,29 @@ import { useEffect, useState } from 'react';
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
+// แสดงวัน-เวลาจาก DB หรือ input datetime-local เป็นข้อความไทยพร้อมเวลา
+function formatDateTimeShort(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('th-TH', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+// แปลงเวลาปัจจุบันของเครื่องเป็นรูปแบบที่ input type=datetime-local ต้องการ (YYYY-MM-DDTHH:mm)
+// ใช้เป็นค่า min กันแอดมินเลือกวัน-เวลาที่ผ่านมาแล้ว
+function getNowForDatetimeInput() {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  const tzOffsetMs = now.getTimezoneOffset() * 60000;
+  return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 16);
+}
+
 export default function AdminApp() {
   const [authChecked, setAuthChecked] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -388,6 +411,18 @@ export default function AdminApp() {
 
     if (!newChallengeCategoryId || !newChallengeName.trim() || !newChallengeStartDate || !newChallengeEndDate) {
       setCreateChallengeError('กรุณากรอกข้อมูลให้ครบ');
+      return;
+    }
+
+    const startDateObj = new Date(newChallengeStartDate);
+    const endDateObj = new Date(newChallengeEndDate);
+
+    if (startDateObj.getTime() < Date.now()) {
+      setCreateChallengeError('วันเริ่มต้องไม่ใช่วัน-เวลาที่ผ่านมาแล้ว');
+      return;
+    }
+    if (endDateObj.getTime() <= startDateObj.getTime()) {
+      setCreateChallengeError('วันจบต้องอยู่หลังวันเริ่ม');
       return;
     }
 
@@ -1276,8 +1311,7 @@ export default function AdminApp() {
                         <td>{c.challenge_name}</td>
                         <td>{c.category_name}</td>
                         <td>
-                          {new Date(c.start_date).toLocaleDateString('th-TH')} -{' '}
-                          {new Date(c.end_date).toLocaleDateString('th-TH')}
+                          {formatDateTimeShort(c.start_date)} - {formatDateTimeShort(c.end_date)}
                         </td>
                         <td>{c.participant_count}</td>
                       </tr>
@@ -1582,24 +1616,36 @@ export default function AdminApp() {
                 </div>
 
                 <div>
-                  <label htmlFor="newChallengeStart" className="ws-label">วันเริ่ม</label>
+                  <label htmlFor="newChallengeStart" className="ws-label">วันและเวลาเริ่ม</label>
                   <input
                     id="newChallengeStart"
                     type="datetime-local"
                     value={newChallengeStartDate}
+                    min={getNowForDatetimeInput()}
                     onChange={(e) => setNewChallengeStartDate(e.target.value)}
                     className="ws-input"
                   />
+                  {newChallengeStartDate && (
+                    <div style={{ fontSize: 12, color: 'var(--ws-text-muted)', marginTop: 4 }}>
+                      เริ่ม: {formatDateTimeShort(newChallengeStartDate)} น.
+                    </div>
+                  )}
                 </div>
                 <div>
-                  <label htmlFor="newChallengeEnd" className="ws-label">วันจบ</label>
+                  <label htmlFor="newChallengeEnd" className="ws-label">วันและเวลาจบ</label>
                   <input
                     id="newChallengeEnd"
                     type="datetime-local"
                     value={newChallengeEndDate}
+                    min={newChallengeStartDate || getNowForDatetimeInput()}
                     onChange={(e) => setNewChallengeEndDate(e.target.value)}
                     className="ws-input"
                   />
+                  {newChallengeEndDate && (
+                    <div style={{ fontSize: 12, color: 'var(--ws-text-muted)', marginTop: 4 }}>
+                      จบ: {formatDateTimeShort(newChallengeEndDate)} น.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1651,8 +1697,7 @@ export default function AdminApp() {
                       </td>
                       <td>{c.category_name}</td>
                       <td>
-                        {new Date(c.start_date).toLocaleDateString('th-TH')} -{' '}
-                        {new Date(c.end_date).toLocaleDateString('th-TH')}
+                        {formatDateTimeShort(c.start_date)} - {formatDateTimeShort(c.end_date)}
                       </td>
                       <td><span className="ws-badge ws-badge-info">{CHALLENGE_STATUS_LABEL_TH[c.status] || c.status}</span></td>
                       <td>{c.participant_count}</td>

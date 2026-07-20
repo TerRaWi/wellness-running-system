@@ -5,6 +5,19 @@ const CHALLENGE_STATUS_LABEL_TH = {
   CANCELLED: 'ยกเลิกแล้ว',
 };
 
+// แสดงวัน-เวลาจาก DB เป็นข้อความไทยพร้อมเวลา (ไม่ใช่แค่วันที่)
+function formatDateTimeShort(value) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('th-TH', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export default function ChallengesSection({
   myChallenges,
   challenges,
@@ -60,8 +73,7 @@ export default function ChallengesSection({
                   {c.participant_count} คน
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--ws-text-muted)' }}>
-                  {new Date(c.start_date).toLocaleDateString('th-TH')} -{' '}
-                  {new Date(c.end_date).toLocaleDateString('th-TH')}
+                  {formatDateTimeShort(c.start_date)} - {formatDateTimeShort(c.end_date)}
                 </div>
                 {c.description && <div style={{ fontSize: 13, color: 'var(--ws-text-muted)' }}>{c.description}</div>}
               </div>
