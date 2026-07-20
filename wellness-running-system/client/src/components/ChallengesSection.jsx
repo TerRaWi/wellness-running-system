@@ -1,22 +1,11 @@
+import { formatDateTimeShort } from '../utils/formatDateTime';
+
 const CHALLENGE_STATUS_LABEL_TH = {
   UPCOMING: 'ยังไม่เริ่ม',
   ONGOING: 'กำลังแข่งขัน',
   ENDED: 'จบแล้ว',
   CANCELLED: 'ยกเลิกแล้ว',
 };
-
-// แสดงวัน-เวลาจาก DB เป็นข้อความไทยพร้อมเวลา (ไม่ใช่แค่วันที่)
-function formatDateTimeShort(value) {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString('th-TH', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
 
 export default function ChallengesSection({
   myChallenges,

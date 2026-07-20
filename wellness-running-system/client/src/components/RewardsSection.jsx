@@ -1,3 +1,5 @@
+import { formatDateTimeShort } from '../utils/formatDateTime';
+
 const STATUS_LABEL_TH = {
   PENDING: 'รอดำเนินการ',
   APPROVED: 'อนุมัติแล้ว',
@@ -84,7 +86,7 @@ export default function RewardsSection({
                     rd.status === 'REJECTED' || rd.status === 'CANCELLED' ? 'ws-badge-danger' :
                     'ws-badge-warning'
                   }`}>{STATUS_LABEL_TH[rd.status] || rd.status}</span>
-                  {' '}· {new Date(rd.redeem_date).toLocaleString('th-TH')}
+                  {' '}· {formatDateTimeShort(rd.redeem_date)}
                 </div>
               </div>
               {rd.status === 'PENDING' && (

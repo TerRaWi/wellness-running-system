@@ -1,3 +1,5 @@
+import { formatDateTimeShort } from '../utils/formatDateTime';
+
 const SUBMISSION_STATUS_LABEL_TH = {
   PENDING: 'รอตรวจสอบ',
   APPROVED: 'อนุมัติแล้ว',
@@ -41,7 +43,7 @@ export default function SubmissionHistorySection({ mySubmissions, apiBase }) {
                   </span>
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--ws-text-muted)' }}>
-                  ส่งเมื่อ {new Date(s.submitted_at).toLocaleString('th-TH')}
+                  ส่งเมื่อ {formatDateTimeShort(s.submitted_at)}
                 </div>
                 {s.note && (
                   <div style={{ fontSize: 13, color: 'var(--ws-text-muted)' }}>หมายเหตุ: {s.note}</div>
@@ -54,7 +56,7 @@ export default function SubmissionHistorySection({ mySubmissions, apiBase }) {
                 )}
                 {s.status === 'APPROVED' && s.approved_at && (
                   <div style={{ fontSize: 13, color: 'var(--ws-text-muted)' }}>
-                    อนุมัติเมื่อ {new Date(s.approved_at).toLocaleString('th-TH')}
+                    อนุมัติเมื่อ {formatDateTimeShort(s.approved_at)}
                   </div>
                 )}
               </div>

@@ -1,20 +1,7 @@
 import { useEffect, useState } from 'react';
+import { formatDateTimeShort } from './utils/formatDateTime';
 
 const API_BASE = import.meta.env.VITE_API_BASE;
-
-// แสดงวัน-เวลาจาก DB หรือ input datetime-local เป็นข้อความไทยพร้อมเวลา
-function formatDateTimeShort(value) {
-  if (!value) return '';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString('th-TH', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
 
 // แปลงเวลาปัจจุบันของเครื่องเป็นรูปแบบที่ input type=datetime-local ต้องการ (YYYY-MM-DDTHH:mm)
 // ใช้เป็นค่า min กันแอดมินเลือกวัน-เวลาที่ผ่านมาแล้ว
@@ -23,6 +10,26 @@ function getNowForDatetimeInput() {
   now.setSeconds(0, 0);
   const tzOffsetMs = now.getTimezoneOffset() * 60000;
   return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 16);
+}
+
+// รายการชั่วโมง (00-23) และนาที (00-59) แบบ 24 ชม. ใช้กับ dropdown เลือกเวลาของ Challenge
+// ทำแบบนี้แทนพึ่ง input type=datetime-local เพราะ popup ปฏิทินของ browser จะโชว์ AM/PM ตาม
+// ค่า locale ของเครื่อง OS ผู้ใช้แต่ละคน ซึ่งเราบังคับผ่าน lang attribute ไม่ได้ 100%
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+
+// แยกค่า "YYYY-MM-DDTHH:mm" ออกเป็นวัน/ชั่วโมง/นาที สำหรับ bind กับ input+select แยกกัน
+function splitDatetimeLocal(value) {
+  if (!value) return { date: '', hour: '', minute: '' };
+  const [date, time] = value.split('T');
+  const [hour, minute] = (time || '').split(':');
+  return { date: date || '', hour: hour || '', minute: minute || '' };
+}
+
+// รวมวัน/ชั่วโมง/นาทีกลับเป็น "YYYY-MM-DDTHH:mm" (format เดียวกับที่ backend และ validation ใช้อยู่)
+function joinDatetimeLocal(date, hour, minute) {
+  if (!date) return '';
+  return `${date}T${hour || '00'}:${minute || '00'}`;
 }
 
 export default function AdminApp() {
@@ -1397,7 +1404,7 @@ export default function AdminApp() {
                     )}
                   </td>
                   <td>{s.note || '-'}</td>
-                  <td>{new Date(s.submitted_at).toLocaleString('th-TH')}</td>
+                  <td>{formatDateTimeShort(s.submitted_at)}</td>
                   {statusFilter === 'REJECTED' && (
                     <td>
                       {s.reject_reason_text || '-'}
@@ -1540,7 +1547,7 @@ export default function AdminApp() {
                       <td>{rd.department || '-'}</td>
                       <td>{rd.reward_name}</td>
                       <td>{rd.used_score}</td>
-                      <td>{new Date(rd.redeem_date).toLocaleString('th-TH')}</td>
+                      <td>{formatDateTimeShort(rd.redeem_date)}</td>
                       {redeemStatusFilter === 'PENDING' && (
                         <td style={{ whiteSpace: 'nowrap' }}>
                           <button
@@ -1617,33 +1624,111 @@ export default function AdminApp() {
 
                 <div>
                   <label htmlFor="newChallengeStart" className="ws-label">วันและเวลาเริ่ม</label>
-                  <input
-                    id="newChallengeStart"
-                    type="datetime-local"
-                    value={newChallengeStartDate}
-                    min={getNowForDatetimeInput()}
-                    onChange={(e) => setNewChallengeStartDate(e.target.value)}
-                    className="ws-input"
-                  />
+                  {(() => {
+                    const startParts = splitDatetimeLocal(newChallengeStartDate);
+                    return (
+                      <div className="ws-row" style={{ gap: 6 }}>
+                        <input
+                          id="newChallengeStart"
+                          type="date"
+                          value={startParts.date}
+                          min={getNowForDatetimeInput().slice(0, 10)}
+                          onChange={(e) =>
+                            setNewChallengeStartDate(
+                              joinDatetimeLocal(e.target.value, startParts.hour || '00', startParts.minute || '00')
+                            )
+                          }
+                          className="ws-input"
+                          style={{ flex: 1 }}
+                        />
+                        <select
+                          aria-label="ชั่วโมงเริ่ม"
+                          value={startParts.hour || '00'}
+                          onChange={(e) =>
+                            setNewChallengeStartDate(joinDatetimeLocal(startParts.date, e.target.value, startParts.minute || '00'))
+                          }
+                          className="ws-select"
+                          style={{ width: 'auto' }}
+                        >
+                          {HOUR_OPTIONS.map((h) => (
+                            <option key={h} value={h}>{h}</option>
+                          ))}
+                        </select>
+                        <span>:</span>
+                        <select
+                          aria-label="นาทีเริ่ม"
+                          value={startParts.minute || '00'}
+                          onChange={(e) =>
+                            setNewChallengeStartDate(joinDatetimeLocal(startParts.date, startParts.hour || '00', e.target.value))
+                          }
+                          className="ws-select"
+                          style={{ width: 'auto' }}
+                        >
+                          {MINUTE_OPTIONS.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })()}
                   {newChallengeStartDate && (
                     <div style={{ fontSize: 12, color: 'var(--ws-text-muted)', marginTop: 4 }}>
-                      เริ่ม: {formatDateTimeShort(newChallengeStartDate)} น.
+                      เริ่ม: {formatDateTimeShort(newChallengeStartDate)}
                     </div>
                   )}
                 </div>
                 <div>
                   <label htmlFor="newChallengeEnd" className="ws-label">วันและเวลาจบ</label>
-                  <input
-                    id="newChallengeEnd"
-                    type="datetime-local"
-                    value={newChallengeEndDate}
-                    min={newChallengeStartDate || getNowForDatetimeInput()}
-                    onChange={(e) => setNewChallengeEndDate(e.target.value)}
-                    className="ws-input"
-                  />
+                  {(() => {
+                    const endParts = splitDatetimeLocal(newChallengeEndDate);
+                    return (
+                      <div className="ws-row" style={{ gap: 6 }}>
+                        <input
+                          id="newChallengeEnd"
+                          type="date"
+                          value={endParts.date}
+                          min={(newChallengeStartDate || getNowForDatetimeInput()).slice(0, 10)}
+                          onChange={(e) =>
+                            setNewChallengeEndDate(
+                              joinDatetimeLocal(e.target.value, endParts.hour || '00', endParts.minute || '00')
+                            )
+                          }
+                          className="ws-input"
+                          style={{ flex: 1 }}
+                        />
+                        <select
+                          aria-label="ชั่วโมงจบ"
+                          value={endParts.hour || '00'}
+                          onChange={(e) =>
+                            setNewChallengeEndDate(joinDatetimeLocal(endParts.date, e.target.value, endParts.minute || '00'))
+                          }
+                          className="ws-select"
+                          style={{ width: 'auto' }}
+                        >
+                          {HOUR_OPTIONS.map((h) => (
+                            <option key={h} value={h}>{h}</option>
+                          ))}
+                        </select>
+                        <span>:</span>
+                        <select
+                          aria-label="นาทีจบ"
+                          value={endParts.minute || '00'}
+                          onChange={(e) =>
+                            setNewChallengeEndDate(joinDatetimeLocal(endParts.date, endParts.hour || '00', e.target.value))
+                          }
+                          className="ws-select"
+                          style={{ width: 'auto' }}
+                        >
+                          {MINUTE_OPTIONS.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })()}
                   {newChallengeEndDate && (
                     <div style={{ fontSize: 12, color: 'var(--ws-text-muted)', marginTop: 4 }}>
-                      จบ: {formatDateTimeShort(newChallengeEndDate)} น.
+                      จบ: {formatDateTimeShort(newChallengeEndDate)}
                     </div>
                   )}
                 </div>
