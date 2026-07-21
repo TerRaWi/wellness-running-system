@@ -1843,6 +1843,85 @@ app.put('/api/admin/rewards/:id', requireAdmin, handleRewardImageUpload, async (
   }
 });
 
+// ---- Phase 5: จัดการสิทธิ์แอดมิน (grant/revoke ผ่านหน้าเว็บ แทนการรัน seed-admin.js) ----
+
+app.get('/api/admin/admins', requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT e.employee_id, e.full_name, e.department, ac.created_at
+       FROM employee e
+       JOIN admin_credential ac ON ac.employee_id = e.employee_id
+       ORDER BY ac.created_at ASC`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('list admins error:', err);
+    res.status(500).json({ message: 'โหลดรายชื่อแอดมินไม่สำเร็จ' });
+  }
+});
+
+app.post('/api/admin/admins', requireAdmin, async (req, res) => {
+  const { employeeId, password } = req.body;
+
+  if (!employeeId || !password) {
+    return res.status(400).json({ message: 'กรุณากรอกรหัสพนักงานและรหัสผ่าน' });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ message: 'รหัสผ่านควรยาวอย่างน้อย 8 ตัวอักษร' });
+  }
+
+  try {
+    const [empRows] = await pool.query(
+      'SELECT employee_id FROM employee WHERE employee_id = ?',
+      [employeeId]
+    );
+    if (empRows.length === 0) {
+      return res.status(404).json({ message: `ไม่พบ employee_id "${employeeId}" ในตาราง employee` });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    await pool.query(`UPDATE employee SET role = 'ADMIN' WHERE employee_id = ?`, [employeeId]);
+    await pool.query(
+      `INSERT INTO admin_credential (employee_id, password_hash)
+       VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash)`,
+      [employeeId, passwordHash]
+    );
+
+    res.json({ employeeId, role: 'ADMIN' });
+  } catch (err) {
+    console.error('grant admin error:', err);
+    res.status(500).json({ message: 'ตั้งค่าแอดมินไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
+});
+
+app.post('/api/admin/admins/:employeeId/revoke', requireAdmin, async (req, res) => {
+  const { employeeId } = req.params;
+
+  // กันถอดสิทธิ์ตัวเอง เพื่อไม่ให้เหลือแอดมิน 0 คนที่เข้าหน้านี้ได้
+  if (employeeId === req.adminEmployeeId) {
+    return res.status(400).json({ message: 'ไม่สามารถถอดสิทธิ์ตัวเองได้' });
+  }
+
+  try {
+    const [result] = await pool.query(
+      `UPDATE employee SET role = 'EMPLOYEE' WHERE employee_id = ? AND role = 'ADMIN'`,
+      [employeeId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'ไม่พบแอดมินคนนี้' });
+    }
+
+    await pool.query('DELETE FROM admin_credential WHERE employee_id = ?', [employeeId]);
+
+    res.json({ employeeId, role: 'EMPLOYEE' });
+  } catch (err) {
+    console.error('revoke admin error:', err);
+    res.status(500).json({ message: 'ถอดสิทธิ์แอดมินไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
+});
+
 // verify idToken กับ LINE โดยตรง ห้าม decode JWT เองแล้วเชื่อเลย
 async function verifyLineIdToken(idToken) {
   const verifyRes = await fetch('https://api.line.me/oauth2/v2.1/verify', {

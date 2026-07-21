@@ -169,6 +169,16 @@ export default function AdminApp() {
   const [editRewardError, setEditRewardError] = useState('');
   const [rewardActioningId, setRewardActioningId] = useState(null);
 
+  // ---- Phase 5: จัดการสิทธิ์แอดมิน (grant/revoke) state ----
+  const emptyAdminForm = { employeeId: '', password: '' };
+  const [admins, setAdmins] = useState([]);
+  const [adminListLoading, setAdminListLoading] = useState(false);
+  const [adminListError, setAdminListError] = useState('');
+  const [adminForm, setAdminForm] = useState(emptyAdminForm);
+  const [adminFormError, setAdminFormError] = useState('');
+  const [adminFormSubmitting, setAdminFormSubmitting] = useState(false);
+  const [adminActioningId, setAdminActioningId] = useState(null);
+
   // เช็คว่ามี admin session ที่ยัง valid อยู่ไหมตอนโหลดหน้า กันต้อง login ใหม่ทุกครั้งที่ refresh
   useEffect(() => {
     async function checkAuth() {
@@ -794,6 +804,84 @@ export default function AdminApp() {
     }
   }
 
+  // ---- Phase 5: จัดการสิทธิ์แอดมิน handlers ----
+  async function loadAdmins() {
+    setAdminListLoading(true);
+    setAdminListError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/admins`, { credentials: 'include' });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) {
+        throw new Error(data.message || 'โหลดรายชื่อแอดมินไม่สำเร็จ');
+      }
+      setAdmins(data);
+    } catch (err) {
+      setAdminListError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setAdminListLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!isLoggedIn || activeTab !== 'admins') return;
+    loadAdmins();
+  }, [isLoggedIn, activeTab]);
+
+  async function handleGrantAdmin(e) {
+    e.preventDefault();
+    setAdminFormError('');
+    if (!adminForm.employeeId.trim() || !adminForm.password) {
+      setAdminFormError('กรุณากรอกรหัสพนักงานและรหัสผ่าน');
+      return;
+    }
+    if (adminForm.password.length < 8) {
+      setAdminFormError('รหัสผ่านควรยาวอย่างน้อย 8 ตัวอักษร');
+      return;
+    }
+    setAdminFormSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/admins`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          employeeId: adminForm.employeeId.trim(),
+          password: adminForm.password,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'ตั้งค่าแอดมินไม่สำเร็จ');
+      }
+      setAdminForm(emptyAdminForm);
+      await loadAdmins();
+    } catch (err) {
+      setAdminFormError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setAdminFormSubmitting(false);
+    }
+  }
+
+  async function handleRevokeAdmin(employeeId) {
+    if (!window.confirm(`ยืนยันถอดสิทธิ์แอดมินของ ${employeeId}?`)) return;
+    setAdminActioningId(employeeId);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/admins/${employeeId}/revoke`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'ถอดสิทธิ์แอดมินไม่สำเร็จ');
+      }
+      await loadAdmins();
+    } catch (err) {
+      setAdminListError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setAdminActioningId(null);
+    }
+  }
+
   // ---- Phase 5: activity-type CRUD handlers ----
   async function loadActivityTypes() {
     setActivityTypeListLoading(true);
@@ -1238,6 +1326,9 @@ export default function AdminApp() {
         </button>
         <button className={`ws-tab ${activeTab === 'activityTypes' ? 'active' : ''}`} onClick={() => setActiveTab('activityTypes')}>
           ประเภทกิจกรรม
+        </button>
+        <button className={`ws-tab ${activeTab === 'admins' ? 'active' : ''}`} onClick={() => setActiveTab('admins')}>
+          จัดการสิทธิ์แอดมิน
         </button>
         <button className={`ws-tab ${activeTab === 'rewards' ? 'active' : ''}`} onClick={() => setActiveTab('rewards')}>
           ของรางวัล
@@ -2757,6 +2848,101 @@ export default function AdminApp() {
                           <button className="ws-btn ws-btn-ghost ws-btn-sm" onClick={() => handleToggleRewardStatus(r)} disabled={isActioning}>
                             {isActioning ? '...' : r.status === 'ACTIVE' ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
                           </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'admins' && (
+        <>
+          <div className="ws-card" style={{ marginBottom: 16, maxWidth: 480 }}>
+            <h3 style={{ marginTop: 0 }}>ให้สิทธิ์แอดมินใหม่</h3>
+            <form onSubmit={handleGrantAdmin}>
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="newAdminEmployeeId">รหัสพนักงาน</label>
+                <br />
+                <input
+                  id="newAdminEmployeeId"
+                  type="text"
+                  value={adminForm.employeeId}
+                  onChange={(e) => setAdminForm((prev) => ({ ...prev, employeeId: e.target.value }))}
+                  placeholder="เช่น EMP045"
+                  className="ws-input"
+                />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="newAdminPassword">รหัสผ่าน</label>
+                <br />
+                <input
+                  id="newAdminPassword"
+                  type="password"
+                  value={adminForm.password}
+                  onChange={(e) => setAdminForm((prev) => ({ ...prev, password: e.target.value }))}
+                  placeholder="อย่างน้อย 8 ตัวอักษร"
+                  className="ws-input"
+                />
+              </div>
+
+              {adminFormError && <div className="ws-alert ws-alert-danger">{adminFormError}</div>}
+
+              <button type="submit" className="ws-btn ws-btn-primary" disabled={adminFormSubmitting}>
+                {adminFormSubmitting ? 'กำลังบันทึก...' : 'ให้สิทธิ์แอดมิน'}
+              </button>
+            </form>
+            <p style={{ fontSize: 13, color: 'var(--ws-text-muted)', marginBottom: 0 }}>
+              รหัสพนักงานต้องมีอยู่ในตาราง employee อยู่แล้ว (sync จาก Pulse หรือเพิ่มเอง) ระบบจะตั้งสิทธิ์เป็น ADMIN ให้อัตโนมัติ
+            </p>
+          </div>
+
+          <div className="ws-row-between" style={{ marginBottom: 16 }}>
+            <h3 style={{ margin: 0 }}>รายชื่อแอดมินปัจจุบัน</h3>
+            <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={loadAdmins}>รีเฟรช</button>
+          </div>
+
+          {adminListError && <div className="ws-alert ws-alert-danger">{adminListError}</div>}
+          {adminListLoading && <p className="ws-empty">กำลังโหลด...</p>}
+          {!adminListLoading && admins.length === 0 && <p className="ws-empty">ยังไม่มีแอดมิน</p>}
+
+          {!adminListLoading && admins.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="ws-table">
+                <thead>
+                  <tr>
+                    <th>รหัสพนักงาน</th>
+                    <th>ชื่อ-สกุล</th>
+                    <th>แผนก</th>
+                    <th>ได้สิทธิ์เมื่อ</th>
+                    <th>จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {admins.map((a) => {
+                    const isSelf = a.employee_id === adminId;
+                    const isActioning = adminActioningId === a.employee_id;
+                    return (
+                      <tr key={a.employee_id}>
+                        <td>{a.employee_id}</td>
+                        <td>{a.full_name}</td>
+                        <td>{a.department || '-'}</td>
+                        <td>{new Date(a.created_at).toLocaleString('th-TH')}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {isSelf ? (
+                            <span className="ws-badge ws-badge-neutral">คุณ</span>
+                          ) : (
+                            <button
+                              className="ws-btn ws-btn-ghost ws-btn-sm"
+                              onClick={() => handleRevokeAdmin(a.employee_id)}
+                              disabled={isActioning}
+                            >
+                              {isActioning ? '...' : 'ถอดสิทธิ์'}
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
