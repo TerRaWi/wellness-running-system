@@ -20,7 +20,7 @@ export default function ChallengesSection({
 }) {
   return (
     <div>
-      <h3>Challenge</h3>
+      <h3>ชาเลนจ์</h3>
 
       {challengeMessage && (
         <div className={`ws-alert ${challengeMessageType === 'error' ? 'ws-alert-danger' : 'ws-alert-success'}`}>{challengeMessage}</div>
@@ -28,7 +28,7 @@ export default function ChallengesSection({
 
       {myChallenges.length > 0 && (
         <>
-          <h4>Challenge ที่เข้าร่วมอยู่</h4>
+          <h4>ชาเลนจ์ ที่เข้าร่วมอยู่</h4>
           <div className="ws-stack" style={{ marginBottom: 16 }}>
             {myChallenges.map((mc) => (
               <div key={mc.participant_id} className="ws-card ws-card-row">
@@ -47,8 +47,8 @@ export default function ChallengesSection({
         </>
       )}
 
-      <h4>Challenge ที่เปิดอยู่</h4>
-      {challenges.length === 0 && <p className="ws-empty">ยังไม่มี challenge ที่เปิดอยู่ตอนนี้</p>}
+      <h4>ชาเลนจ์ ที่เปิดอยู่</h4>
+      {challenges.length === 0 && <p className="ws-empty">ยังไม่มี ชาเลนจ์ ที่เปิดอยู่ตอนนี้</p>}
 
       <div className="ws-stack">
         {challenges.map((c) => {

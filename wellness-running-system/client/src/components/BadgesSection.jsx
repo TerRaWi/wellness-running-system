@@ -9,7 +9,7 @@ export default function BadgesSection({ badges, apiBase }) {
   return (
     <div>
       <h3>เหรียญตราของฉัน</h3>
-      {badges.length === 0 && <p className="ws-empty">ยังไม่มี badge ให้เก็บตอนนี้</p>}
+      {badges.length === 0 && <p className="ws-empty">ยังไม่มี เหรียญตรา ให้เก็บตอนนี้</p>}
       {badges.length > 0 && (
         <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
           {badges.map((b) => (

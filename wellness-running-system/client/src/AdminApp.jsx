@@ -32,6 +32,16 @@ function joinDatetimeLocal(date, hour, minute) {
   return `${date}T${hour || '00'}:${minute || '00'}`;
 }
 
+// เมนูย่อยที่ถูกจัดกลุ่มไว้ใต้แท็บ "ตั้งค่า" (เดิมเป็นแท็บหลักแยกกันหมด)
+const SETTINGS_TABS = [
+  { key: 'challenges', label: 'ชาเลนจ์' },
+    { key: 'rewards', label: 'ของรางวัล' },
+  { key: 'badges', label: 'เหรียญตรา' },
+  { key: 'categories', label: 'หมวดหมู่กิจกรรม' },
+  { key: 'activityTypes', label: 'ประเภทกิจกรรม' },
+  { key: 'admins', label: 'จัดการสิทธิ์แอดมิน' },
+];
+
 export default function AdminApp() {
   const [authChecked, setAuthChecked] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -44,6 +54,8 @@ export default function AdminApp() {
 
   // สลับระหว่างแท็บต่างๆ ของหน้าแอดมิน เริ่มที่ dashboard เป็นหน้าแรกเสมอ
   const [activeTab, setActiveTab] = useState('dashboard');
+  // จำแท็บย่อยล่าสุดที่เปิดไว้ในกลุ่ม "ตั้งค่า" เผื่อกดกลับเข้าไปใหม่ให้ไปหน้าเดิม
+  const [lastSettingsTab, setLastSettingsTab] = useState(SETTINGS_TABS[0].key);
 
   // ---- Phase 5: dashboard สรุปภาพรวม ----
   const [dashboardData, setDashboardData] = useState(null);
@@ -562,7 +574,7 @@ export default function AdminApp() {
     setBadgeFormError('');
 
     if (!badgeForm.badgeName.trim() || !badgeForm.conditionValue) {
-      setBadgeFormError('กรุณากรอกชื่อ badge และค่าเงื่อนไข');
+      setBadgeFormError('กรุณากรอกชื่อ เหรียญตรา และค่าเงื่อนไข');
       return;
     }
 
@@ -585,7 +597,7 @@ export default function AdminApp() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.message || 'สร้าง badge ไม่สำเร็จ');
+        throw new Error(data.message || 'สร้าง เหรียญตรา ไม่สำเร็จ');
       }
       setBadgeForm(emptyBadgeForm);
       setBadgeIconFile(null);
@@ -1315,25 +1327,27 @@ export default function AdminApp() {
         <button className={`ws-tab ${activeTab === 'redeems' ? 'active' : ''}`} onClick={() => setActiveTab('redeems')}>
           คำขอแลกของรางวัล
         </button>
-        <button className={`ws-tab ${activeTab === 'challenges' ? 'active' : ''}`} onClick={() => setActiveTab('challenges')}>
-          Challenge
-        </button>
-        <button className={`ws-tab ${activeTab === 'badges' ? 'active' : ''}`} onClick={() => setActiveTab('badges')}>
-          Badge
-        </button>
-        <button className={`ws-tab ${activeTab === 'categories' ? 'active' : ''}`} onClick={() => setActiveTab('categories')}>
-          หมวดหมู่กิจกรรม
-        </button>
-        <button className={`ws-tab ${activeTab === 'activityTypes' ? 'active' : ''}`} onClick={() => setActiveTab('activityTypes')}>
-          ประเภทกิจกรรม
-        </button>
-        <button className={`ws-tab ${activeTab === 'admins' ? 'active' : ''}`} onClick={() => setActiveTab('admins')}>
-          จัดการสิทธิ์แอดมิน
-        </button>
-        <button className={`ws-tab ${activeTab === 'rewards' ? 'active' : ''}`} onClick={() => setActiveTab('rewards')}>
-          ของรางวัล
+        <button
+          className={`ws-tab ${SETTINGS_TABS.some(t => t.key === activeTab) ? 'active' : ''}`}
+          onClick={() => setActiveTab(lastSettingsTab)}
+        >
+          ตั้งค่า
         </button>
       </div>
+
+      {SETTINGS_TABS.some(t => t.key === activeTab) && (
+        <div className="ws-tabs" style={{ marginTop: -8 }}>
+          {SETTINGS_TABS.map(t => (
+            <button
+              key={t.key}
+              className={`ws-tab ${activeTab === t.key ? 'active' : ''}`}
+              onClick={() => { setActiveTab(t.key); setLastSettingsTab(t.key); }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {activeTab === 'dashboard' && (
         <div>
@@ -1355,7 +1369,7 @@ export default function AdminApp() {
                     setActiveTab('submissions');
                   }}
                 >
-                  <div className="ws-stat-label">Submission รอตรวจ</div>
+                  <div className="ws-stat-label">กิจกรรม รอตรวจ</div>
                   <div className="ws-stat-value">{dashboardData.pendingSubmissionCount}</div>
                 </div>
                 <div
@@ -1366,31 +1380,27 @@ export default function AdminApp() {
                     setActiveTab('redeems');
                   }}
                 >
-                  <div className="ws-stat-label">Redeem รอตรวจ</div>
+                  <div className="ws-stat-label">แลกของรางวัล รอตรวจ</div>
                   <div className="ws-stat-value">{dashboardData.pendingRedeemCount}</div>
                 </div>
                 <div className="ws-stat-card">
-                  <div className="ws-stat-label">Badge ทั้งหมด</div>
+                  <div className="ws-stat-label">เหรียญตรา ทั้งหมด</div>
                   <div className="ws-stat-value">{dashboardData.totalBadgeCount}</div>
                 </div>
-                <div
-                  className="ws-stat-card ws-card-hover"
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => setActiveTab('challenges')}
-                >
-                  <div className="ws-stat-label">Challenge กำลังดำเนินอยู่</div>
+                <div className="ws-stat-card">
+                  <div className="ws-stat-label">ชาเลนจ์ กำลังดำเนินอยู่</div>
                   <div className="ws-stat-value">{dashboardData.ongoingChallengeCount}</div>
                 </div>
               </div>
 
-              <h3>Challenge ที่กำลังดำเนินอยู่ตอนนี้</h3>
+              <h3>ชาเลนจ์ ที่กำลังดำเนินอยู่ตอนนี้</h3>
               {dashboardData.ongoingChallenges.length === 0 ? (
-                <p style={{ color: 'var(--ws-text-secondary)' }}>ไม่มี challenge ที่กำลังดำเนินอยู่ตอนนี้</p>
+                <p style={{ color: 'var(--ws-text-secondary)' }}>ไม่มี ชาเลนจ์ ที่กำลังดำเนินอยู่ตอนนี้</p>
               ) : (
                 <table className="ws-table">
                   <thead>
                     <tr>
-                      <th>ชื่อ Challenge</th>
+                      <th>ชื่อ ชาเลนจ์</th>
                       <th>หมวดหมู่</th>
                       <th>ช่วงเวลา</th>
                       <th>ผู้เข้าร่วม</th>
@@ -1670,7 +1680,7 @@ export default function AdminApp() {
       {activeTab === 'challenges' && (
         <>
           <div className="ws-card" style={{ marginBottom: 16, maxWidth: 720 }}>
-            <h3 style={{ marginTop: 0 }}>สร้าง Challenge ใหม่</h3>
+            <h3 style={{ marginTop: 0 }}>สร้าง ชาเลนจ์ ใหม่</h3>
             <form onSubmit={handleCreateChallenge}>
               <div className="ws-form-grid">
                 <div>
@@ -1691,7 +1701,7 @@ export default function AdminApp() {
                 </div>
 
                 <div>
-                  <label htmlFor="newChallengeName" className="ws-label">ชื่อ Challenge</label>
+                  <label htmlFor="newChallengeName" className="ws-label">ชื่อ ชาเลนจ์</label>
                   <input
                     id="newChallengeName"
                     type="text"
@@ -1828,13 +1838,13 @@ export default function AdminApp() {
               {createChallengeError && <div className="ws-alert ws-alert-danger">{createChallengeError}</div>}
 
               <button type="submit" className="ws-btn ws-btn-primary" disabled={createChallengeSubmitting}>
-                {createChallengeSubmitting ? 'กำลังสร้าง...' : 'สร้าง Challenge'}
+                {createChallengeSubmitting ? 'กำลังสร้าง...' : 'สร้าง ชาเลนจ์'}
               </button>
             </form>
           </div>
 
           <div className="ws-row-between" style={{ marginBottom: 16 }}>
-            <h3 style={{ margin: 0 }}>รายการ Challenge ทั้งหมด</h3>
+            <h3 style={{ margin: 0 }}>รายการ ชาเลนจ์ ทั้งหมด</h3>
             <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={loadChallenges}>รีเฟรช</button>
           </div>
 
@@ -1850,7 +1860,7 @@ export default function AdminApp() {
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>ชื่อ Challenge</th>
+                    <th>ชื่อ ชาเลนจ์</th>
                     <th>หมวดกิจกรรม</th>
                     <th>ช่วงเวลา</th>
                     <th>สถานะ</th>
@@ -1961,10 +1971,10 @@ export default function AdminApp() {
       {activeTab === 'badges' && (
         <>
           <div className="ws-card" style={{ marginBottom: 16, maxWidth: 480 }}>
-            <h3 style={{ marginTop: 0 }}>สร้าง Badge ใหม่</h3>
+            <h3 style={{ marginTop: 0 }}>สร้าง เหรียญตรา ใหม่</h3>
             <form onSubmit={handleCreateBadge}>
               <div style={{ marginBottom: 12 }}>
-                <label htmlFor="newBadgeName">ชื่อ Badge</label>
+                <label htmlFor="newBadgeName">ชื่อ เหรียญตรา</label>
                 <br />
                 <input
                   id="newBadgeName"
@@ -2034,13 +2044,13 @@ export default function AdminApp() {
               {badgeFormError && <div className="ws-alert ws-alert-danger">{badgeFormError}</div>}
 
               <button type="submit" className="ws-btn ws-btn-primary" disabled={badgeFormSubmitting}>
-                {badgeFormSubmitting ? 'กำลังสร้าง...' : 'สร้าง Badge'}
+                {badgeFormSubmitting ? 'กำลังสร้าง...' : 'สร้าง เหรียญตรา'}
               </button>
             </form>
           </div>
 
           <div className="ws-row-between" style={{ marginBottom: 16 }}>
-            <h3 style={{ margin: 0 }}>รายการ Badge ทั้งหมด</h3>
+            <h3 style={{ margin: 0 }}>รายการ เหรียญตรา ทั้งหมด</h3>
             <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={loadBadges}>รีเฟรช</button>
           </div>
 
@@ -2056,7 +2066,7 @@ export default function AdminApp() {
                   <tr>
                     <th>#</th>
                     <th>ไอคอน</th>
-                    <th>ชื่อ Badge</th>
+                    <th>ชื่อ เหรียญตรา</th>
                     <th>เงื่อนไข</th>
                     <th>สถานะ</th>
                     <th>ได้รับแล้ว</th>
@@ -2896,7 +2906,7 @@ export default function AdminApp() {
               </button>
             </form>
             <p style={{ fontSize: 13, color: 'var(--ws-text-muted)', marginBottom: 0 }}>
-              รหัสพนักงานต้องมีอยู่ในตาราง employee อยู่แล้ว (sync จาก Pulse หรือเพิ่มเอง) ระบบจะตั้งสิทธิ์เป็น ADMIN ให้อัตโนมัติ
+              {/* รหัสพนักงานต้องมีอยู่ในตาราง employee อยู่แล้ว (sync จาก Pulse หรือเพิ่มเอง) ระบบจะตั้งสิทธิ์เป็น ADMIN ให้อัตโนมัติ */}
             </p>
           </div>
 

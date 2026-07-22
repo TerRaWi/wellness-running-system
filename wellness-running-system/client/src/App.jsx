@@ -14,7 +14,7 @@ const API_BASE = import.meta.env.VITE_API_BASE;
 // แท็บหน้าพนักงาน — สลับกันแสดงทีละหน้าแทนการยาวสกอลรวด
 const TABS = [
   { key: 'submit', label: 'ส่งกิจกรรม' },
-  { key: 'challenges', label: 'Challenge' },
+  { key: 'challenges', label: 'ชาเลนจ์' },
   { key: 'rewards', label: 'แลกของรางวัล' },
   { key: 'badges', label: 'เหรียญตรา' },
 ];
