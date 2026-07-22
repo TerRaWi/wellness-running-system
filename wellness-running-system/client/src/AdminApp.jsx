@@ -1369,7 +1369,7 @@ export default function AdminApp() {
                     setActiveTab('submissions');
                   }}
                 >
-                  <div className="ws-stat-label">กิจกรรม รอตรวจ</div>
+                  <div className="ws-stat-label">กิจกรรม รอดำเนินการ</div>
                   <div className="ws-stat-value">{dashboardData.pendingSubmissionCount}</div>
                 </div>
                 <div
@@ -1380,7 +1380,7 @@ export default function AdminApp() {
                     setActiveTab('redeems');
                   }}
                 >
-                  <div className="ws-stat-label">แลกของรางวัล รอตรวจ</div>
+                  <div className="ws-stat-label">แลกของรางวัล รอดำเนินการ</div>
                   <div className="ws-stat-value">{dashboardData.pendingRedeemCount}</div>
                 </div>
                 <div className="ws-stat-card">
@@ -1443,7 +1443,7 @@ export default function AdminApp() {
           className="ws-select"
           style={{ width: 'auto' }}
         >
-          <option value="PENDING">รอตรวจสอบ (PENDING)</option>
+          <option value="PENDING">รอดำเนินการ (PENDING)</option>
           <option value="APPROVED">อนุมัติแล้ว (APPROVED)</option>
           <option value="REJECTED">ถูกปฏิเสธ (REJECTED)</option>
         </select>
@@ -1598,8 +1598,8 @@ export default function AdminApp() {
 
       {activeTab === 'redeems' && (
         <>
-          <div style={{ marginBottom: 16 }}>
-            <label htmlFor="redeemStatusFilter">สถานะ: </label>
+          <div className="ws-row" style={{ marginBottom: 16 }}>
+            <label htmlFor="redeemStatusFilter" className="ws-label" style={{ margin: 0 }}>สถานะ: </label>
             <select
               id="redeemStatusFilter"
               value={redeemStatusFilter}
@@ -1611,16 +1611,16 @@ export default function AdminApp() {
               <option value="REJECTED">ถูกปฏิเสธ (REJECTED)</option>
               <option value="CANCELLED">ยกเลิกแล้ว (CANCELLED)</option>
             </select>
-            <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={loadRedeems} style={{ marginLeft: 8 }}>
+            <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={loadRedeems}>
               รีเฟรช
             </button>
           </div>
 
           {redeemActionError && <div className="ws-alert ws-alert-danger">{redeemActionError}</div>}
           {redeemListError && <div className="ws-alert ws-alert-danger">{redeemListError}</div>}
-          {redeemListLoading && <p>กำลังโหลด...</p>}
+          {redeemListLoading && <p className="ws-empty">กำลังโหลด...</p>}
 
-          {!redeemListLoading && redeems.length === 0 && <p>ไม่มีรายการในสถานะนี้</p>}
+          {!redeemListLoading && redeems.length === 0 && <p className="ws-empty">ไม่มีรายการในสถานะนี้</p>}
 
           {!redeemListLoading && redeems.length > 0 && (
             <div style={{ overflowX: 'auto' }}>
