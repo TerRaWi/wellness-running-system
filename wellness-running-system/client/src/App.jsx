@@ -7,6 +7,7 @@ import RewardsSection from './components/RewardsSection.jsx';
 import ChallengesSection from './components/ChallengesSection.jsx';
 import NewBadgePopup from './components/NewBadgePopup.jsx';
 import LeaderboardModal from './components/LeaderboardModal.jsx';
+import HealthAssessmentWizard from './components/HealthAssessmentWizard.jsx';
 
 const LIFF_ID = import.meta.env.VITE_LIFF_ID;
 const API_BASE = import.meta.env.VITE_API_BASE;
@@ -20,7 +21,7 @@ const TABS = [
 ];
 
 export default function App() {
-  const [status, setStatus] = useState('initializing'); // initializing | loading | needsEmployeeId | done | error
+  const [status, setStatus] = useState('initializing'); // initializing | loading | needsEmployeeId | needsHealthAssessment | done | error
   const [errorMsg, setErrorMsg] = useState('');
   const [idToken, setIdToken] = useState(null);
   const [employeeIdInput, setEmployeeIdInput] = useState('');
@@ -114,7 +115,7 @@ export default function App() {
 
       if (data.linked) {
         setUser(data);
-        setStatus('done');
+        setStatus(data.needsHealthAssessment ? 'needsHealthAssessment' : 'done');
       } else if (data.needsEmployeeId) {
         setStatus('needsEmployeeId');
       }
@@ -452,11 +453,15 @@ export default function App() {
       }
 
       setUser(data);
-      setStatus('done');
+      setStatus(data.needsHealthAssessment ? 'needsHealthAssessment' : 'done');
     } catch (err) {
       setErrorMsg(err.message || 'เกิดข้อผิดพลาด');
       setStatus('needsEmployeeId');
     }
+  }
+
+  function handleHealthAssessmentComplete() {
+    setStatus('done');
   }
 
   if (status === 'error') {
@@ -485,6 +490,15 @@ export default function App() {
         </form>
         {errorMsg && <div className="ws-alert ws-alert-danger" style={{ maxWidth: 320, margin: '12px auto 0' }}>{errorMsg}</div>}
       </div>
+    );
+  }
+
+  if (status === 'needsHealthAssessment') {
+    return (
+      <HealthAssessmentWizard
+        apiBase={API_BASE}
+        onComplete={handleHealthAssessmentComplete}
+      />
     );
   }
 

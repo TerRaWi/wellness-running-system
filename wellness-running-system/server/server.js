@@ -169,6 +169,134 @@ app.get('/api/me', requireAuth, async (req, res) => {
   res.json(rows[0]);
 });
 
+// ---- baseline health questionnaire (ต้องกรอกครั้งเดียวหลังผูกบัญชี ก่อนใช้แอปจริง) ----
+// เช็คว่า employee คนนี้กรอก baseline ไปแล้วหรือยัง — frontend เรียกใช้เองได้เช่นกัน
+// นอกเหนือจากที่ /api/auth/line-login จะแนบผลลัพธ์นี้ไปให้ตอน login อยู่แล้ว
+app.get('/api/health-assessment/status', requireAuth, async (req, res) => {
+  const [rows] = await pool.query(
+    'SELECT assessment_id FROM health_assessment WHERE employee_id = ?',
+    [req.employeeId]
+  );
+  res.json({ completed: rows.length > 0 });
+});
+
+app.post('/api/health-assessment', requireAuth, async (req, res) => {
+  const {
+    jobPosition,
+    yearsOfService,
+    shiftType,
+    weightKg,
+    heightCm,
+    waistCm,
+    bpSystolic,
+    bpDiastolic,
+    chronicDisease,
+    chronicDiseaseOther,
+    smokingStatus,
+    alcoholStatus,
+    physicalLimitation,
+    physicalLimitationNote,
+    vigorousDays,
+    vigorousMinutes,
+    moderateDays,
+    moderateMinutes,
+    walkingDays,
+    exercisePattern,
+    exerciseBarrier,
+    mealsPerDay,
+    friedFoodFreq,
+    sweetFoodFreq,
+    veggieFruitFreq,
+    lateNightEating,
+    pastDieting,
+    goalType,
+    stageOfChange,
+    targetWeightKg,
+  } = req.body;
+
+  // เช็คเฉพาะฟิลด์ที่ NOT NULL ใน schema (health_assessment) — ที่เหลือมี default/nullable อยู่แล้ว
+  if (
+    !weightKg ||
+    !heightCm ||
+    !mealsPerDay ||
+    !friedFoodFreq ||
+    !sweetFoodFreq ||
+    !veggieFruitFreq ||
+    !lateNightEating ||
+    !pastDieting ||
+    !Array.isArray(goalType) ||
+    goalType.length === 0 ||
+    !stageOfChange
+  ) {
+    return res.status(400).json({ message: 'กรุณากรอกข้อมูลให้ครบทุกช่องที่จำเป็น' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // ข้อมูลทั่วไปที่เก็บไว้ที่ employee (ไม่ใช่ time-series แบบ health_assessment)
+    await conn.query(
+      `UPDATE employee SET job_position = ?, years_of_service = ?, shift_type = ? WHERE employee_id = ?`,
+      [jobPosition || null, yearsOfService || null, shiftType || null, req.employeeId]
+    );
+
+    await conn.query(
+      `INSERT INTO health_assessment
+        (employee_id, consent_accepted_at, weight_kg, height_cm, waist_cm, bp_systolic, bp_diastolic,
+         assessment_date, chronic_disease, chronic_disease_other, smoking_status, alcohol_status,
+         physical_limitation, physical_limitation_note,
+         vigorous_days, vigorous_minutes, moderate_days, moderate_minutes, walking_days,
+         exercise_pattern, exercise_barrier,
+         meals_per_day, fried_food_freq, sweet_food_freq, veggie_fruit_freq, late_night_eating, past_dieting,
+         goal_type, stage_of_change, target_weight_kg)
+       VALUES (?, NOW(), ?, ?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        req.employeeId,
+        weightKg,
+        heightCm,
+        waistCm || null,
+        bpSystolic || null,
+        bpDiastolic || null,
+        JSON.stringify(chronicDisease || []),
+        chronicDiseaseOther || null,
+        smokingStatus || 'NONE',
+        alcoholStatus || 'NONE',
+        physicalLimitation ? 1 : 0,
+        physicalLimitationNote || null,
+        vigorousDays || 0,
+        vigorousMinutes || null,
+        moderateDays || 0,
+        moderateMinutes || null,
+        walkingDays || 0,
+        JSON.stringify(exercisePattern || []),
+        exerciseBarrier || null,
+        mealsPerDay,
+        friedFoodFreq,
+        sweetFoodFreq,
+        veggieFruitFreq,
+        lateNightEating,
+        pastDieting,
+        JSON.stringify(goalType),
+        stageOfChange,
+        targetWeightKg || null,
+      ]
+    );
+
+    await conn.commit();
+    res.json({ message: 'บันทึกข้อมูลสุขภาพเรียบร้อย' });
+  } catch (err) {
+    await conn.rollback();
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ message: 'คุณกรอกแบบสอบถามนี้ไปแล้ว' });
+    }
+    console.error('health-assessment submit error:', err);
+    res.status(500).json({ message: 'บันทึกข้อมูลไม่สำเร็จ' });
+  } finally {
+    conn.release();
+  }
+});
+
 // ---- activity submission loop (Phase 1 Part B) ----
 // ใช้ตารางจริงจาก wellness.sql: activity_category, activity_type, running_submission
 // คะแนน (activity_type.score) จะไป trigger score_transaction ตอนแอดมิน APPROVE เท่านั้น
@@ -1967,11 +2095,19 @@ app.post('/api/auth/line-login', async (req, res) => {
         `UPDATE employee_account SET last_login = NOW(), display_name = ?, picture_url = ? WHERE account_id = ?`,
         [displayName, pictureUrl, account.account_id]
       );
+
+      // เช็คว่ากรอกแบบสอบถาม baseline สุขภาพไปแล้วหรือยัง (ต้องทำครั้งเดียวก่อนใช้แอปจริง)
+      const [assessmentRows] = await pool.query(
+        'SELECT assessment_id FROM health_assessment WHERE employee_id = ?',
+        [account.employee_id]
+      );
+
       issueSessionCookie(res, account.employee_id);
       return res.json({
         linked: true,
         employeeId: account.employee_id,
         displayName,
+        needsHealthAssessment: assessmentRows.length === 0,
       });
     }
 
@@ -2001,7 +2137,7 @@ app.post('/api/auth/line-login', async (req, res) => {
     );
 
     issueSessionCookie(res, employeeId);
-    res.json({ linked: true, employeeId, displayName });
+    res.json({ linked: true, employeeId, displayName, needsHealthAssessment: true });
   } catch (err) {
     console.error('line-login error:', err);
     res.status(500).json({ message: 'internal error' });
