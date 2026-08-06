@@ -39,8 +39,66 @@ const SETTINGS_TABS = [
   { key: 'badges', label: 'เหรียญตรา' },
   { key: 'categories', label: 'หมวดหมู่กิจกรรม' },
   { key: 'activityTypes', label: 'ประเภทกิจกรรม' },
+  { key: 'healthCampaigns', label: 'แบบสอบถามติดตามผล' },
   { key: 'admins', label: 'จัดการสิทธิ์แอดมิน' },
 ];
+
+// ฟิลด์ที่เลือกได้ตอนสร้างรอบ follow-up จัดกลุ่มตามหมวดของแบบสอบถาม (ตรงกับ field key ใน HealthAssessmentWizard)
+const CAMPAIGN_FIELD_GROUPS = [
+  {
+    group: 'ข้อมูลสุขภาพพื้นฐาน',
+    fields: [
+      { key: 'weightKg', label: 'น้ำหนัก' },
+      { key: 'heightCm', label: 'ส่วนสูง' },
+      { key: 'waistCm', label: 'รอบเอว' },
+      { key: 'bpSystolic', label: 'ความดันโลหิต' },
+    ],
+  },
+  {
+    group: 'ประวัติสุขภาพและปัจจัยเสี่ยง',
+    fields: [
+      { key: 'chronicDisease', label: 'โรคประจำตัว' },
+      { key: 'smokingStatus', label: 'การสูบบุหรี่' },
+      { key: 'alcoholStatus', label: 'การดื่มแอลกอฮอล์' },
+      { key: 'physicalLimitation', label: 'ข้อจำกัดทางร่างกาย' },
+    ],
+  },
+  {
+    group: 'พฤติกรรมการออกกำลังกาย',
+    fields: [
+      { key: 'vigorousDays', label: 'ออกกำลังกายระดับหนัก' },
+      { key: 'moderateDays', label: 'ออกกำลังกายระดับปานกลาง' },
+      { key: 'walkingDays', label: 'การเดิน' },
+      { key: 'exercisePattern', label: 'รูปแบบการออกกำลังกาย' },
+      { key: 'exerciseBarrier', label: 'อุปสรรคในการออกกำลังกาย' },
+    ],
+  },
+  {
+    group: 'พฤติกรรมการรับประทานอาหาร',
+    fields: [
+      { key: 'mealsPerDay', label: 'จำนวนมื้อต่อวัน' },
+      { key: 'friedFoodFreq', label: 'ความถี่อาหารทอด/มัน' },
+      { key: 'sweetFoodFreq', label: 'ความถี่ของหวาน' },
+      { key: 'veggieFruitFreq', label: 'ความถี่ผัก/ผลไม้' },
+      { key: 'lateNightEating', label: 'พฤติกรรมกินมื้อดึก' },
+      { key: 'pastDieting', label: 'ประวัติควบคุมอาหาร' },
+    ],
+  },
+  {
+    group: 'เป้าหมายและความพร้อม',
+    fields: [
+      { key: 'goalType', label: 'เป้าหมายหลัก' },
+      { key: 'stageOfChange', label: 'ขั้นความพร้อมเปลี่ยนพฤติกรรม' },
+      { key: 'targetWeightKg', label: 'น้ำหนักเป้าหมาย' },
+    ],
+  },
+];
+
+const CAMPAIGN_STATUS_LABEL_TH = {
+  DRAFT: 'ร่าง (ยังไม่เปิด)',
+  OPEN: 'เปิดอยู่',
+  CLOSED: 'ปิดแล้ว',
+};
 
 export default function AdminApp() {
   const [authChecked, setAuthChecked] = useState(false);
@@ -190,6 +248,16 @@ export default function AdminApp() {
   const [adminFormError, setAdminFormError] = useState('');
   const [adminFormSubmitting, setAdminFormSubmitting] = useState(false);
   const [adminActioningId, setAdminActioningId] = useState(null);
+
+  // ---- Phase 5: แบบสอบถามติดตามผล (follow-up campaign) state ----
+  const emptyCampaignForm = { campaignName: '', releaseDate: '', closeDate: '', includedFields: [] };
+  const [campaigns, setCampaigns] = useState([]);
+  const [campaignListLoading, setCampaignListLoading] = useState(false);
+  const [campaignListError, setCampaignListError] = useState('');
+  const [campaignForm, setCampaignForm] = useState(emptyCampaignForm);
+  const [campaignFormError, setCampaignFormError] = useState('');
+  const [campaignFormSubmitting, setCampaignFormSubmitting] = useState(false);
+  const [campaignActioningId, setCampaignActioningId] = useState(null);
 
   // เช็คว่ามี admin session ที่ยัง valid อยู่ไหมตอนโหลดหน้า กันต้อง login ใหม่ทุกครั้งที่ refresh
   useEffect(() => {
@@ -891,6 +959,96 @@ export default function AdminApp() {
       setAdminListError(err.message || 'เกิดข้อผิดพลาด');
     } finally {
       setAdminActioningId(null);
+    }
+  }
+
+  // ---- Phase 5: แบบสอบถามติดตามผล (follow-up campaign) handlers ----
+  async function loadCampaigns() {
+    setCampaignListLoading(true);
+    setCampaignListError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/campaigns`, { credentials: 'include' });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) {
+        throw new Error(data.message || 'โหลดรายการรอบ follow-up ไม่สำเร็จ');
+      }
+      setCampaigns(data);
+    } catch (err) {
+      setCampaignListError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setCampaignListLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!isLoggedIn || activeTab !== 'healthCampaigns') return;
+    loadCampaigns();
+  }, [isLoggedIn, activeTab]);
+
+  function toggleCampaignField(fieldKey) {
+    setCampaignForm((prev) => {
+      const has = prev.includedFields.includes(fieldKey);
+      return {
+        ...prev,
+        includedFields: has
+          ? prev.includedFields.filter((f) => f !== fieldKey)
+          : [...prev.includedFields, fieldKey],
+      };
+    });
+  }
+
+  async function handleCreateCampaign(e) {
+    e.preventDefault();
+    setCampaignFormError('');
+
+    if (!campaignForm.campaignName.trim() || !campaignForm.releaseDate || campaignForm.includedFields.length === 0) {
+      setCampaignFormError('กรุณากรอกชื่อรอบ วันที่เปิด และเลือกอย่างน้อย 1 ฟิลด์');
+      return;
+    }
+
+    setCampaignFormSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/campaigns`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          campaignName: campaignForm.campaignName.trim(),
+          releaseDate: campaignForm.releaseDate,
+          closeDate: campaignForm.closeDate || null,
+          includedFields: campaignForm.includedFields,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'สร้างรอบ follow-up ไม่สำเร็จ');
+      }
+      setCampaignForm(emptyCampaignForm);
+      await loadCampaigns();
+    } catch (err) {
+      setCampaignFormError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setCampaignFormSubmitting(false);
+    }
+  }
+
+  async function handleToggleCampaignStatus(campaign) {
+    const action = campaign.status === 'OPEN' ? 'close' : 'open';
+    setCampaignActioningId(campaign.campaign_id);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/campaigns/${campaign.campaign_id}/${action}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'เปลี่ยนสถานะไม่สำเร็จ');
+      }
+      await loadCampaigns();
+    } catch (err) {
+      setCampaignListError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setCampaignActioningId(null);
     }
   }
 
@@ -2858,6 +3016,154 @@ export default function AdminApp() {
                           <button className="ws-btn ws-btn-ghost ws-btn-sm" onClick={() => handleToggleRewardStatus(r)} disabled={isActioning}>
                             {isActioning ? '...' : r.status === 'ACTIVE' ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
                           </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'healthCampaigns' && (
+        <>
+          <div className="ws-card" style={{ marginBottom: 16, maxWidth: 560 }}>
+            <h3 style={{ marginTop: 0 }}>สร้างรอบแบบสอบถามติดตามผลใหม่</h3>
+            <form onSubmit={handleCreateCampaign}>
+              <div style={{ marginBottom: 12 }}>
+                <label htmlFor="newCampaignName">ชื่อรอบ</label>
+                <br />
+                <input
+                  id="newCampaignName"
+                  type="text"
+                  value={campaignForm.campaignName}
+                  onChange={(e) => setCampaignForm((prev) => ({ ...prev, campaignName: e.target.value }))}
+                  placeholder="เช่น ติดตามผล 8 สัปดาห์ รอบที่ 1"
+                  className="ws-input"
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="newCampaignReleaseDate">วันที่เปิดให้กรอก</label>
+                  <br />
+                  <input
+                    id="newCampaignReleaseDate"
+                    type="date"
+                    value={campaignForm.releaseDate}
+                    onChange={(e) => setCampaignForm((prev) => ({ ...prev, releaseDate: e.target.value }))}
+                    className="ws-input"
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="newCampaignCloseDate">วันที่ปิดรับ (ถ้ามี)</label>
+                  <br />
+                  <input
+                    id="newCampaignCloseDate"
+                    type="date"
+                    value={campaignForm.closeDate}
+                    onChange={(e) => setCampaignForm((prev) => ({ ...prev, closeDate: e.target.value }))}
+                    className="ws-input"
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label>เลือกฟิลด์ที่จะให้พนักงานกรอกในรอบนี้</label>
+                {CAMPAIGN_FIELD_GROUPS.map((g) => (
+                  <div key={g.group} style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 13, color: 'var(--ws-text-secondary)', marginBottom: 4 }}>{g.group}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {g.fields.map((f) => {
+                        const active = campaignForm.includedFields.includes(f.key);
+                        return (
+                          <button
+                            key={f.key}
+                            type="button"
+                            onClick={() => toggleCampaignField(f.key)}
+                            className="ws-btn ws-btn-sm"
+                            style={{
+                              borderColor: active ? 'var(--ws-primary)' : undefined,
+                              background: active ? 'var(--ws-primary)' : undefined,
+                              color: active ? '#fff' : undefined,
+                            }}
+                          >
+                            {f.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {campaignFormError && <div className="ws-alert ws-alert-danger">{campaignFormError}</div>}
+
+              <button type="submit" className="ws-btn ws-btn-primary" disabled={campaignFormSubmitting}>
+                {campaignFormSubmitting ? 'กำลังสร้าง...' : 'สร้างรอบ (สถานะร่าง)'}
+              </button>
+              <p style={{ fontSize: 13, color: 'var(--ws-text-muted)', marginTop: 8, marginBottom: 0 }}>
+                สร้างเสร็จจะอยู่ในสถานะ "ร่าง" ก่อน — ต้องกด "เปิด" ในรายการด้านล่างให้พนักงานถึงจะเริ่มเห็นแบบฟอร์ม
+              </p>
+            </form>
+          </div>
+
+          <div className="ws-row-between" style={{ marginBottom: 16 }}>
+            <h3 style={{ margin: 0 }}>รายการรอบ follow-up ทั้งหมด</h3>
+            <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={loadCampaigns}>รีเฟรช</button>
+          </div>
+
+          {campaignListError && <div className="ws-alert ws-alert-danger">{campaignListError}</div>}
+          {campaignListLoading && <p className="ws-empty">กำลังโหลด...</p>}
+          {!campaignListLoading && campaigns.length === 0 && <p className="ws-empty">ยังไม่มีรอบ follow-up</p>}
+
+          {!campaignListLoading && campaigns.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="ws-table">
+                <thead>
+                  <tr>
+                    <th>ชื่อรอบ</th>
+                    <th>วันที่เปิด</th>
+                    <th>วันที่ปิด</th>
+                    <th>สถานะ</th>
+                    <th>ตอบแล้ว</th>
+                    <th>จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {campaigns.map((c) => {
+                    const isActioning = campaignActioningId === c.campaign_id;
+                    return (
+                      <tr key={c.campaign_id}>
+                        <td>{c.campaign_name}</td>
+                        <td>{c.release_date ? new Date(c.release_date).toLocaleDateString('th-TH') : '-'}</td>
+                        <td>{c.close_date ? new Date(c.close_date).toLocaleDateString('th-TH') : '-'}</td>
+                        <td>
+                          <span
+                            className={`ws-badge ${
+                              c.status === 'OPEN'
+                                ? 'ws-badge-success'
+                                : c.status === 'CLOSED'
+                                ? 'ws-badge-neutral'
+                                : 'ws-badge-warning'
+                            }`}
+                          >
+                            {CAMPAIGN_STATUS_LABEL_TH[c.status] || c.status}
+                          </span>
+                        </td>
+                        <td>{c.response_count} / {c.active_employee_count}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {c.status !== 'CLOSED' && (
+                            <button
+                              className="ws-btn ws-btn-secondary ws-btn-sm"
+                              onClick={() => handleToggleCampaignStatus(c)}
+                              disabled={isActioning}
+                            >
+                              {isActioning ? 'กำลังบันทึก...' : c.status === 'OPEN' ? 'ปิดรอบ' : 'เปิดรอบ'}
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );

@@ -169,19 +169,53 @@ app.get('/api/me', requireAuth, async (req, res) => {
   res.json(rows[0]);
 });
 
-// ---- baseline health questionnaire (ต้องกรอกครั้งเดียวหลังผูกบัญชี ก่อนใช้แอปจริง) ----
-// เช็คว่า employee คนนี้กรอก baseline ไปแล้วหรือยัง — frontend เรียกใช้เองได้เช่นกัน
-// นอกเหนือจากที่ /api/auth/line-login จะแนบผลลัพธ์นี้ไปให้ตอน login อยู่แล้ว
+// ---- baseline + follow-up health questionnaire ----
+// BASELINE: ต้องกรอกครั้งเดียวหลังผูกบัญชี ก่อนใช้แอปจริง (block การใช้งาน)
+// FOLLOWUP: แอดมินเปิดรอบเอง (assessment_campaign) พนักงานเห็นเป็น prompt เฉยๆ ไม่ block การใช้แอป
 app.get('/api/health-assessment/status', requireAuth, async (req, res) => {
   const [rows] = await pool.query(
-    'SELECT assessment_id FROM health_assessment WHERE employee_id = ?',
+    `SELECT assessment_id FROM health_assessment WHERE employee_id = ? AND assessment_type = 'BASELINE'`,
     [req.employeeId]
   );
   res.json({ completed: rows.length > 0 });
 });
 
+// เช็คว่ามีรอบ follow-up ที่เปิดอยู่และพนักงานคนนี้ยังไม่เคยตอบไหม — เรียกหลัง login สำเร็จ (status='done')
+app.get('/api/health-assessment/pending-campaign', requireAuth, async (req, res) => {
+  const [rows] = await pool.query(
+    `SELECT c.campaign_id, c.campaign_name, c.included_fields
+       FROM assessment_campaign c
+       WHERE c.status = 'OPEN'
+         AND c.release_date <= CURDATE()
+         AND (c.close_date IS NULL OR c.close_date >= CURDATE())
+         AND NOT EXISTS (
+           SELECT 1 FROM health_assessment ha
+           WHERE ha.employee_id = ? AND ha.campaign_id = c.campaign_id
+         )
+       ORDER BY c.release_date ASC
+       LIMIT 1`,
+    [req.employeeId]
+  );
+
+  if (rows.length === 0) {
+    return res.json({ campaign: null });
+  }
+
+  const row = rows[0];
+  res.json({
+    campaign: {
+      campaignId: row.campaign_id,
+      campaignName: row.campaign_name,
+      // mysql2 คืน JSON column เป็น object/array ที่ parse แล้วอยู่แล้ว
+      includedFields: row.included_fields,
+    },
+  });
+});
+
 app.post('/api/health-assessment', requireAuth, async (req, res) => {
   const {
+    assessmentType, // 'BASELINE' | 'FOLLOWUP' — ไม่ส่งมาถือว่าเป็น BASELINE (backward compatible)
+    campaignId,
     jobPosition,
     yearsOfService,
     shiftType,
@@ -201,6 +235,7 @@ app.post('/api/health-assessment', requireAuth, async (req, res) => {
     moderateDays,
     moderateMinutes,
     walkingDays,
+    walkingMinutes,
     exercisePattern,
     exerciseBarrier,
     mealsPerDay,
@@ -214,21 +249,46 @@ app.post('/api/health-assessment', requireAuth, async (req, res) => {
     targetWeightKg,
   } = req.body;
 
-  // เช็คเฉพาะฟิลด์ที่ NOT NULL ใน schema (health_assessment) — ที่เหลือมี default/nullable อยู่แล้ว
-  if (
-    !weightKg ||
-    !heightCm ||
-    !mealsPerDay ||
-    !friedFoodFreq ||
-    !sweetFoodFreq ||
-    !veggieFruitFreq ||
-    !lateNightEating ||
-    !pastDieting ||
-    !Array.isArray(goalType) ||
-    goalType.length === 0 ||
-    !stageOfChange
-  ) {
-    return res.status(400).json({ message: 'กรุณากรอกข้อมูลให้ครบทุกช่องที่จำเป็น' });
+  const type = assessmentType === 'FOLLOWUP' ? 'FOLLOWUP' : 'BASELINE';
+
+  if (type === 'BASELINE') {
+    // BASELINE ต้องกรอกครบทุกข้อบังคับเหมือนเดิม
+    if (
+      !weightKg ||
+      !heightCm ||
+      !mealsPerDay ||
+      !friedFoodFreq ||
+      !sweetFoodFreq ||
+      !veggieFruitFreq ||
+      !lateNightEating ||
+      !pastDieting ||
+      !Array.isArray(goalType) ||
+      goalType.length === 0 ||
+      !stageOfChange
+    ) {
+      return res.status(400).json({ message: 'กรุณากรอกข้อมูลให้ครบทุกช่องที่จำเป็น' });
+    }
+
+    // กัน BASELINE ซ้ำที่ระดับ application (DB unique index คุมแค่ FOLLOWUP ต่อ campaign แล้ว ไม่คุม BASELINE)
+    const [existingBaseline] = await pool.query(
+      `SELECT assessment_id FROM health_assessment WHERE employee_id = ? AND assessment_type = 'BASELINE'`,
+      [req.employeeId]
+    );
+    if (existingBaseline.length > 0) {
+      return res.status(409).json({ message: 'คุณกรอกแบบสอบถาม baseline นี้ไปแล้ว' });
+    }
+  } else {
+    // FOLLOWUP ต้องอ้างอิง campaign ที่มีจริงและยังเปิดอยู่
+    if (!campaignId) {
+      return res.status(400).json({ message: 'ไม่พบรอบ follow-up ที่อ้างอิง' });
+    }
+    const [campaignRows] = await pool.query(
+      `SELECT campaign_id FROM assessment_campaign WHERE campaign_id = ? AND status = 'OPEN'`,
+      [campaignId]
+    );
+    if (campaignRows.length === 0) {
+      return res.status(400).json({ message: 'รอบ follow-up นี้ปิดรับหรือไม่มีอยู่จริง' });
+    }
   }
 
   const conn = await pool.getConnection();
@@ -236,49 +296,60 @@ app.post('/api/health-assessment', requireAuth, async (req, res) => {
     await conn.beginTransaction();
 
     // ข้อมูลทั่วไปที่เก็บไว้ที่ employee (ไม่ใช่ time-series แบบ health_assessment)
-    await conn.query(
-      `UPDATE employee SET job_position = ?, years_of_service = ?, shift_type = ? WHERE employee_id = ?`,
-      [jobPosition || null, yearsOfService || null, shiftType || null, req.employeeId]
-    );
+    // อัปเดตเฉพาะตอน BASELINE หรือถ้า follow-up รอบนั้นตั้งใจถามซ้ำ (ส่งค่ามาไม่ null)
+    if (jobPosition !== undefined || yearsOfService !== undefined || shiftType !== undefined) {
+      await conn.query(
+        `UPDATE employee SET
+           job_position = COALESCE(?, job_position),
+           years_of_service = COALESCE(?, years_of_service),
+           shift_type = COALESCE(?, shift_type)
+         WHERE employee_id = ?`,
+        [jobPosition || null, yearsOfService || null, shiftType || null, req.employeeId]
+      );
+    }
 
     await conn.query(
       `INSERT INTO health_assessment
-        (employee_id, consent_accepted_at, weight_kg, height_cm, waist_cm, bp_systolic, bp_diastolic,
+        (employee_id, assessment_type, campaign_id, consent_accepted_at,
+         weight_kg, height_cm, waist_cm, bp_systolic, bp_diastolic,
          assessment_date, chronic_disease, chronic_disease_other, smoking_status, alcohol_status,
          physical_limitation, physical_limitation_note,
-         vigorous_days, vigorous_minutes, moderate_days, moderate_minutes, walking_days,
+         vigorous_days, vigorous_minutes, moderate_days, moderate_minutes, walking_days, walking_minutes,
          exercise_pattern, exercise_barrier,
          meals_per_day, fried_food_freq, sweet_food_freq, veggie_fruit_freq, late_night_eating, past_dieting,
          goal_type, stage_of_change, target_weight_kg)
-       VALUES (?, NOW(), ?, ?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, NOW(), ?, ?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         req.employeeId,
-        weightKg,
-        heightCm,
+        type,
+        type === 'FOLLOWUP' ? campaignId : null,
+        weightKg || null,
+        heightCm || null,
         waistCm || null,
         bpSystolic || null,
         bpDiastolic || null,
-        JSON.stringify(chronicDisease || []),
+        chronicDisease ? JSON.stringify(chronicDisease) : null,
         chronicDiseaseOther || null,
-        smokingStatus || 'NONE',
-        alcoholStatus || 'NONE',
-        physicalLimitation ? 1 : 0,
+        smokingStatus || null,
+        alcoholStatus || null,
+        physicalLimitation === undefined ? null : physicalLimitation ? 1 : 0,
         physicalLimitationNote || null,
         vigorousDays || 0,
         vigorousMinutes || null,
         moderateDays || 0,
         moderateMinutes || null,
         walkingDays || 0,
-        JSON.stringify(exercisePattern || []),
+        walkingMinutes || null,
+        exercisePattern ? JSON.stringify(exercisePattern) : null,
         exerciseBarrier || null,
-        mealsPerDay,
-        friedFoodFreq,
-        sweetFoodFreq,
-        veggieFruitFreq,
-        lateNightEating,
-        pastDieting,
-        JSON.stringify(goalType),
-        stageOfChange,
+        mealsPerDay || null,
+        friedFoodFreq || null,
+        sweetFoodFreq || null,
+        veggieFruitFreq || null,
+        lateNightEating || null,
+        pastDieting || null,
+        goalType ? JSON.stringify(goalType) : null,
+        stageOfChange || null,
         targetWeightKg || null,
       ]
     );
@@ -288,13 +359,52 @@ app.post('/api/health-assessment', requireAuth, async (req, res) => {
   } catch (err) {
     await conn.rollback();
     if (err.code === 'ER_DUP_ENTRY') {
-      return res.status(409).json({ message: 'คุณกรอกแบบสอบถามนี้ไปแล้ว' });
+      return res.status(409).json({ message: 'คุณกรอกแบบสอบถามรอบนี้ไปแล้ว' });
     }
     console.error('health-assessment submit error:', err);
     res.status(500).json({ message: 'บันทึกข้อมูลไม่สำเร็จ' });
   } finally {
     conn.release();
   }
+});
+
+// ---- admin: จัดการรอบ follow-up (assessment_campaign) ----
+app.get('/api/admin/campaigns', requireAdmin, async (req, res) => {
+  const [rows] = await pool.query(
+    `SELECT c.*,
+       (SELECT COUNT(*) FROM health_assessment ha WHERE ha.campaign_id = c.campaign_id) AS response_count,
+       (SELECT COUNT(*) FROM employee WHERE employment_status = 'ACTIVE') AS active_employee_count
+     FROM assessment_campaign c
+     ORDER BY c.created_at DESC`
+  );
+  res.json(rows);
+});
+
+app.post('/api/admin/campaigns', requireAdmin, async (req, res) => {
+  const { campaignName, releaseDate, closeDate, includedFields } = req.body;
+
+  if (!campaignName || !releaseDate || !Array.isArray(includedFields) || includedFields.length === 0) {
+    return res.status(400).json({ message: 'กรุณากรอกชื่อรอบ วันที่เปิด และเลือกอย่างน้อย 1 ฟิลด์' });
+  }
+
+  const [result] = await pool.query(
+    `INSERT INTO assessment_campaign
+      (campaign_name, release_date, close_date, included_fields, status, created_by)
+     VALUES (?, ?, ?, ?, 'DRAFT', ?)`,
+    [campaignName, releaseDate, closeDate || null, JSON.stringify(includedFields), req.adminEmployeeId]
+  );
+
+  res.json({ message: 'สร้างรอบ follow-up สำเร็จ', campaignId: result.insertId });
+});
+
+app.post('/api/admin/campaigns/:id/open', requireAdmin, async (req, res) => {
+  await pool.query(`UPDATE assessment_campaign SET status = 'OPEN' WHERE campaign_id = ?`, [req.params.id]);
+  res.json({ message: 'เปิดรอบ follow-up แล้ว พนักงานจะเริ่มเห็นแบบฟอร์มนี้' });
+});
+
+app.post('/api/admin/campaigns/:id/close', requireAdmin, async (req, res) => {
+  await pool.query(`UPDATE assessment_campaign SET status = 'CLOSED' WHERE campaign_id = ?`, [req.params.id]);
+  res.json({ message: 'ปิดรอบ follow-up แล้ว' });
 });
 
 // ---- activity submission loop (Phase 1 Part B) ----
@@ -2098,7 +2208,7 @@ app.post('/api/auth/line-login', async (req, res) => {
 
       // เช็คว่ากรอกแบบสอบถาม baseline สุขภาพไปแล้วหรือยัง (ต้องทำครั้งเดียวก่อนใช้แอปจริง)
       const [assessmentRows] = await pool.query(
-        'SELECT assessment_id FROM health_assessment WHERE employee_id = ?',
+        `SELECT assessment_id FROM health_assessment WHERE employee_id = ? AND assessment_type = 'BASELINE'`,
         [account.employee_id]
       );
 

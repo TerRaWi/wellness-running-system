@@ -71,6 +71,10 @@ export default function App() {
   const [badges, setBadges] = useState([]);
   const [newBadgesToShow, setNewBadgesToShow] = useState([]); // badge ที่เพิ่งได้ใหม่ รอเด้ง popup
 
+  // ---- Phase 5: follow-up health assessment campaign (ไม่ block การใช้แอป แค่เตือน) ----
+  const [pendingCampaign, setPendingCampaign] = useState(null); // { campaignId, campaignName, includedFields } | null
+  const [showFollowupWizard, setShowFollowupWizard] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -262,6 +266,38 @@ export default function App() {
       setLastSeenBadgeAt(user.employeeId, new Date().toISOString());
     }
     setNewBadgesToShow([]);
+  }
+
+  // เช็คว่ามีรอบ follow-up ที่เปิดอยู่และยังไม่เคยตอบไหม — เรียกครั้งเดียวหลังเข้าแอปสำเร็จ
+  // ไม่ block การใช้งาน แค่โชว์เป็น banner เตือนเฉยๆ
+  useEffect(() => {
+    if (status !== 'done') return;
+
+    let cancelled = false;
+
+    async function loadPendingCampaign() {
+      try {
+        const res = await fetch(`${API_BASE}/api/health-assessment/pending-campaign`, {
+          credentials: 'include',
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok && data.campaign) {
+          setPendingCampaign(data.campaign);
+        }
+      } catch (err) {
+        console.error('load pending campaign error:', err);
+      }
+    }
+
+    loadPendingCampaign();
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
+
+  function handleFollowupComplete() {
+    setShowFollowupWizard(false);
+    setPendingCampaign(null);
   }
 
   async function handleJoinChallenge(challengeId) {
@@ -503,6 +539,18 @@ export default function App() {
   }
 
   if (status === 'done') {
+    if (showFollowupWizard && pendingCampaign) {
+      return (
+        <HealthAssessmentWizard
+          apiBase={API_BASE}
+          assessmentType="FOLLOWUP"
+          campaignId={pendingCampaign.campaignId}
+          includedFields={pendingCampaign.includedFields}
+          onComplete={handleFollowupComplete}
+        />
+      );
+    }
+
     return (
       <>
         <div className="ws-app" style={{ padding: 24, maxWidth: 640, margin: '0 auto' }}>
@@ -510,6 +558,15 @@ export default function App() {
             <p>เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ {user?.displayName}</p>
             <p>รหัสพนักงาน: {user?.employeeId}</p>
           </div>
+
+          {pendingCampaign && (
+            <div className="ws-alert" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <span>มีแบบประเมินติดตามผลรอกรอก: {pendingCampaign.campaignName}</span>
+              <button className="ws-btn ws-btn-primary ws-btn-sm" onClick={() => setShowFollowupWizard(true)}>
+                กรอกเลย
+              </button>
+            </div>
+          )}
 
           <div className="ws-tabs ws-tabs-fill">
             {TABS.map((tab) => (
