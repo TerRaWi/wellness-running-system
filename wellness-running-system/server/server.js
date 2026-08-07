@@ -407,6 +407,53 @@ app.post('/api/admin/campaigns/:id/close', requireAdmin, async (req, res) => {
   res.json({ message: 'ปิดรอบ follow-up แล้ว' });
 });
 
+// ---- admin: ดูผลลัพธ์แบบสอบถามสุขภาพรายบุคคล (operational view ไม่ใช่รายงานสรุปสำหรับผู้บริหาร) ----
+// รายชื่อพนักงานพร้อมค่าล่าสุดที่มี (แต่ละ metric ดึงจากแถวล่าสุดที่ "มีค่านั้น" ไม่ใช่แถวล่าสุดเฉยๆ
+// เพราะ follow-up บางรอบอาจไม่ได้ถามทุกฟิลด์)
+app.get('/api/admin/health-assessments', requireAdmin, async (req, res) => {
+  const [rows] = await pool.query(
+    `SELECT
+       e.employee_id, e.full_name, e.department, e.job_position,
+       EXISTS(
+         SELECT 1 FROM health_assessment ha
+         WHERE ha.employee_id = e.employee_id AND ha.assessment_type = 'BASELINE'
+       ) AS baseline_completed,
+       (SELECT ha.weight_kg FROM health_assessment ha
+         WHERE ha.employee_id = e.employee_id AND ha.weight_kg IS NOT NULL
+         ORDER BY ha.created_at DESC LIMIT 1) AS latest_weight_kg,
+       (SELECT ha.bmi FROM health_assessment ha
+         WHERE ha.employee_id = e.employee_id AND ha.bmi IS NOT NULL
+         ORDER BY ha.created_at DESC LIMIT 1) AS latest_bmi,
+       (SELECT ha.met_minutes_per_week FROM health_assessment ha
+         WHERE ha.employee_id = e.employee_id AND ha.met_minutes_per_week IS NOT NULL
+         ORDER BY ha.created_at DESC LIMIT 1) AS latest_met_minutes_per_week,
+       (SELECT COUNT(*) FROM health_assessment ha
+         WHERE ha.employee_id = e.employee_id AND ha.assessment_type = 'FOLLOWUP') AS followup_count
+     FROM employee e
+     WHERE e.employment_status = 'ACTIVE'
+     ORDER BY e.full_name`
+  );
+  res.json(rows);
+});
+
+// ทุกแถว (baseline + follow-up ทั้งหมด) ของพนักงานคนเดียว เรียงเก่า -> ใหม่ ใช้ทำกราฟ trend
+app.get('/api/admin/health-assessments/:employeeId', requireAdmin, async (req, res) => {
+  const [empRows] = await pool.query(
+    `SELECT employee_id, full_name, department, job_position FROM employee WHERE employee_id = ?`,
+    [req.params.employeeId]
+  );
+  if (empRows.length === 0) {
+    return res.status(404).json({ message: 'ไม่พบข้อมูลพนักงาน' });
+  }
+
+  const [assessments] = await pool.query(
+    `SELECT * FROM health_assessment WHERE employee_id = ? ORDER BY created_at ASC`,
+    [req.params.employeeId]
+  );
+
+  res.json({ employee: empRows[0], assessments });
+});
+
 // ---- activity submission loop (Phase 1 Part B) ----
 // ใช้ตารางจริงจาก wellness.sql: activity_category, activity_type, running_submission
 // คะแนน (activity_type.score) จะไป trigger score_transaction ตอนแอดมิน APPROVE เท่านั้น

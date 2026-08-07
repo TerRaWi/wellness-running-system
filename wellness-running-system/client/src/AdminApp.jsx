@@ -40,6 +40,7 @@ const SETTINGS_TABS = [
   { key: 'categories', label: 'หมวดหมู่กิจกรรม' },
   { key: 'activityTypes', label: 'ประเภทกิจกรรม' },
   { key: 'healthCampaigns', label: 'แบบสอบถามติดตามผล' },
+  { key: 'healthResults', label: 'ผลข้อมูลสุขภาพ' },
   { key: 'admins', label: 'จัดการสิทธิ์แอดมิน' },
 ];
 
@@ -99,6 +100,51 @@ const CAMPAIGN_STATUS_LABEL_TH = {
   OPEN: 'เปิดอยู่',
   CLOSED: 'ปิดแล้ว',
 };
+
+// กราฟเส้นแนวโน้มอย่างง่ายด้วย SVG ล้วน (ไม่พึ่ง library ภายนอก) — ใช้แสดงค่า metric ของพนักงาน
+// ข้าม baseline ไปจนถึง follow-up ล่าสุด points: [{ label, value }], ค่า null จะถูกกรองออกก่อนเรียกใช้แล้ว
+function HealthTrendChart({ points, unit }) {
+  if (points.length === 0) {
+    return <p className="ws-empty">ยังไม่มีข้อมูลพอสำหรับกราฟ</p>;
+  }
+  if (points.length === 1) {
+    return (
+      <p style={{ fontSize: 14 }}>
+        {points[0].label}: <strong>{points[0].value}{unit}</strong> (มีข้อมูลจุดเดียว ยังลากกราฟแนวโน้มไม่ได้)
+      </p>
+    );
+  }
+
+  const width = 560;
+  const height = 160;
+  const padX = 32;
+  const padY = 20;
+  const values = points.map((p) => p.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+
+  const coords = points.map((p, i) => {
+    const x = padX + (i / (points.length - 1)) * (width - padX * 2);
+    const y = height - padY - ((p.value - min) / range) * (height - padY * 2);
+    return { x, y, ...p };
+  });
+
+  const pathD = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`).join(' ');
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: 'auto' }} role="img" aria-label={`กราฟแนวโน้ม ${points.map((p) => `${p.label} ${p.value}${unit}`).join(', ')}`}>
+      <path d={pathD} fill="none" stroke="#2a78d6" strokeWidth="2" />
+      {coords.map((c, i) => (
+        <g key={i}>
+          <circle cx={c.x} cy={c.y} r="4" fill="#2a78d6" />
+          <text x={c.x} y={height - 4} textAnchor="middle" fontSize="11" fill="var(--ws-text-muted)">{c.label}</text>
+          <text x={c.x} y={c.y - 10} textAnchor="middle" fontSize="11" fill="var(--ws-text-secondary)">{c.value}</text>
+        </g>
+      ))}
+    </svg>
+  );
+}
 
 export default function AdminApp() {
   const [authChecked, setAuthChecked] = useState(false);
@@ -258,6 +304,16 @@ export default function AdminApp() {
   const [campaignFormError, setCampaignFormError] = useState('');
   const [campaignFormSubmitting, setCampaignFormSubmitting] = useState(false);
   const [campaignActioningId, setCampaignActioningId] = useState(null);
+
+  // ---- Phase 5: ผลข้อมูลสุขภาพรายบุคคล (operational view) state ----
+  const [healthList, setHealthList] = useState([]);
+  const [healthListLoading, setHealthListLoading] = useState(false);
+  const [healthListError, setHealthListError] = useState('');
+  const [healthSearch, setHealthSearch] = useState('');
+  const [selectedHealthEmployeeId, setSelectedHealthEmployeeId] = useState(null);
+  const [healthDetail, setHealthDetail] = useState(null); // { employee, assessments }
+  const [healthDetailLoading, setHealthDetailLoading] = useState(false);
+  const [healthDetailError, setHealthDetailError] = useState('');
 
   // เช็คว่ามี admin session ที่ยัง valid อยู่ไหมตอนโหลดหน้า กันต้อง login ใหม่ทุกครั้งที่ refresh
   useEffect(() => {
@@ -1050,6 +1106,54 @@ export default function AdminApp() {
     } finally {
       setCampaignActioningId(null);
     }
+  }
+
+  // ---- Phase 5: ผลข้อมูลสุขภาพรายบุคคล (operational view) handlers ----
+  async function loadHealthList() {
+    setHealthListLoading(true);
+    setHealthListError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/health-assessments`, { credentials: 'include' });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) {
+        throw new Error(data.message || 'โหลดข้อมูลสุขภาพพนักงานไม่สำเร็จ');
+      }
+      setHealthList(data);
+    } catch (err) {
+      setHealthListError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setHealthListLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!isLoggedIn || activeTab !== 'healthResults') return;
+    loadHealthList();
+  }, [isLoggedIn, activeTab]);
+
+  async function openHealthDetail(employeeId) {
+    setSelectedHealthEmployeeId(employeeId);
+    setHealthDetail(null);
+    setHealthDetailError('');
+    setHealthDetailLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/health-assessments/${employeeId}`, { credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'โหลดรายละเอียดไม่สำเร็จ');
+      }
+      setHealthDetail(data);
+    } catch (err) {
+      setHealthDetailError(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setHealthDetailLoading(false);
+    }
+  }
+
+  function closeHealthDetail() {
+    setSelectedHealthEmployeeId(null);
+    setHealthDetail(null);
+    setHealthDetailError('');
   }
 
   // ---- Phase 5: activity-type CRUD handlers ----
@@ -3170,6 +3274,151 @@ export default function AdminApp() {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'healthResults' && (
+        <>
+          {!selectedHealthEmployeeId && (
+            <>
+              <div className="ws-row-between" style={{ marginBottom: 16 }}>
+                <input
+                  type="text"
+                  placeholder="ค้นหาชื่อหรือรหัสพนักงาน"
+                  value={healthSearch}
+                  onChange={(e) => setHealthSearch(e.target.value)}
+                  className="ws-input"
+                  style={{ maxWidth: 280 }}
+                />
+                <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={loadHealthList}>รีเฟรช</button>
+              </div>
+
+              {healthListError && <div className="ws-alert ws-alert-danger">{healthListError}</div>}
+              {healthListLoading && <p className="ws-empty">กำลังโหลด...</p>}
+              {!healthListLoading && healthList.length === 0 && <p className="ws-empty">ยังไม่มีข้อมูล</p>}
+
+              {!healthListLoading && healthList.length > 0 && (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="ws-table">
+                    <thead>
+                      <tr>
+                        <th>พนักงาน</th>
+                        <th>Baseline</th>
+                        <th>น้ำหนักล่าสุด</th>
+                        <th>BMI</th>
+                        <th>MET-min/wk</th>
+                        <th>Follow-up ตอบแล้ว</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {healthList
+                        .filter((row) => {
+                          const q = healthSearch.trim().toLowerCase();
+                          if (!q) return true;
+                          return (
+                            row.full_name.toLowerCase().includes(q) ||
+                            row.employee_id.toLowerCase().includes(q)
+                          );
+                        })
+                        .map((row) => (
+                          <tr key={row.employee_id}>
+                            <td>
+                              {row.full_name}
+                              <div style={{ fontSize: 12, color: 'var(--ws-text-muted)' }}>{row.employee_id}</div>
+                            </td>
+                            <td>
+                              {row.baseline_completed ? (
+                                <span className="ws-badge ws-badge-success">ครบ</span>
+                              ) : (
+                                <span className="ws-badge ws-badge-warning">ยังไม่กรอก</span>
+                              )}
+                            </td>
+                            <td>{row.latest_weight_kg ?? '-'}</td>
+                            <td>{row.latest_bmi ?? '-'}</td>
+                            <td>{row.latest_met_minutes_per_week ?? '-'}</td>
+                            <td>{row.followup_count}</td>
+                            <td>
+                              <button
+                                className="ws-btn ws-btn-secondary ws-btn-sm"
+                                onClick={() => openHealthDetail(row.employee_id)}
+                                disabled={!row.baseline_completed}
+                              >
+                                ดูรายละเอียด
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+
+          {selectedHealthEmployeeId && (
+            <div>
+              <button className="ws-btn ws-btn-secondary ws-btn-sm" style={{ marginBottom: 16 }} onClick={closeHealthDetail}>
+                ← กลับไปรายชื่อ
+              </button>
+
+              {healthDetailLoading && <p className="ws-empty">กำลังโหลด...</p>}
+              {healthDetailError && <div className="ws-alert ws-alert-danger">{healthDetailError}</div>}
+
+              {healthDetail && (
+                <>
+                  <div className="ws-row-between" style={{ marginBottom: 16 }}>
+                    <div>
+                      <p style={{ fontWeight: 'bold', fontSize: 16, margin: 0 }}>{healthDetail.employee.full_name}</p>
+                      <p style={{ fontSize: 13, color: 'var(--ws-text-secondary)', margin: 0 }}>
+                        {healthDetail.employee.employee_id} · {healthDetail.employee.department || '-'} · {healthDetail.employee.job_position || '-'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
+                    {['weight_kg', 'bmi', 'met_minutes_per_week'].map((field) => {
+                      const rowsWithValue = healthDetail.assessments.filter((a) => a[field] !== null && a[field] !== undefined);
+                      const latest = rowsWithValue[rowsWithValue.length - 1];
+                      const labelMap = { weight_kg: 'น้ำหนักล่าสุด (กก.)', bmi: 'BMI ล่าสุด', met_minutes_per_week: 'MET-min/wk ล่าสุด' };
+                      return (
+                        <div key={field} className="ws-card" style={{ padding: '1rem' }}>
+                          <p style={{ fontSize: 13, color: 'var(--ws-text-secondary)', margin: '0 0 4px' }}>{labelMap[field]}</p>
+                          <p style={{ fontSize: 24, fontWeight: 'bold', margin: 0 }}>{latest ? latest[field] : '-'}</p>
+                        </div>
+                      );
+                    })}
+                    <div className="ws-card" style={{ padding: '1rem' }}>
+                      <p style={{ fontSize: 13, color: 'var(--ws-text-secondary)', margin: '0 0 4px' }}>จำนวนรอบที่ตอบ</p>
+                      <p style={{ fontSize: 24, fontWeight: 'bold', margin: 0 }}>{healthDetail.assessments.length}</p>
+                    </div>
+                  </div>
+
+                  <h4>แนวโน้มน้ำหนัก (baseline → follow-up)</h4>
+                  <HealthTrendChart
+                    unit=" กก."
+                    points={healthDetail.assessments
+                      .filter((a) => a.weight_kg !== null && a.weight_kg !== undefined)
+                      .map((a) => ({
+                        label: a.assessment_type === 'BASELINE' ? 'Baseline' : new Date(a.created_at).toLocaleDateString('th-TH', { month: 'short', day: 'numeric' }),
+                        value: Number(a.weight_kg),
+                      }))}
+                  />
+
+                  <h4 style={{ marginTop: 24 }}>แนวโน้ม MET-minutes/สัปดาห์</h4>
+                  <HealthTrendChart
+                    unit=""
+                    points={healthDetail.assessments
+                      .filter((a) => a.met_minutes_per_week !== null && a.met_minutes_per_week !== undefined)
+                      .map((a) => ({
+                        label: a.assessment_type === 'BASELINE' ? 'Baseline' : new Date(a.created_at).toLocaleDateString('th-TH', { month: 'short', day: 'numeric' }),
+                        value: Number(a.met_minutes_per_week),
+                      }))}
+                  />
+                </>
+              )}
             </div>
           )}
         </>
