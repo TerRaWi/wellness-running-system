@@ -143,9 +143,8 @@ function issueSessionCookie(res, employeeId) {
   const token = jwt.sign({ employeeId }, process.env.JWT_SECRET, { expiresIn: '7d' });
   res.cookie('session', token, {
     httpOnly: true,
-    secure: false, // dev เท่านั้น เพราะทดสอบผ่าน http://localhost ได้ด้วย
-                    // ตอน deploy จริงบน https ต้องเปลี่ยนเป็น true
-    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production', // ต้อง true เมื่อ deploy จริงผ่าน https (frontend/backend คนละโดเมนกัน)
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' จำเป็นสำหรับ cross-site cookie ตอน deploy จริง
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 วัน
   });
 }
@@ -872,8 +871,8 @@ app.post('/api/admin/login', async (req, res) => {
 
     res.cookie('admin_session', token, {
       httpOnly: true,
-      secure: false, // dev เท่านั้น เหมือน session พนักงาน ตอน deploy จริงบน https ต้องเปลี่ยนเป็น true
-      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production', // ต้อง true เมื่อ deploy จริงผ่าน https
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 8 * 60 * 60 * 1000,
     });
 
