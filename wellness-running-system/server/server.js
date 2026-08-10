@@ -16,9 +16,17 @@ app.use(cookieParser());
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
+  port: process.env.DB_PORT || 3306,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
+  // Aiven บังคับต่อผ่าน SSL เสมอ — DB_SSL_CA คือเนื้อหาไฟล์ ca.pem ทั้งไฟล์
+  // (วางเป็น env var ตรงๆ บน Render แทนการอ่านจากไฟล์ เพราะ Render ไม่มี persistent disk)
+  ...(process.env.DB_SSL_CA && {
+    ssl: {
+      ca: process.env.DB_SSL_CA,
+    },
+  }),
 });
 
 // ---- file upload setup (proof photo เก็บ local disk ก่อน, ย้ายขึ้น cloud ทีหลังได้) ----
