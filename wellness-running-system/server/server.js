@@ -24,7 +24,7 @@ const pool = mysql.createPool({
   // (วางเป็น env var ตรงๆ บน Render แทนการอ่านจากไฟล์ เพราะ Render ไม่มี persistent disk)
   ...(process.env.DB_SSL_CA && {
     ssl: {
-      ca: process.env.DB_SSL_CA,
+      ca: process.env.DB_SSL_CA.replace(/\\n/g, '\n'),
     },
   }),
 });
