@@ -20,6 +20,10 @@ const pool = mysql.createPool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
+  // ตรึง timezone ไว้ตายตัวเป็นไทย ไม่พึ่ง timezone ของเครื่อง/container ที่รันโค้ด
+  // (เครื่อง dev local เป็นไทยอยู่แล้วเลยไม่เคยเจอปัญหา แต่ Render container รันด้วย UTC
+  // ทำให้ค่า DATETIME ที่อ่าน/เขียนเพี้ยนไป 7 ชม. ถ้าไม่ระบุตรงนี้ให้ชัดเจน)
+  timezone: '+07:00',
   // Aiven บังคับต่อผ่าน SSL เสมอ — DB_SSL_CA คือเนื้อหาไฟล์ ca.pem ทั้งไฟล์
   // (วางเป็น env var ตรงๆ บน Render แทนการอ่านจากไฟล์ เพราะ Render ไม่มี persistent disk)
   ...(process.env.DB_SSL_CA && {
@@ -143,22 +147,15 @@ function issueSessionCookie(res, employeeId) {
   const token = jwt.sign({ employeeId }, process.env.JWT_SECRET, { expiresIn: '7d' });
   res.cookie('session', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: process.env.NODE_ENV === 'production', // ต้อง true เมื่อ deploy จริงผ่าน https (frontend/backend คนละโดเมนกัน)
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' จำเป็นสำหรับ cross-site cookie ตอน deploy จริง
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 วัน
   });
-  // คืน token กลับไปด้วย เพื่อให้ frontend เก็บไว้เองและแนบผ่าน header Authorization แทน cookie ได้
-  // (LINE in-app browser บล็อก cross-site cookie บ่อย ต้องมีทางสำรองที่ไม่พึ่ง cookie)
-  return token;
 }
 
 // middleware เช็คว่า login อยู่ไหม ใช้ครอบทุก route ที่ต้อง login ก่อนเรียก
-// เช็คจาก header Authorization ก่อน (ทางหลัก ใช้ได้แน่นอนไม่ว่า browser ไหน)
-// ถ้าไม่มีค่อย fallback ไปเช็ค cookie (เผื่อ browser ที่ cookie ยังทำงานปกติ)
 function requireAuth(req, res, next) {
-  const authHeader = req.headers.authorization || '';
-  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  const token = bearerToken || req.cookies.session;
+  const token = req.cookies.session;
   if (!token) {
     return res.status(401).json({ message: 'กรุณาเข้าสู่ระบบก่อน' });
   }
@@ -883,7 +880,7 @@ app.post('/api/admin/login', async (req, res) => {
       maxAge: 8 * 60 * 60 * 1000,
     });
 
-    res.json({ employeeId: account.employee_id, role: 'ADMIN', token });
+    res.json({ employeeId: account.employee_id, role: 'ADMIN' });
   } catch (err) {
     console.error('admin login error:', err);
     res.status(500).json({ message: 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
@@ -898,9 +895,7 @@ app.post('/api/admin/logout', (req, res) => {
 // middleware เช็คสิทธิ์แอดมิน เช็คสดจาก DB ทุกครั้ง (ไม่เชื่อแค่ค่าใน JWT)
 // เผื่อโดนถอด role หรือลาออกระหว่าง session 8 ชม. ยังไม่หมดอายุ
 async function requireAdmin(req, res, next) {
-  const authHeader = req.headers.authorization || '';
-  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  const token = bearerToken || req.cookies.admin_session;
+  const token = req.cookies.admin_session;
   if (!token) {
     return res.status(401).json({ message: 'กรุณาเข้าสู่ระบบแอดมินก่อน' });
   }
@@ -2275,13 +2270,12 @@ app.post('/api/auth/line-login', async (req, res) => {
         [account.employee_id]
       );
 
-      const token = issueSessionCookie(res, account.employee_id);
+      issueSessionCookie(res, account.employee_id);
       return res.json({
         linked: true,
         employeeId: account.employee_id,
         displayName,
         needsHealthAssessment: assessmentRows.length === 0,
-        token,
       });
     }
 
@@ -2310,8 +2304,8 @@ app.post('/api/auth/line-login', async (req, res) => {
       [employeeId, lineUserId, displayName, pictureUrl]
     );
 
-    const token = issueSessionCookie(res, employeeId);
-    res.json({ linked: true, employeeId, displayName, needsHealthAssessment: true, token });
+    issueSessionCookie(res, employeeId);
+    res.json({ linked: true, employeeId, displayName, needsHealthAssessment: true });
   } catch (err) {
     console.error('line-login error:', err);
     res.status(500).json({ message: 'internal error' });
