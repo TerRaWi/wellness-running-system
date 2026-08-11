@@ -20,9 +20,7 @@ const pool = mysql.createPool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  // ตรึง timezone ไว้ตายตัวเป็นไทย ไม่พึ่ง timezone ของเครื่อง/container ที่รันโค้ด
-  // (เครื่อง dev local เป็นไทยอยู่แล้วเลยไม่เคยเจอปัญหา แต่ Render container รันด้วย UTC
-  // ทำให้ค่า DATETIME ที่อ่าน/เขียนเพี้ยนไป 7 ชม. ถ้าไม่ระบุตรงนี้ให้ชัดเจน)
+  // timezone ฝั่ง client driver — ใช้ตอนแปลง DATETIME ที่อ่าน/เขียนระหว่าง JS Date กับ MySQL
   timezone: '+07:00',
   // Aiven บังคับต่อผ่าน SSL เสมอ — DB_SSL_CA คือเนื้อหาไฟล์ ca.pem ทั้งไฟล์
   // (วางเป็น env var ตรงๆ บน Render แทนการอ่านจากไฟล์ เพราะ Render ไม่มี persistent disk)
@@ -31,6 +29,14 @@ const pool = mysql.createPool({
       ca: process.env.DB_SSL_CA.replace(/\\n/g, '\n'),
     },
   }),
+});
+
+// สำคัญ: บังคับ session time_zone ของ MySQL เองด้วย (ไม่ใช่แค่ client driver ด้านบน)
+// เพราะ NOW()/CURRENT_TIMESTAMP ที่ใช้ทั้งใน DEFAULT column และใน query (เช่น sync สถานะ challenge)
+// ถูกคำนวณฝั่ง MySQL server เอง ถ้าไม่ตั้งตรงนี้ Aiven จะใช้ UTC ของตัวเซิร์ฟเวอร์แทน
+// ทำให้ NOW() กับค่าที่เราเก็บเป็นเวลาไทย literal เทียบกันผิดอยู่ 7 ชม. เสมอ
+pool.on('connection', (connection) => {
+  connection.query("SET time_zone = '+07:00'");
 });
 
 // ---- file upload setup (proof photo เก็บ local disk ก่อน, ย้ายขึ้น cloud ทีหลังได้) ----
@@ -144,7 +150,6 @@ app.get('/api/health', async (req, res) => {
 
 // แปลง string จาก <input type="datetime-local"> (เช่น "2026-08-11T15:06", ไม่มี timezone กำกับ)
 // ให้เป็นเวลาไทยเสมอ ไม่พึ่ง timezone ของเครื่อง/container ที่รันโค้ด
-// (ถ้าปล่อยให้ new Date(str) ตีความเอง จะยึด timezone ของเครื่องรัน — บน Render ที่เป็น UTC จะเพี้ยนไป 7 ชม.)
 function parseThaiLocalDateTime(value) {
   if (!value) return new Date(NaN);
   const hasSeconds = /T\d{2}:\d{2}:\d{2}/.test(value);
