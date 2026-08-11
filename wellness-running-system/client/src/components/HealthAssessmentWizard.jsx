@@ -170,6 +170,7 @@ function RadioPills({ options, value, onChange }) {
  */
 export default function HealthAssessmentWizard({
   apiBase,
+  authToken,
   onComplete,
   assessmentType = 'BASELINE',
   campaignId = null,
@@ -264,7 +265,10 @@ export default function HealthAssessmentWizard({
     try {
       const res = await fetch(`${apiBase}/api/health-assessment`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
         credentials: 'include',
         body: JSON.stringify({
           ...form,

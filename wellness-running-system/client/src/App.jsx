@@ -26,6 +26,31 @@ export default function App() {
   const [idToken, setIdToken] = useState(null);
   const [employeeIdInput, setEmployeeIdInput] = useState('');
   const [user, setUser] = useState(null);
+  // token สำหรับ header Authorization — ใช้แทน cookie เพราะ LINE in-app browser
+  // (ITP) มักบล็อก cross-site cookie ระหว่าง frontend (Vercel) กับ backend (Render)
+  const [authToken, setAuthToken] = useState(() => sessionStorage.getItem('authToken') || null);
+
+  function saveAuthToken(token) {
+    setAuthToken(token);
+    if (token) {
+      sessionStorage.setItem('authToken', token);
+    } else {
+      sessionStorage.removeItem('authToken');
+    }
+  }
+
+  // เรียกใช้แทน { credentials: 'include' } เดิม — แนบทั้ง token header และ cookie
+  // (cookie เผื่อ browser ที่ยังใช้ cookie ได้ปกติ, header คือทางหลักที่ใช้ได้จริงทุกกรณี)
+  function authFetchOptions(extra = {}) {
+    return {
+      ...extra,
+      credentials: 'include',
+      headers: {
+        ...(extra.headers || {}),
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
+    };
+  }
 
   // แท็บที่กำลังเปิดอยู่ในหน้าพนักงาน
   const [activeTab, setActiveTab] = useState('submit');
@@ -118,6 +143,7 @@ export default function App() {
       }
 
       if (data.linked) {
+        saveAuthToken(data.token || null);
         setUser(data);
         setStatus(data.needsHealthAssessment ? 'needsHealthAssessment' : 'done');
       } else if (data.needsEmployeeId) {
@@ -138,9 +164,7 @@ export default function App() {
 
     async function loadActivities() {
       try {
-        const res = await fetch(`${API_BASE}/api/activities`, {
-          credentials: 'include',
-        });
+        const res = await fetch(`${API_BASE}/api/activities`, authFetchOptions());
         const data = await res.json().catch(() => []);
         if (!cancelled && res.ok) {
           setActivities(data);
@@ -158,7 +182,7 @@ export default function App() {
 
   async function loadSubmissionData() {
     try {
-      const res = await fetch(`${API_BASE}/api/my-submissions`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE}/api/my-submissions`, authFetchOptions());
       const data = await res.json().catch(() => []);
       if (res.ok) {
         setMySubmissions(data);
@@ -176,9 +200,9 @@ export default function App() {
   async function loadRewardData() {
     try {
       const [balanceRes, rewardsRes, myRedeemsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/my-score`, { credentials: 'include' }),
-        fetch(`${API_BASE}/api/rewards`, { credentials: 'include' }),
-        fetch(`${API_BASE}/api/my-redeems`, { credentials: 'include' }),
+        fetch(`${API_BASE}/api/my-score`, authFetchOptions()),
+        fetch(`${API_BASE}/api/rewards`, authFetchOptions()),
+        fetch(`${API_BASE}/api/my-redeems`, authFetchOptions()),
       ]);
 
       if (balanceRes.ok) {
@@ -204,8 +228,8 @@ export default function App() {
   async function loadChallengeData() {
     try {
       const [challengesRes, myChallengesRes] = await Promise.all([
-        fetch(`${API_BASE}/api/challenges`, { credentials: 'include' }),
-        fetch(`${API_BASE}/api/my-challenges`, { credentials: 'include' }),
+        fetch(`${API_BASE}/api/challenges`, authFetchOptions()),
+        fetch(`${API_BASE}/api/my-challenges`, authFetchOptions()),
       ]);
 
       if (challengesRes.ok) {
@@ -234,7 +258,7 @@ export default function App() {
 
   async function loadBadgeData() {
     try {
-      const res = await fetch(`${API_BASE}/api/my-badges`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE}/api/my-badges`, authFetchOptions());
       const data = await res.json().catch(() => []);
       if (!res.ok) return;
       setBadges(data);
@@ -277,9 +301,7 @@ export default function App() {
 
     async function loadPendingCampaign() {
       try {
-        const res = await fetch(`${API_BASE}/api/health-assessment/pending-campaign`, {
-          credentials: 'include',
-        });
+        const res = await fetch(`${API_BASE}/api/health-assessment/pending-campaign`, authFetchOptions());
         const data = await res.json().catch(() => ({}));
         if (!cancelled && res.ok && data.campaign) {
           setPendingCampaign(data.campaign);
@@ -305,12 +327,11 @@ export default function App() {
     setChallengeMessage('');
 
     try {
-      const res = await fetch(`${API_BASE}/api/challenges/${challengeId}/join`, {
+      const res = await fetch(`${API_BASE}/api/challenges/${challengeId}/join`, authFetchOptions({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ joinMode: joinModeByChallenge[challengeId] || 'PUBLIC' }),
-      });
+      }));
 
       const data = await res.json().catch(() => ({}));
 
@@ -336,9 +357,7 @@ export default function App() {
     setLeaderboard([]);
 
     try {
-      const res = await fetch(`${API_BASE}/api/challenges/${challengeId}/leaderboard`, {
-        credentials: 'include',
-      });
+      const res = await fetch(`${API_BASE}/api/challenges/${challengeId}/leaderboard`, authFetchOptions());
       const data = await res.json().catch(() => []);
       if (!res.ok) {
         throw new Error(data.message || 'โหลด leaderboard ไม่สำเร็จ');
@@ -362,12 +381,11 @@ export default function App() {
     setRewardMessage('');
 
     try {
-      const res = await fetch(`${API_BASE}/api/redeem`, {
+      const res = await fetch(`${API_BASE}/api/redeem`, authFetchOptions({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ rewardId }),
-      });
+      }));
 
       const data = await res.json().catch(() => ({}));
 
@@ -391,10 +409,9 @@ export default function App() {
     setRewardMessage('');
 
     try {
-      const res = await fetch(`${API_BASE}/api/redeem/${redeemId}/cancel`, {
+      const res = await fetch(`${API_BASE}/api/redeem/${redeemId}/cancel`, authFetchOptions({
         method: 'POST',
-        credentials: 'include',
-      });
+      }));
 
       const data = await res.json().catch(() => ({}));
 
@@ -441,11 +458,10 @@ export default function App() {
       }
 
       // ห้ามใส่ header Content-Type เอง ปล่อยให้ browser ตั้ง boundary ของ multipart ให้อัตโนมัติ
-      const res = await fetch(`${API_BASE}/api/submissions`, {
+      const res = await fetch(`${API_BASE}/api/submissions`, authFetchOptions({
         method: 'POST',
-        credentials: 'include',
         body: formData,
-      });
+      }));
 
       const data = await res.json().catch(() => ({}));
 
@@ -488,6 +504,7 @@ export default function App() {
         throw new Error(data.message || 'ผูกบัญชีไม่สำเร็จ');
       }
 
+      saveAuthToken(data.token || null);
       setUser(data);
       setStatus(data.needsHealthAssessment ? 'needsHealthAssessment' : 'done');
     } catch (err) {
@@ -533,6 +550,7 @@ export default function App() {
     return (
       <HealthAssessmentWizard
         apiBase={API_BASE}
+        authToken={authToken}
         onComplete={handleHealthAssessmentComplete}
       />
     );
@@ -543,6 +561,7 @@ export default function App() {
       return (
         <HealthAssessmentWizard
           apiBase={API_BASE}
+          authToken={authToken}
           assessmentType="FOLLOWUP"
           campaignId={pendingCampaign.campaignId}
           includedFields={pendingCampaign.includedFields}
