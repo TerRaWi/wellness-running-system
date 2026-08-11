@@ -142,6 +142,16 @@ app.get('/api/health', async (req, res) => {
   res.json({ status: 'ok', employeeCount: rows[0].total });
 });
 
+// แปลง string จาก <input type="datetime-local"> (เช่น "2026-08-11T15:06", ไม่มี timezone กำกับ)
+// ให้เป็นเวลาไทยเสมอ ไม่พึ่ง timezone ของเครื่อง/container ที่รันโค้ด
+// (ถ้าปล่อยให้ new Date(str) ตีความเอง จะยึด timezone ของเครื่องรัน — บน Render ที่เป็น UTC จะเพี้ยนไป 7 ชม.)
+function parseThaiLocalDateTime(value) {
+  if (!value) return new Date(NaN);
+  const hasSeconds = /T\d{2}:\d{2}:\d{2}/.test(value);
+  const withSeconds = hasSeconds ? value : `${value}:00`;
+  return new Date(`${withSeconds}+07:00`);
+}
+
 // ---- session helpers ----
 function issueSessionCookie(res, employeeId) {
   const token = jwt.sign({ employeeId }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -1607,8 +1617,8 @@ app.post('/api/admin/challenges', requireAdmin, async (req, res) => {
     return res.status(400).json({ message: 'กรุณากรอกข้อมูลให้ครบ (หมวดกิจกรรม, ชื่อ, วันเริ่ม, วันจบ)' });
   }
 
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  const start = parseThaiLocalDateTime(startDate);
+  const end = parseThaiLocalDateTime(endDate);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start >= end) {
     return res.status(400).json({ message: 'ช่วงวันที่ไม่ถูกต้อง (วันเริ่มต้องก่อนวันจบ)' });
   }
