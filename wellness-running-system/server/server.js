@@ -2320,7 +2320,7 @@ app.post('/api/auth/line-login', async (req, res) => {
 
     if (dupRows.length > 0) {
       return res.status(409).json({
-        message: 'รหัสพนักงานนี้เชื่อมบัญชี LINE ไว้แล้ว กรุณาเข้าสู่ระบบด้วย LINE บัญชีเดิมที่เคยผูกไว้ หากเข้าไม่ได้ ติดต่อแอดมิน',
+        message: 'รหัสพนักงานนี้เชื่อมบัญชี LINE ไว้แล้ว หากเข้าไม่ได้กรุณาติดต่อแอดมิน',
         code: 'ALREADY_LINKED',
       });
     }
