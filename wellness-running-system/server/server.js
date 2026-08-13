@@ -2311,6 +2311,20 @@ app.post('/api/auth/line-login', async (req, res) => {
       });
     }
 
+    // 3.5 กันผูกซ้ำ: employee_id นี้เคยมี LINE บัญชีที่ ACTIVE ผูกอยู่แล้วหรือยัง
+    const [dupRows] = await pool.query(
+      `SELECT account_id FROM employee_account
+       WHERE employee_id = ? AND provider = 'LINE' AND status = 'ACTIVE'`,
+      [employeeId]
+    );
+
+    if (dupRows.length > 0) {
+      return res.status(409).json({
+        message: 'รหัสพนักงานนี้เชื่อมบัญชี LINE ไว้แล้ว กรุณาเข้าสู่ระบบด้วย LINE บัญชีเดิมที่เคยผูกไว้ หากเข้าไม่ได้ ติดต่อแอดมิน',
+        code: 'ALREADY_LINKED',
+      });
+    }
+
     // 4. ผูกบัญชีใหม่
     await pool.query(
       `INSERT INTO employee_account
