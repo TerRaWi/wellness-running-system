@@ -158,6 +158,8 @@ function parseThaiLocalDateTime(value) {
 }
 
 // ---- session helpers ----
+// คืนค่า token กลับไปด้วย เพื่อให้ผู้เรียกส่งต่อให้ frontend เก็บเป็น Authorization header ได้
+// (สำคัญมากสำหรับ LINE in-app browser ที่ ITP บล็อก cross-site cookie — cookie อย่างเดียวไม่พอ)
 function issueSessionCookie(res, employeeId) {
   const token = jwt.sign({ employeeId }, process.env.JWT_SECRET, { expiresIn: '7d' });
   res.cookie('session', token, {
@@ -166,11 +168,16 @@ function issueSessionCookie(res, employeeId) {
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' จำเป็นสำหรับ cross-site cookie ตอน deploy จริง
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 วัน
   });
+  return token;
 }
 
 // middleware เช็คว่า login อยู่ไหม ใช้ครอบทุก route ที่ต้อง login ก่อนเรียก
+// เช็ค Authorization: Bearer header ก่อน (ทางหลัก — ใช้ได้แม้ cross-site cookie โดนบล็อก)
+// แล้วค่อย fallback ไปเช็ค cookie (เผื่อ browser ที่ cookie ใช้ได้ปกติ)
 function requireAuth(req, res, next) {
-  const token = req.cookies.session;
+  const authHeader = req.headers.authorization || '';
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const token = bearerToken || req.cookies.session;
   if (!token) {
     return res.status(401).json({ message: 'กรุณาเข้าสู่ระบบก่อน' });
   }
@@ -2285,12 +2292,13 @@ app.post('/api/auth/line-login', async (req, res) => {
         [account.employee_id]
       );
 
-      issueSessionCookie(res, account.employee_id);
+      const sessionToken1 = issueSessionCookie(res, account.employee_id);
       return res.json({
         linked: true,
         employeeId: account.employee_id,
         displayName,
         needsHealthAssessment: assessmentRows.length === 0,
+        token: sessionToken1,
       });
     }
 
@@ -2333,8 +2341,8 @@ app.post('/api/auth/line-login', async (req, res) => {
       [employeeId, lineUserId, displayName, pictureUrl]
     );
 
-    issueSessionCookie(res, employeeId);
-    res.json({ linked: true, employeeId, displayName, needsHealthAssessment: true });
+    const sessionToken2 = issueSessionCookie(res, employeeId);
+    res.json({ linked: true, employeeId, displayName, needsHealthAssessment: true, token: sessionToken2 });
   } catch (err) {
     console.error('line-login error:', err);
     res.status(500).json({ message: 'internal error' });
