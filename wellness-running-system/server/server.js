@@ -902,7 +902,10 @@ app.post('/api/admin/login', async (req, res) => {
       maxAge: 8 * 60 * 60 * 1000,
     });
 
-    res.json({ employeeId: account.employee_id, role: 'ADMIN' });
+    // ส่ง token กลับไปด้วย เพื่อให้ frontend เก็บเป็น Authorization header ได้
+    // (cross-site cookie ระหว่าง frontend/backend คนละโดเมนมักถูกเบราว์เซอร์บล็อก
+    // เหมือนที่เคยแก้ฝั่ง /api/auth/line-login ไปแล้ว — จุดนี้เป็นบั๊กเดียวกันที่ยังไม่ได้แก้)
+    res.json({ employeeId: account.employee_id, role: 'ADMIN', token });
   } catch (err) {
     console.error('admin login error:', err);
     res.status(500).json({ message: 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
@@ -916,8 +919,12 @@ app.post('/api/admin/logout', (req, res) => {
 
 // middleware เช็คสิทธิ์แอดมิน เช็คสดจาก DB ทุกครั้ง (ไม่เชื่อแค่ค่าใน JWT)
 // เผื่อโดนถอด role หรือลาออกระหว่าง session 8 ชม. ยังไม่หมดอายุ
+// เช็ค Authorization: Bearer header ก่อน (ทางหลัก — ใช้ได้แม้ cross-site cookie โดนบล็อก)
+// แล้วค่อย fallback ไปเช็ค cookie (เผื่อ browser ที่ cookie ใช้ได้ปกติ) — แพทเทิร์นเดียวกับ requireAuth
 async function requireAdmin(req, res, next) {
-  const token = req.cookies.admin_session;
+  const authHeader = req.headers.authorization || '';
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const token = bearerToken || req.cookies.admin_session;
   if (!token) {
     return res.status(401).json({ message: 'กรุณาเข้าสู่ระบบแอดมินก่อน' });
   }

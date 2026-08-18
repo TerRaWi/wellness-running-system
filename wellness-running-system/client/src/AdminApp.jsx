@@ -150,6 +150,31 @@ export default function AdminApp() {
   const [authChecked, setAuthChecked] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [adminId, setAdminId] = useState(null);
+  // token สำหรับ header Authorization — ใช้แทน cookie เพราะ cross-site cookie
+  // ระหว่าง frontend (Vercel) กับ backend (Render) มักถูกเบราว์เซอร์บล็อก
+  // (แพทเทิร์นเดียวกับที่ใช้ฝั่งพนักงานใน App.jsx)
+  const [adminToken, setAdminToken] = useState(() => sessionStorage.getItem('adminToken') || null);
+
+  function saveAdminToken(token) {
+    setAdminToken(token);
+    if (token) {
+      sessionStorage.setItem('adminToken', token);
+    } else {
+      sessionStorage.removeItem('adminToken');
+    }
+  }
+
+  // เรียกใช้แทน { credentials: 'include' } เดิม — แนบทั้ง token header และ cookie
+  function adminFetchOptions(extra = {}) {
+    return {
+      ...extra,
+      credentials: 'include',
+      headers: {
+        ...(extra.headers || {}),
+        ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+      },
+    };
+  }
 
   const [loginEmployeeId, setLoginEmployeeId] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -319,7 +344,7 @@ export default function AdminApp() {
   useEffect(() => {
     async function checkAuth() {
       try {
-        const res = await fetch(`${API_BASE}/api/admin/me`, { credentials: 'include' });
+        const res = await fetch(`${API_BASE}/api/admin/me`, adminFetchOptions());
         if (res.ok) {
           const data = await res.json();
           setAdminId(data.employeeId);
@@ -338,9 +363,7 @@ export default function AdminApp() {
     setDashboardLoading(true);
     setDashboardError('');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/dashboard`, {
-        credentials: 'include',
-      });
+      const res = await fetch(`${API_BASE}/api/admin/dashboard`, adminFetchOptions());
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'โหลดข้อมูลแดชบอร์ดไม่สำเร็จ');
@@ -364,9 +387,7 @@ export default function AdminApp() {
     setListLoading(true);
     setListError('');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/submissions?status=${statusFilter}`, {
-        credentials: 'include',
-      });
+      const res = await fetch(`${API_BASE}/api/admin/submissions?status=${statusFilter}`, adminFetchOptions());
       const data = await res.json().catch(() => []);
       if (!res.ok) {
         throw new Error(data.message || 'โหลดรายการไม่สำเร็จ');
@@ -392,9 +413,7 @@ export default function AdminApp() {
 
     async function loadRejectReasons() {
       try {
-        const res = await fetch(`${API_BASE}/api/admin/reject-reasons`, {
-          credentials: 'include',
-        });
+        const res = await fetch(`${API_BASE}/api/admin/reject-reasons`, adminFetchOptions());
         const data = await res.json().catch(() => []);
         if (res.ok) {
           setRejectReasons(data);
@@ -413,12 +432,11 @@ export default function AdminApp() {
     setLoginError('');
 
     try {
-      const res = await fetch(`${API_BASE}/api/admin/login`, {
+      const res = await fetch(`${API_BASE}/api/admin/login`, adminFetchOptions({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ employeeId: loginEmployeeId.trim(), password: loginPassword }),
-      });
+body: JSON.stringify({ employeeId: loginEmployeeId.trim(), password: loginPassword }),
+      }));
 
       const data = await res.json().catch(() => ({}));
 
@@ -428,6 +446,7 @@ export default function AdminApp() {
 
       setAdminId(data.employeeId);
       setIsLoggedIn(true);
+      saveAdminToken(data.token);
       setLoginPassword('');
     } catch (err) {
       setLoginError(err.message || 'เกิดข้อผิดพลาด');
@@ -438,15 +457,15 @@ export default function AdminApp() {
 
   async function handleLogout() {
     try {
-      await fetch(`${API_BASE}/api/admin/logout`, {
+      await fetch(`${API_BASE}/api/admin/logout`, adminFetchOptions({
         method: 'POST',
-        credentials: 'include',
-      });
+}));
     } catch (err) {
       console.error('logout error:', err);
     } finally {
       setIsLoggedIn(false);
       setAdminId(null);
+      saveAdminToken(null);
       setSubmissions([]);
       setRedeems([]);
       setChallenges([]);
@@ -457,9 +476,7 @@ export default function AdminApp() {
     setRedeemListLoading(true);
     setRedeemListError('');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/redeems?status=${redeemStatusFilter}`, {
-        credentials: 'include',
-      });
+      const res = await fetch(`${API_BASE}/api/admin/redeems?status=${redeemStatusFilter}`, adminFetchOptions());
       const data = await res.json().catch(() => []);
       if (!res.ok) {
         throw new Error(data.message || 'โหลดรายการไม่สำเร็จ');
@@ -483,10 +500,9 @@ export default function AdminApp() {
     setRedeemActioningId(redeemId);
     setRedeemActionError('');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/redeems/${redeemId}/approve`, {
+      const res = await fetch(`${API_BASE}/api/admin/redeems/${redeemId}/approve`, adminFetchOptions({
         method: 'POST',
-        credentials: 'include',
-      });
+}));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'อนุมัติไม่สำเร็จ');
@@ -508,10 +524,9 @@ export default function AdminApp() {
     setRedeemActioningId(redeemId);
     setRedeemActionError('');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/redeems/${redeemId}/reject`, {
+      const res = await fetch(`${API_BASE}/api/admin/redeems/${redeemId}/reject`, adminFetchOptions({
         method: 'POST',
-        credentials: 'include',
-      });
+}));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'ปฏิเสธไม่สำเร็จ');
@@ -528,7 +543,7 @@ export default function AdminApp() {
     setChallengeListLoading(true);
     setChallengeListError('');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/challenges`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE}/api/admin/challenges`, adminFetchOptions());
       const data = await res.json().catch(() => []);
       if (!res.ok) {
         throw new Error(data.message || 'โหลดรายการ challenge ไม่สำเร็จ');
@@ -547,7 +562,7 @@ export default function AdminApp() {
 
     async function loadChallengeCategories() {
       try {
-        const res = await fetch(`${API_BASE}/api/admin/activity-categories`, { credentials: 'include' });
+        const res = await fetch(`${API_BASE}/api/admin/activity-categories`, adminFetchOptions());
         if (res.ok) {
           setChallengeCategories(await res.json());
         }
@@ -581,18 +596,17 @@ export default function AdminApp() {
 
     setCreateChallengeSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/challenges`, {
+      const res = await fetch(`${API_BASE}/api/admin/challenges`, adminFetchOptions({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+body: JSON.stringify({
           categoryId: newChallengeCategoryId,
           challengeName: newChallengeName.trim(),
           description: newChallengeDescription.trim(),
           startDate: newChallengeStartDate,
           endDate: newChallengeEndDate,
         }),
-      });
+      }));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'สร้าง challenge ไม่สำเร็จ');
@@ -618,10 +632,9 @@ export default function AdminApp() {
     setChallengeActioningId(challengeId);
     setChallengeActionError('');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/challenges/${challengeId}/cancel`, {
+      const res = await fetch(`${API_BASE}/api/admin/challenges/${challengeId}/cancel`, adminFetchOptions({
         method: 'POST',
-        credentials: 'include',
-      });
+}));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'ยกเลิกไม่สำเร็จ');
@@ -642,9 +655,7 @@ export default function AdminApp() {
     setParticipants([]);
 
     try {
-      const res = await fetch(`${API_BASE}/api/admin/challenges/${challengeId}/participants`, {
-        credentials: 'include',
-      });
+      const res = await fetch(`${API_BASE}/api/admin/challenges/${challengeId}/participants`, adminFetchOptions());
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'โหลดรายชื่อผู้เข้าร่วมไม่สำเร็จ');
@@ -675,7 +686,7 @@ export default function AdminApp() {
     setBadgeListLoading(true);
     setBadgeListError('');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/badges`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE}/api/admin/badges`, adminFetchOptions());
       const data = await res.json().catch(() => []);
       if (!res.ok) {
         throw new Error(data.message || 'โหลดรายการ badge ไม่สำเร็จ');
@@ -714,11 +725,10 @@ export default function AdminApp() {
       }
 
       // ห้ามใส่ header Content-Type เอง ปล่อยให้ browser ตั้ง boundary ของ multipart ให้อัตโนมัติ
-      const res = await fetch(`${API_BASE}/api/admin/badges`, {
+      const res = await fetch(`${API_BASE}/api/admin/badges`, adminFetchOptions({
         method: 'POST',
-        credentials: 'include',
-        body: formData,
-      });
+body: formData,
+      }));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'สร้าง เหรียญตรา ไม่สำเร็จ');
@@ -777,11 +787,10 @@ export default function AdminApp() {
       }
       // ไม่แนบทั้งไฟล์ใหม่และ removeIcon -> เซิร์ฟเวอร์คงรูปเดิมไว้ตามปกติ
 
-      const res = await fetch(`${API_BASE}/api/admin/badges/${badgeId}`, {
+      const res = await fetch(`${API_BASE}/api/admin/badges/${badgeId}`, adminFetchOptions({
         method: 'PUT',
-        credentials: 'include',
-        body: formData,
-      });
+body: formData,
+      }));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'แก้ไข badge ไม่สำเร็จ');
@@ -800,18 +809,17 @@ export default function AdminApp() {
   async function handleToggleBadgeStatus(badge) {
     setBadgeActioningId(badge.badge_id);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/badges/${badge.badge_id}`, {
+      const res = await fetch(`${API_BASE}/api/admin/badges/${badge.badge_id}`, adminFetchOptions({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+body: JSON.stringify({
           badgeName: badge.badge_name,
           description: badge.description,
           conditionType: badge.condition_type,
           conditionValue: badge.condition_value,
           status: badge.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE',
         }),
-      });
+      }));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'เปลี่ยนสถานะไม่สำเร็จ');
@@ -829,7 +837,7 @@ export default function AdminApp() {
     setCategoryListLoading(true);
     setCategoryListError('');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/categories`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE}/api/admin/categories`, adminFetchOptions());
       const data = await res.json().catch(() => []);
       if (!res.ok) {
         throw new Error(data.message || 'โหลดรายการหมวดหมู่ไม่สำเร็จ');
@@ -856,12 +864,11 @@ export default function AdminApp() {
     }
     setCategoryFormSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/categories`, {
+      const res = await fetch(`${API_BASE}/api/admin/categories`, adminFetchOptions({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ categoryName: categoryForm.categoryName.trim() }),
-      });
+body: JSON.stringify({ categoryName: categoryForm.categoryName.trim() }),
+      }));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'สร้างหมวดหมู่ไม่สำเร็จ');
@@ -894,15 +901,14 @@ export default function AdminApp() {
     }
     setCategoryActioningId(categoryId);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/categories/${categoryId}`, {
+      const res = await fetch(`${API_BASE}/api/admin/categories/${categoryId}`, adminFetchOptions({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+body: JSON.stringify({
           categoryName: editCategoryForm.categoryName.trim(),
           status: editCategoryForm.status,
         }),
-      });
+      }));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'แก้ไขหมวดหมู่ไม่สำเร็จ');
@@ -919,15 +925,14 @@ export default function AdminApp() {
   async function handleToggleCategoryStatus(cat) {
     setCategoryActioningId(cat.category_id);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/categories/${cat.category_id}`, {
+      const res = await fetch(`${API_BASE}/api/admin/categories/${cat.category_id}`, adminFetchOptions({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+body: JSON.stringify({
           categoryName: cat.category_name,
           status: cat.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE',
         }),
-      });
+      }));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'เปลี่ยนสถานะไม่สำเร็จ');
@@ -945,7 +950,7 @@ export default function AdminApp() {
     setAdminListLoading(true);
     setAdminListError('');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/admins`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE}/api/admin/admins`, adminFetchOptions());
       const data = await res.json().catch(() => []);
       if (!res.ok) {
         throw new Error(data.message || 'โหลดรายชื่อแอดมินไม่สำเร็จ');
@@ -976,15 +981,14 @@ export default function AdminApp() {
     }
     setAdminFormSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/admins`, {
+      const res = await fetch(`${API_BASE}/api/admin/admins`, adminFetchOptions({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+body: JSON.stringify({
           employeeId: adminForm.employeeId.trim(),
           password: adminForm.password,
         }),
-      });
+      }));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'ตั้งค่าแอดมินไม่สำเร็จ');
@@ -1002,10 +1006,9 @@ export default function AdminApp() {
     if (!window.confirm(`ยืนยันถอดสิทธิ์แอดมินของ ${employeeId}?`)) return;
     setAdminActioningId(employeeId);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/admins/${employeeId}/revoke`, {
+      const res = await fetch(`${API_BASE}/api/admin/admins/${employeeId}/revoke`, adminFetchOptions({
         method: 'POST',
-        credentials: 'include',
-      });
+}));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'ถอดสิทธิ์แอดมินไม่สำเร็จ');
@@ -1023,7 +1026,7 @@ export default function AdminApp() {
     setCampaignListLoading(true);
     setCampaignListError('');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/campaigns`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE}/api/admin/campaigns`, adminFetchOptions());
       const data = await res.json().catch(() => []);
       if (!res.ok) {
         throw new Error(data.message || 'โหลดรายการรอบ follow-up ไม่สำเร็จ');
@@ -1064,17 +1067,16 @@ export default function AdminApp() {
 
     setCampaignFormSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/campaigns`, {
+      const res = await fetch(`${API_BASE}/api/admin/campaigns`, adminFetchOptions({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+body: JSON.stringify({
           campaignName: campaignForm.campaignName.trim(),
           releaseDate: campaignForm.releaseDate,
           closeDate: campaignForm.closeDate || null,
           includedFields: campaignForm.includedFields,
         }),
-      });
+      }));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'สร้างรอบ follow-up ไม่สำเร็จ');
@@ -1092,10 +1094,9 @@ export default function AdminApp() {
     const action = campaign.status === 'OPEN' ? 'close' : 'open';
     setCampaignActioningId(campaign.campaign_id);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/campaigns/${campaign.campaign_id}/${action}`, {
+      const res = await fetch(`${API_BASE}/api/admin/campaigns/${campaign.campaign_id}/${action}`, adminFetchOptions({
         method: 'POST',
-        credentials: 'include',
-      });
+}));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'เปลี่ยนสถานะไม่สำเร็จ');
@@ -1113,7 +1114,7 @@ export default function AdminApp() {
     setHealthListLoading(true);
     setHealthListError('');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/health-assessments`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE}/api/admin/health-assessments`, adminFetchOptions());
       const data = await res.json().catch(() => []);
       if (!res.ok) {
         throw new Error(data.message || 'โหลดข้อมูลสุขภาพพนักงานไม่สำเร็จ');
@@ -1137,7 +1138,7 @@ export default function AdminApp() {
     setHealthDetailError('');
     setHealthDetailLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/health-assessments/${employeeId}`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE}/api/admin/health-assessments/${employeeId}`, adminFetchOptions());
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'โหลดรายละเอียดไม่สำเร็จ');
@@ -1161,7 +1162,7 @@ export default function AdminApp() {
     setActivityTypeListLoading(true);
     setActivityTypeListError('');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/activity-types`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE}/api/admin/activity-types`, adminFetchOptions());
       const data = await res.json().catch(() => []);
       if (!res.ok) {
         throw new Error(data.message || 'โหลดรายการประเภทกิจกรรมไม่สำเร็จ');
@@ -1190,18 +1191,17 @@ export default function AdminApp() {
     }
     setActivityTypeFormSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/activity-types`, {
+      const res = await fetch(`${API_BASE}/api/admin/activity-types`, adminFetchOptions({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+body: JSON.stringify({
           categoryId: activityTypeForm.categoryId,
           activityName: activityTypeForm.activityName.trim(),
           score: activityTypeForm.score,
           requireImage: activityTypeForm.requireImage,
           description: activityTypeForm.description.trim(),
         }),
-      });
+      }));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'สร้างประเภทกิจกรรมไม่สำเร็จ');
@@ -1245,11 +1245,10 @@ export default function AdminApp() {
     }
     setActivityTypeActioningId(activityId);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/activity-types/${activityId}`, {
+      const res = await fetch(`${API_BASE}/api/admin/activity-types/${activityId}`, adminFetchOptions({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+body: JSON.stringify({
           categoryId: editActivityTypeForm.categoryId,
           activityName: editActivityTypeForm.activityName.trim(),
           score: editActivityTypeForm.score,
@@ -1257,7 +1256,7 @@ export default function AdminApp() {
           description: editActivityTypeForm.description.trim(),
           status: editActivityTypeForm.status,
         }),
-      });
+      }));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'แก้ไขประเภทกิจกรรมไม่สำเร็จ');
@@ -1274,11 +1273,10 @@ export default function AdminApp() {
   async function handleToggleActivityTypeStatus(a) {
     setActivityTypeActioningId(a.activity_id);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/activity-types/${a.activity_id}`, {
+      const res = await fetch(`${API_BASE}/api/admin/activity-types/${a.activity_id}`, adminFetchOptions({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+body: JSON.stringify({
           categoryId: a.category_id,
           activityName: a.activity_name,
           score: a.score,
@@ -1286,7 +1284,7 @@ export default function AdminApp() {
           description: a.description,
           status: a.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE',
         }),
-      });
+      }));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'เปลี่ยนสถานะไม่สำเร็จ');
@@ -1304,7 +1302,7 @@ export default function AdminApp() {
     setRewardListLoading(true);
     setRewardListError('');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/rewards`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE}/api/admin/rewards`, adminFetchOptions());
       const data = await res.json().catch(() => []);
       if (!res.ok) {
         throw new Error(data.message || 'โหลดรายการของรางวัลไม่สำเร็จ');
@@ -1340,11 +1338,10 @@ export default function AdminApp() {
         formData.append('imageFile', rewardImageFile);
       }
 
-      const res = await fetch(`${API_BASE}/api/admin/rewards`, {
+      const res = await fetch(`${API_BASE}/api/admin/rewards`, adminFetchOptions({
         method: 'POST',
-        credentials: 'include',
-        body: formData,
-      });
+body: formData,
+      }));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'สร้างของรางวัลไม่สำเร็จ');
@@ -1401,11 +1398,10 @@ export default function AdminApp() {
         formData.append('removeImage', 'true');
       }
 
-      const res = await fetch(`${API_BASE}/api/admin/rewards/${rewardId}`, {
+      const res = await fetch(`${API_BASE}/api/admin/rewards/${rewardId}`, adminFetchOptions({
         method: 'PUT',
-        credentials: 'include',
-        body: formData,
-      });
+body: formData,
+      }));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'แก้ไขของรางวัลไม่สำเร็จ');
@@ -1431,11 +1427,10 @@ export default function AdminApp() {
       formData.append('description', r.description || '');
       formData.append('status', r.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE');
 
-      const res = await fetch(`${API_BASE}/api/admin/rewards/${r.reward_id}`, {
+      const res = await fetch(`${API_BASE}/api/admin/rewards/${r.reward_id}`, adminFetchOptions({
         method: 'PUT',
-        credentials: 'include',
-        body: formData,
-      });
+body: formData,
+      }));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'เปลี่ยนสถานะไม่สำเร็จ');
@@ -1452,10 +1447,9 @@ export default function AdminApp() {
     setActioningId(submissionId);
     setActionError('');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/submissions/${submissionId}/approve`, {
+      const res = await fetch(`${API_BASE}/api/admin/submissions/${submissionId}/approve`, adminFetchOptions({
         method: 'POST',
-        credentials: 'include',
-      });
+}));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'อนุมัติไม่สำเร็จ');
@@ -1503,15 +1497,14 @@ export default function AdminApp() {
     setRejectError('');
 
     try {
-      const res = await fetch(`${API_BASE}/api/admin/submissions/${submissionId}/reject`, {
+      const res = await fetch(`${API_BASE}/api/admin/submissions/${submissionId}/reject`, adminFetchOptions({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+body: JSON.stringify({
           reasonId: rejectReasonId,
           note: rejectNoteRequired ? rejectNote.trim() : '',
         }),
-      });
+      }));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'ปฏิเสธไม่สำเร็จ');
