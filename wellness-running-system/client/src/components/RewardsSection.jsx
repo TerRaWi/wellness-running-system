@@ -59,7 +59,7 @@ export default function RewardsSection({
               </div>
               <div className="ws-tile-actions">
                 <button
-                  className="ws-btn ws-btn-primary"
+                  className={`ws-btn ws-btn-primary${canAfford && inStock ? ' ws-btn-shine' : ''}`}
                   onClick={() => onRedeem(r.reward_id)}
                   disabled={!canAfford || !inStock || isRedeeming}
                 >

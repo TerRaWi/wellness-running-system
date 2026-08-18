@@ -20,7 +20,7 @@ export default function NewBadgePopup({ badges, apiBase, onClose }) {
             </div>
           ))}
         </div>
-        <button className="ws-btn ws-btn-primary" onClick={onClose}>รับทราบ</button>
+        <button className="ws-btn ws-btn-primary ws-btn-shine" onClick={onClose}>รับทราบ</button>
       </div>
     </div>
   );

@@ -97,9 +97,31 @@
 }
 
 /* -------------------------------------------------------------------------
-   3) BUTTONS — มน, มี hover/active/disabled ชัดเจน
+   3) BUTTONS
+   คอนเซปต์: "ก้าววิ่ง" — ปุ่มมีลูกเล่นที่สื่อถึงการเคลื่อนไหว/จังหวะการวิ่ง
+     - hover  = แถบแสง "sheen" พาดเฉียงคล้ายเส้นความเร็ว (speed line) + ยกตัวขึ้นเบา ๆ
+     - active = สปริงยุบ-เด้งคล้ายจังหวะก้าวเท้าลงพื้นแล้วออกแรงถีบตัว
+     - ws-btn-shine = ปุ่มโมเมนต์พิเศษ (แลกของรางวัล/เข้าร่วมชาเลนจ์/รับ badge)
+       มีวงแสงเบา ๆ เต้นตุบ ๆ ดึงสายตา หยุดเองเมื่อ hover หรือ disabled
    ------------------------------------------------------------------------- */
+@keyframes ws-btn-sheen {
+  from { transform: translateX(-150%) skewX(-20deg); }
+  to   { transform: translateX(250%) skewX(-20deg); }
+}
+@keyframes ws-btn-press {
+  0%   { transform: scale(1, 1); }
+  40%  { transform: scale(0.92, 0.88); }
+  70%  { transform: scale(1.03, 1.05); }
+  100% { transform: scale(1, 1); }
+}
+@keyframes ws-btn-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(226, 162, 60, 0.45); }
+  50%      { box-shadow: 0 0 0 9px rgba(226, 162, 60, 0); }
+}
+
 .ws-btn {
+  position: relative;
+  overflow: hidden;
   font-family: var(--ws-font);
   font-size: 15px;
   font-weight: 600;
@@ -113,21 +135,37 @@
   justify-content: center;
   gap: 6px;
   transition: background var(--ws-transition), border-color var(--ws-transition),
-    transform var(--ws-transition), box-shadow var(--ws-transition), opacity var(--ws-transition);
+    transform 180ms ease, box-shadow var(--ws-transition), opacity var(--ws-transition);
   white-space: nowrap;
 }
-.ws-btn:active { transform: scale(0.97); }
+/* แถบแสงพาดเฉียง ใช้สีของตัวอักษรปุ่มเอง (currentColor) เลยเข้ากับทุก variant อัตโนมัติ */
+.ws-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  background: linear-gradient(120deg, transparent, color-mix(in srgb, currentColor 35%, transparent), transparent);
+  transform: translateX(-150%) skewX(-20deg);
+  pointer-events: none;
+}
+.ws-btn:hover:not(:disabled)::before { animation: ws-btn-sheen 0.65s ease; }
+.ws-btn:active:not(:disabled) { animation: ws-btn-press 0.38s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
 .ws-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+  animation: none;
 }
 
 .ws-btn-primary {
   background: var(--ws-primary);
   color: #fff;
 }
-.ws-btn-primary:hover:not(:disabled) { background: var(--ws-primary-hover); box-shadow: var(--ws-shadow-sm); }
+.ws-btn-primary:hover:not(:disabled) {
+  background: var(--ws-primary-hover);
+  box-shadow: 0 8px 18px rgba(47, 158, 143, 0.32);
+  transform: translateY(-2px);
+}
 .ws-btn-primary:active:not(:disabled) { background: var(--ws-primary-active); }
 
 .ws-btn-secondary {
@@ -138,6 +176,8 @@
 .ws-btn-secondary:hover:not(:disabled) {
   background: var(--ws-primary-light);
   border-color: var(--ws-primary);
+  transform: translateY(-1px);
+  box-shadow: var(--ws-shadow-sm);
 }
 
 .ws-btn-ghost {
@@ -158,9 +198,15 @@
 .ws-btn-danger:hover:not(:disabled) {
   background: var(--ws-danger);
   color: #fff;
+  box-shadow: 0 8px 18px rgba(207, 74, 66, 0.3);
 }
 
 .ws-btn-sm { padding: 6px 14px; font-size: 13px; }
+
+/* ปุ่มโมเมนต์พิเศษ — แลกของรางวัล / เข้าร่วมชาเลนจ์ / รับทราบ badge ใหม่ */
+.ws-btn-shine { animation: ws-btn-glow-pulse 2.2s ease-in-out infinite; }
+.ws-btn-shine:hover:not(:disabled) { animation-play-state: paused; }
+.ws-btn-shine:disabled { animation: none; box-shadow: none; }
 
 /* -------------------------------------------------------------------------
    4) INPUTS

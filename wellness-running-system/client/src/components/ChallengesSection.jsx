@@ -83,7 +83,7 @@ export default function ChallengesSection({
                       <option value="PUBLIC">แสดงชื่อจริง</option>
                       <option value="ANONYMOUS">ไม่ระบุตัวตน</option>
                     </select>
-                    <button className="ws-btn ws-btn-primary ws-btn-sm" onClick={() => onJoinChallenge(c.challenge_id)} disabled={isJoining}>
+                    <button className="ws-btn ws-btn-primary ws-btn-sm ws-btn-shine" onClick={() => onJoinChallenge(c.challenge_id)} disabled={isJoining}>
                       {isJoining ? 'กำลังเข้าร่วม...' : 'เข้าร่วม'}
                     </button>
                   </>
