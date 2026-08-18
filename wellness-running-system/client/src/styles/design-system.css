@@ -10,32 +10,37 @@
 
 /* -------------------------------------------------------------------------
    1) DESIGN TOKENS
-   โทนหลัก: เขียวอมฟ้า (teal) สื่อถึงสุขภาพ/ความสดชื่น ไม่ฉูดฉาด
-   สีทอง/อำพัน ใช้เฉพาะจุดที่เกี่ยวกับรางวัล/เหรียญตรา ให้ความรู้สึกพิเศษ
+   จัดเต็มสีสัน — โทนหลักเขียวมรกต/ฟ้าทะเลสาบ สดใสมีชีวิตชีวา (ไม่ใช่ teal หม่น ๆ แบบเดิม)
+   สีทอง/อำพัน (แบบ trophy gold ไล่โทนส้ม) ใช้เฉพาะจุดรางวัล/เหรียญตรา ให้รู้สึกพิเศษ
+   ใช้ gradient แบบเจาะจง (ปุ่มหลัก, ตัวเลขสถิติ, วงกลม badge) แทนสีล้วนในบางจุด
+   เพื่อความสนุก/มีมิติ แต่ยังคุมโทนเดียวต่อองค์ประกอบ ไม่ผสมหลายสีจนลายตา
    ------------------------------------------------------------------------- */
 :root {
-  /* Primary — teal (ปุ่มหลัก, ลิงก์, ไฮไลต์) */
-  --ws-primary: #2f9e8f;
-  --ws-primary-hover: #278a7d;
-  --ws-primary-active: #226f64;
-  --ws-primary-light: #e6f5f3;
-  --ws-primary-border: #bfe3dd;
+  /* Primary — เขียวมรกตสดใส (ปุ่มหลัก, ลิงก์, ไฮไลต์) */
+  --ws-primary: #0eab8f;
+  --ws-primary-hover: #0c8f78;
+  --ws-primary-active: #0a7563;
+  --ws-primary-light: #e3f8f3;
+  --ws-primary-border: #a8e6d9;
+  --ws-primary-gradient: linear-gradient(135deg, #22d3ae 0%, #0c8f78 100%);
+  --ws-primary-gradient-hover: linear-gradient(135deg, #14c6a3 0%, #0a7563 100%);
 
-  /* Accent — amber (รางวัล/เหรียญตรา) */
-  --ws-accent: #e2a23c;
-  --ws-accent-hover: #cc8f31;
-  --ws-accent-light: #fbf1de;
+  /* Accent — ทองรางวัล ไล่โทนส้ม (รางวัล/เหรียญตรา) */
+  --ws-accent: #f5a623;
+  --ws-accent-hover: #dd8f14;
+  --ws-accent-light: #fdf0d9;
+  --ws-accent-gradient: linear-gradient(135deg, #ffc856 0%, #f5a623 55%, #e8791f 100%);
 
-  /* Status */
-  --ws-success: #3f9e5f;
-  --ws-success-bg: #e9f6ed;
-  --ws-warning: #b8791f;
-  --ws-warning-bg: #fdf3e1;
-  --ws-danger: #cf4a42;
-  --ws-danger-hover: #b73f38;
-  --ws-danger-bg: #fbeceb;
-  --ws-info: #3b74c4;
-  --ws-info-bg: #eaf1fb;
+  /* Status — สดขึ้นกว่าเดิมแต่ยังอ่านง่าย */
+  --ws-success: #22b573;
+  --ws-success-bg: #e4f9ee;
+  --ws-warning: #d98a1a;
+  --ws-warning-bg: #fdf1dc;
+  --ws-danger: #ef5350;
+  --ws-danger-hover: #e13d3a;
+  --ws-danger-bg: #fdecec;
+  --ws-info: #4f8ef7;
+  --ws-info-bg: #ecf3fe;
 
   /* Neutrals */
   --ws-bg: #f5f7f7;
@@ -115,8 +120,8 @@
   100% { transform: scale(1, 1); }
 }
 @keyframes ws-btn-glow-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(226, 162, 60, 0.45); }
-  50%      { box-shadow: 0 0 0 9px rgba(226, 162, 60, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 166, 35, 0.45); }
+  50%      { box-shadow: 0 0 0 9px rgba(245, 166, 35, 0); }
 }
 
 .ws-btn {
@@ -158,12 +163,12 @@
 }
 
 .ws-btn-primary {
-  background: var(--ws-primary);
+  background: var(--ws-primary-gradient);
   color: #fff;
 }
 .ws-btn-primary:hover:not(:disabled) {
-  background: var(--ws-primary-hover);
-  box-shadow: 0 8px 18px rgba(47, 158, 143, 0.32);
+  background: var(--ws-primary-gradient-hover);
+  box-shadow: 0 8px 20px rgba(14, 171, 143, 0.4);
   transform: translateY(-2px);
 }
 .ws-btn-primary:active:not(:disabled) { background: var(--ws-primary-active); }
@@ -261,15 +266,15 @@
   --ws-field-metric-border: var(--ws-primary-border);
   --ws-field-metric-light: var(--ws-primary-light);
 
-  --ws-field-choice: #3d6fb4;
-  --ws-field-choice-hover: #325d99;
-  --ws-field-choice-border: #c3d4ea;
-  --ws-field-choice-light: #eaf1fb;
+  --ws-field-choice: #4f8ef7;
+  --ws-field-choice-hover: #3672db;
+  --ws-field-choice-border: #c7dcfb;
+  --ws-field-choice-light: #ecf3fe;
 
-  --ws-field-note: #8266ad;
-  --ws-field-note-hover: #6f5695;
-  --ws-field-note-border: #dcd0ec;
-  --ws-field-note-light: #f2eefa;
+  --ws-field-note: #9b6fd6;
+  --ws-field-note-hover: #8355c2;
+  --ws-field-note-border: #e4d7f7;
+  --ws-field-note-light: #f6f0fd;
 }
 
 /* ตัวเลข/ค่าที่วัดได้ → เขียวอมฟ้า */
@@ -415,7 +420,11 @@
 .ws-stat-value {
   font-size: 28px;
   font-weight: 700;
-  color: var(--ws-primary);
+  background: var(--ws-primary-gradient);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--ws-primary); /* fallback ถ้าเบราว์เซอร์ไม่รองรับ background-clip:text */
 }
 
 /* -------------------------------------------------------------------------
@@ -438,7 +447,7 @@
 .ws-badge-neutral { background: var(--ws-border);     color: var(--ws-text-secondary); }
 .ws-badge-accent  { background: var(--ws-accent-light); color: var(--ws-accent-hover); }
 
-/* วงกลมไอคอนเหรียญตรา (badge/reward icon) */
+/* วงกลมไอคอนเหรียญตรา (badge/reward icon) — ขอบไล่โทนทองแบบ trophy shine */
 .ws-icon-circle {
   border-radius: 50%;
   overflow: hidden;
@@ -446,8 +455,12 @@
   align-items: center;
   justify-content: center;
   background: var(--ws-accent-light);
-  border: 2px solid var(--ws-accent);
+  border: 2.5px solid transparent;
+  background-image: linear-gradient(var(--ws-accent-light), var(--ws-accent-light)), var(--ws-accent-gradient);
+  background-origin: border-box;
+  background-clip: content-box, border-box;
   flex-shrink: 0;
+  transition: transform var(--ws-transition), box-shadow var(--ws-transition);
 }
 .ws-icon-circle img { width: 100%; height: 100%; object-fit: cover; }
 
@@ -605,9 +618,9 @@
   transition: box-shadow var(--ws-transition), transform var(--ws-transition), border-color var(--ws-transition);
 }
 .ws-tile:hover {
-  box-shadow: var(--ws-shadow-md);
-  border-color: var(--ws-border-strong);
-  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(245, 166, 35, 0.22), var(--ws-shadow-md);
+  border-color: var(--ws-accent);
+  transform: translateY(-3px);
 }
 .ws-tile-image {
   width: 100%;
