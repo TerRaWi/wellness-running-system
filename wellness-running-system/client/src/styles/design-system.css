@@ -79,11 +79,15 @@
 
 /* -------------------------------------------------------------------------
    2) BASE
+   พื้นหลังไล่เฉดอ่อน ๆ แทนสีเทาแบนทึบ — มินต์สดใสมุมบนซ้าย ไปครีมอุ่นทองมุมล่างขวา
+   fixed attachment กันลายเลื่อนตอน scroll หน้ายาว การ์ดพื้นขาวด้านบนยังคอนทราสต์ชัดเจน
    ------------------------------------------------------------------------- */
 .ws-app, body {
   font-family: var(--ws-font);
   color: var(--ws-text);
-  background: var(--ws-bg);
+  background: linear-gradient(160deg, #eafaf5 0%, #f5f7f7 45%, #fdf3e2 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
 }
 
 .ws-app * {
