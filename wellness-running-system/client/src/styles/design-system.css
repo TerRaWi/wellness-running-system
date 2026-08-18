@@ -195,6 +195,144 @@
 }
 
 /* -------------------------------------------------------------------------
+   4b) FIELD COLOR CODING
+   แยกสีช่องกรอกตาม "ชนิดของการกรอก" ไม่ใช่สุ่มสี — ผู้ใช้จะเรียนรู้ความหมาย
+   ของสีได้ทันทีและใช้ซ้ำได้ทั้งแอป (ทั้งฝั่งพนักงานและแอดมิน):
+     - เขียวอมฟ้า (metric)  = ตัวเลข/ค่าที่วัดได้ เช่น ระยะทาง น้ำหนัก ส่วนสูง อายุ คะแนน
+     - น้ำเงิน   (choice)  = ค่าที่เลือกจากตัวเลือก เช่น dropdown, วันที่, ประเภท
+     - ม่วงพลัม  (note)    = ข้อความอิสระ เช่น หมายเหตุ ชื่อ คำอธิบาย ไฟล์แนบ
+   ใช้ตัวเลือก attribute (type=...) จับคู่อัตโนมัติ ไม่ต้องแก้ className ในไฟล์อื่น
+   เพื่อให้คงเส้นคงวาทั้งระบบโดยแก้ที่ไฟล์เดียว
+   หลักการ UX ที่ยังคงไว้:
+     - สีเป็นตัวช่วยรอง ไม่ใช่ตัวบอกความหมายเดียว (label ยังอยู่ครบ)
+     - โทนสีอ่อน ใช้เป็นเส้นขอบ/แถบซ้าย ไม่ใช่พื้นหลังทึบ อ่านง่าย ไม่ล้าตา
+     - โฟกัส/คีย์บอร์ด (:focus-visible) ยังเห็นชัดเจนในสีของกลุ่มนั้น ๆ
+     - ฟิลด์ที่อ่อนไหว (password) จงใจไม่ใส่สี เพื่อไม่ให้ปนกับกลุ่มข้อมูลทั่วไป
+   ------------------------------------------------------------------------- */
+:root {
+  --ws-field-metric: var(--ws-primary);
+  --ws-field-metric-hover: var(--ws-primary-hover);
+  --ws-field-metric-border: var(--ws-primary-border);
+  --ws-field-metric-light: var(--ws-primary-light);
+
+  --ws-field-choice: #3d6fb4;
+  --ws-field-choice-hover: #325d99;
+  --ws-field-choice-border: #c3d4ea;
+  --ws-field-choice-light: #eaf1fb;
+
+  --ws-field-note: #8266ad;
+  --ws-field-note-hover: #6f5695;
+  --ws-field-note-border: #dcd0ec;
+  --ws-field-note-light: #f2eefa;
+}
+
+/* ตัวเลข/ค่าที่วัดได้ → เขียวอมฟ้า */
+.ws-app input.ws-input[type="number"] {
+  border-color: var(--ws-field-metric-border);
+  border-left: 3px solid var(--ws-field-metric);
+}
+.ws-app input.ws-input[type="number"]:hover {
+  border-color: var(--ws-field-metric-border);
+}
+.ws-app input.ws-input[type="number"]:focus {
+  border-color: var(--ws-field-metric);
+  box-shadow: 0 0 0 3px var(--ws-field-metric-light);
+}
+.ws-app input.ws-input[type="number"]:focus-visible {
+  outline-color: var(--ws-field-metric);
+}
+
+/* เลือกจากตัวเลือก (dropdown / วันที่ / เวลา) → น้ำเงิน */
+.ws-app select.ws-select,
+.ws-app input.ws-input[type="date"],
+.ws-app input.ws-input[type="datetime-local"],
+.ws-app input.ws-input[type="time"] {
+  border-color: var(--ws-field-choice-border);
+  border-left: 3px solid var(--ws-field-choice);
+}
+.ws-app select.ws-select:hover,
+.ws-app input.ws-input[type="date"]:hover,
+.ws-app input.ws-input[type="datetime-local"]:hover,
+.ws-app input.ws-input[type="time"]:hover {
+  border-color: var(--ws-field-choice-border);
+}
+.ws-app select.ws-select:focus,
+.ws-app input.ws-input[type="date"]:focus,
+.ws-app input.ws-input[type="datetime-local"]:focus,
+.ws-app input.ws-input[type="time"]:focus {
+  border-color: var(--ws-field-choice);
+  box-shadow: 0 0 0 3px var(--ws-field-choice-light);
+}
+.ws-app select.ws-select:focus-visible,
+.ws-app input.ws-input[type="date"]:focus-visible,
+.ws-app input.ws-input[type="datetime-local"]:focus-visible,
+.ws-app input.ws-input[type="time"]:focus-visible {
+  outline-color: var(--ws-field-choice);
+}
+
+/* ข้อความอิสระ (text / textarea) → ม่วงพลัม */
+.ws-app textarea.ws-textarea,
+.ws-app input.ws-input[type="text"],
+.ws-app input.ws-input:not([type]) {
+  border-color: var(--ws-field-note-border);
+  border-left: 3px solid var(--ws-field-note);
+}
+.ws-app textarea.ws-textarea:hover,
+.ws-app input.ws-input[type="text"]:hover,
+.ws-app input.ws-input:not([type]):hover {
+  border-color: var(--ws-field-note-border);
+}
+.ws-app textarea.ws-textarea:focus,
+.ws-app input.ws-input[type="text"]:focus,
+.ws-app input.ws-input:not([type]):focus {
+  border-color: var(--ws-field-note);
+  box-shadow: 0 0 0 3px var(--ws-field-note-light);
+}
+.ws-app textarea.ws-textarea:focus-visible,
+.ws-app input.ws-input[type="text"]:focus-visible,
+.ws-app input.ws-input:not([type]):focus-visible {
+  outline-color: var(--ws-field-note);
+}
+
+/* ไฟล์แนบ (รูปหลักฐาน/ไอคอน) → จัดกลุ่มเดียวกับข้อความอิสระ + ปรับหน้าตาปุ่มเลือกไฟล์
+   ให้ตรงดีไซน์ระบบ (เดิมเป็น input ดิบของเบราว์เซอร์) */
+.ws-app input[type="file"] {
+  font-family: var(--ws-font);
+  font-size: 14px;
+  color: var(--ws-text-secondary);
+  background: var(--ws-field-note-light);
+  border: 1.5px dashed var(--ws-field-note-border);
+  border-radius: var(--ws-radius-sm);
+  padding: 8px 12px;
+  width: 100%;
+  cursor: pointer;
+  transition: border-color var(--ws-transition), background var(--ws-transition);
+}
+.ws-app input[type="file"]:hover {
+  border-color: var(--ws-field-note);
+}
+.ws-app input[type="file"]:focus-visible {
+  outline: 2px solid var(--ws-field-note);
+  outline-offset: 2px;
+}
+.ws-app input[type="file"]::file-selector-button {
+  font-family: var(--ws-font);
+  font-weight: 600;
+  font-size: 13px;
+  color: #fff;
+  background: var(--ws-field-note);
+  border: none;
+  border-radius: var(--ws-radius-pill);
+  padding: 6px 14px;
+  margin-right: 10px;
+  cursor: pointer;
+  transition: background var(--ws-transition);
+}
+.ws-app input[type="file"]:hover::file-selector-button {
+  background: var(--ws-field-note-hover);
+}
+
+/* -------------------------------------------------------------------------
    5) CARDS
    ------------------------------------------------------------------------- */
 .ws-card {
