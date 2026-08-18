@@ -573,15 +573,9 @@ export default function App() {
     return (
       <>
         <div className="ws-app" style={{ padding: 24, maxWidth: 640, margin: '0 auto' }}>
-          <div
-            className="ws-row-between"
-            style={{ marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid var(--ws-border)' }}
-          >
-            <div>
-              <div style={{ fontSize: 13, color: 'var(--ws-text-secondary)' }}>เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ</div>
-              <div style={{ fontSize: 20, fontWeight: 700 }}>{user?.displayName}</div>
-            </div>
-            <span className="ws-badge ws-badge-neutral">รหัสพนักงาน: {user?.employeeId}</span>
+          <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid var(--ws-border)' }}>
+            <div style={{ fontSize: 13, color: 'var(--ws-text-secondary)' }}>เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ</div>
+            <div style={{ fontSize: 20, fontWeight: 700 }}>{user?.displayName}</div>
           </div>
 
           {pendingCampaign && (
