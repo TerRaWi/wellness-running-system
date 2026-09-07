@@ -2265,7 +2265,7 @@ async function verifyLineIdToken(idToken) {
 }
 
 app.post('/api/auth/line-login', async (req, res) => {
-  const { idToken, employeeId } = req.body;
+  const { idToken, nationalId } = req.body;
   if (!idToken) {
     return res.status(400).json({ message: 'missing idToken' });
   }
@@ -2309,34 +2309,41 @@ app.post('/api/auth/line-login', async (req, res) => {
       });
     }
 
-    // 2. ยังไม่เคยผูก และหน้าเว็บยังไม่ได้ส่งรหัสพนักงานมา -> บอกให้ frontend ขึ้นฟอร์มกรอก
-    if (!employeeId) {
-      return res.json({ linked: false, needsEmployeeId: true, displayName, pictureUrl });
+    // 2. ยังไม่เคยผูก และหน้าเว็บยังไม่ได้ส่งเลขบัตรประชาชนมา -> บอกให้ frontend ขึ้นฟอร์มกรอก
+    if (!nationalId) {
+      return res.json({ linked: false, needsNationalId: true, displayName, pictureUrl });
     }
 
-    // 3. มีการกรอกรหัสพนักงานมาด้วย -> เช็คว่ามีจริงและยังทำงานอยู่ไหม
-    const [empRows] = await pool.query(
-      `SELECT * FROM employee WHERE employee_id = ? AND employment_status = 'ACTIVE'`,
-      [employeeId]
+    if (!/^\d{13}$/.test(String(nationalId).trim())) {
+      return res.status(400).json({ message: 'เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก' });
+    }
+
+    // 3. หาเจ้าของเลขบัตรฯ นี้ในกลุ่มพนักงานที่ยังทำงานอยู่และยังไม่เคยผูก LINE
+    //    national_id_hash เป็น bcrypt (salt สุ่มต่อแถว) เทียบด้วย WHERE ตรงๆ ไม่ได้
+    //    ต้องวนเทียบทีละคนด้วย bcrypt.compare แทน (จำนวนพนักงานที่ยังไม่ผูกมีจำกัด รับได้)
+    const [candidates] = await pool.query(
+      `SELECT e.employee_id, e.national_id_hash
+       FROM employee e
+       WHERE e.employment_status = 'ACTIVE'
+         AND e.national_id_hash IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM employee_account ea
+           WHERE ea.employee_id = e.employee_id AND ea.provider = 'LINE' AND ea.status = 'ACTIVE'
+         )`
     );
 
-    if (empRows.length === 0) {
+    let matchedEmployeeId = null;
+    for (const candidate of candidates) {
+      const isMatch = await bcrypt.compare(String(nationalId).trim(), candidate.national_id_hash);
+      if (isMatch) {
+        matchedEmployeeId = candidate.employee_id;
+        break;
+      }
+    }
+
+    if (!matchedEmployeeId) {
       return res.status(400).json({
-        message: 'ไม่พบรหัสพนักงานนี้ หรือไม่ใช่พนักงานที่ยังทำงานอยู่ กรุณาตรวจสอบอีกครั้ง',
-      });
-    }
-
-    // 3.5 กันผูกซ้ำ: employee_id นี้เคยมี LINE บัญชีที่ ACTIVE ผูกอยู่แล้วหรือยัง
-    const [dupRows] = await pool.query(
-      `SELECT account_id FROM employee_account
-       WHERE employee_id = ? AND provider = 'LINE' AND status = 'ACTIVE'`,
-      [employeeId]
-    );
-
-    if (dupRows.length > 0) {
-      return res.status(409).json({
-        message: 'รหัสพนักงานนี้เชื่อมบัญชี LINE ไว้แล้ว หากเข้าไม่ได้กรุณาติดต่อแอดมิน',
-        code: 'ALREADY_LINKED',
+        message: 'ไม่พบเลขบัตรประชาชนนี้ในระบบ หรือถูกผูกบัญชีไปแล้ว กรุณาตรวจสอบอีกครั้งหรือติดต่อแอดมิน',
       });
     }
 
@@ -2345,11 +2352,17 @@ app.post('/api/auth/line-login', async (req, res) => {
       `INSERT INTO employee_account
         (employee_id, provider, provider_user_id, display_name, picture_url, status, linked_at, last_login)
         VALUES (?, 'LINE', ?, ?, ?, 'ACTIVE', NOW(), NOW())`,
-      [employeeId, lineUserId, displayName, pictureUrl]
+      [matchedEmployeeId, lineUserId, displayName, pictureUrl]
     );
 
-    const sessionToken2 = issueSessionCookie(res, employeeId);
-    res.json({ linked: true, employeeId, displayName, needsHealthAssessment: true, token: sessionToken2 });
+    const sessionToken2 = issueSessionCookie(res, matchedEmployeeId);
+    res.json({
+      linked: true,
+      employeeId: matchedEmployeeId,
+      displayName,
+      needsHealthAssessment: true,
+      token: sessionToken2,
+    });
   } catch (err) {
     console.error('line-login error:', err);
     res.status(500).json({ message: 'internal error' });

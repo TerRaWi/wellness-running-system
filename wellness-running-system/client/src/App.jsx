@@ -21,10 +21,10 @@ const TABS = [
 ];
 
 export default function App() {
-  const [status, setStatus] = useState('initializing'); // initializing | loading | needsEmployeeId | needsHealthAssessment | done | error
+  const [status, setStatus] = useState('initializing'); // initializing | loading | needsNationalId | needsHealthAssessment | done | error
   const [errorMsg, setErrorMsg] = useState('');
   const [idToken, setIdToken] = useState(null);
-  const [employeeIdInput, setEmployeeIdInput] = useState('');
+  const [nationalIdInput, setNationalIdInput] = useState('');
   const [user, setUser] = useState(null);
   // token สำหรับ header Authorization — ใช้แทน cookie เพราะ LINE in-app browser
   // (ITP) มักบล็อก cross-site cookie ระหว่าง frontend (Vercel) กับ backend (Render)
@@ -128,11 +128,11 @@ export default function App() {
       }
     }
 
-    async function callLogin(token, employeeId) {
+    async function callLogin(token, nationalId) {
       const res = await fetch(`${API_BASE}/api/auth/line-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken: token, employeeId }),
+        body: JSON.stringify({ idToken: token, nationalId }),
         credentials: 'include',
       });
 
@@ -146,8 +146,8 @@ export default function App() {
         saveAuthToken(data.token || null);
         setUser(data);
         setStatus(data.needsHealthAssessment ? 'needsHealthAssessment' : 'done');
-      } else if (data.needsEmployeeId) {
-        setStatus('needsEmployeeId');
+      } else if (data.needsNationalId) {
+        setStatus('needsNationalId');
       }
     }
 
@@ -483,9 +483,14 @@ export default function App() {
     }
   }
 
-  async function handleSubmitEmployeeId(e) {
+  async function handleSubmitNationalId(e) {
     e.preventDefault();
-    if (!employeeIdInput.trim()) return;
+    const trimmed = nationalIdInput.trim();
+    if (!trimmed) return;
+    if (!/^\d{13}$/.test(trimmed)) {
+      setErrorMsg('เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก');
+      return;
+    }
 
     setStatus('loading');
     setErrorMsg('');
@@ -494,7 +499,7 @@ export default function App() {
       const res = await fetch(`${API_BASE}/api/auth/line-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken, employeeId: employeeIdInput.trim() }),
+        body: JSON.stringify({ idToken, nationalId: trimmed }),
         credentials: 'include',
       });
 
@@ -509,7 +514,7 @@ export default function App() {
       setStatus(data.needsHealthAssessment ? 'needsHealthAssessment' : 'done');
     } catch (err) {
       setErrorMsg(err.message || 'เกิดข้อผิดพลาด');
-      setStatus('needsEmployeeId');
+      setStatus('needsNationalId');
     }
   }
 
@@ -526,16 +531,18 @@ export default function App() {
     );
   }
 
-  if (status === 'needsEmployeeId') {
+  if (status === 'needsNationalId') {
     return (
       <div className="ws-app" style={{ padding: 24, textAlign: 'center' }}>
-        <p>ยืนยันตัวตนครั้งแรก กรุณากรอกรหัสพนักงาน</p>
-        <form onSubmit={handleSubmitEmployeeId} className="ws-row" style={{ justifyContent: 'center' }}>
+        <p>ยืนยันตัวตนครั้งแรก กรุณากรอกเลขบัตรประชาชน 13 หลัก</p>
+        <form onSubmit={handleSubmitNationalId} className="ws-row" style={{ justifyContent: 'center' }}>
           <input
             type="text"
-            value={employeeIdInput}
-            onChange={(e) => setEmployeeIdInput(e.target.value)}
-            placeholder="เช่น EMP001"
+            inputMode="numeric"
+            maxLength={13}
+            value={nationalIdInput}
+            onChange={(e) => setNationalIdInput(e.target.value.replace(/\D/g, ''))}
+            placeholder="เลขบัตรประชาชน 13 หลัก"
             className="ws-input"
             style={{ maxWidth: 220 }}
           />
