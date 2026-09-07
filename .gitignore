@@ -26,3 +26,6 @@ dist-ssr
 
 # Uploaded proof images (local disk storage) - อย่า commit รูปจริงของพนักงาน
 uploads/
+
+# ไฟล์ที่มีข้อมูลส่วนบุคคลจริงของพนักงาน (เลขบัตรประชาชน ฯลฯ) - ห้าม commit เด็ดขาด
+employee_import_template.xlsx
