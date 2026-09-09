@@ -1,4 +1,5 @@
 import { formatDateTimeShort } from '../utils/formatDateTime';
+import { resolveImageUrl } from '../utils/resolveImageUrl';
 
 const STATUS_LABEL_TH = {
   PENDING: 'รอดำเนินการ',
@@ -43,7 +44,7 @@ export default function RewardsSection({
             <div key={r.reward_id} className="ws-tile">
               <div className="ws-tile-image">
                 {r.image ? (
-                  <img src={`${apiBase}/${r.image}`} alt={r.reward_name} />
+                  <img src={resolveImageUrl(apiBase, r.image)} alt={r.reward_name} />
                 ) : (
                   <span style={{ fontSize: 48 }}>🎁</span>
                 )}

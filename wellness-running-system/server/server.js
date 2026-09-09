@@ -8,6 +8,14 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
@@ -39,23 +47,33 @@ pool.on('connection', (connection) => {
   connection.query("SET time_zone = '+07:00'");
 });
 
-// ---- file upload setup (proof photo เก็บ local disk ก่อน, ย้ายขึ้น cloud ทีหลังได้) ----
-const UPLOAD_ROOT = path.join(__dirname, 'uploads', 'submissions');
-if (!fs.existsSync(UPLOAD_ROOT)) {
-  fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
+// ---- file upload setup (เก็บขึ้น Cloudinary — Render ไม่มี persistent disk, เขียนลง local จะหายทุกครั้งที่ deploy/restart) ----
+
+// ดึง public_id ของ Cloudinary กลับจาก URL ที่เก็บไว้ใน DB เพื่อใช้ตอนลบรูปเก่าทิ้ง
+// (รองรับ path เก่าที่ยังเป็น local 'uploads/...' จากก่อนย้ายมา Cloudinary ด้วย เผื่อมีตกค้าง)
+function cloudinaryPublicIdFromUrl(url) {
+  if (!url || !url.includes('res.cloudinary.com')) return null;
+  const match = url.match(/\/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z0-9]+$/);
+  return match ? match[1] : null;
 }
 
-// เสิร์ฟไฟล์รูปแบบ static เพื่อให้แอดมินเปิดดูรูปได้ระหว่าง dev
-// ตอน deploy จริงควรใส่ auth คุมสิทธิ์การเข้าถึง route นี้ด้วย
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+function deleteOldUploadedFile(oldPath, newPath, legacyLocalPrefix) {
+  if (!oldPath || oldPath === newPath) return;
+  const publicId = cloudinaryPublicIdFromUrl(oldPath);
+  if (publicId) {
+    cloudinary.uploader.destroy(publicId, () => {});
+  } else if (legacyLocalPrefix && oldPath.startsWith(legacyLocalPrefix)) {
+    fs.unlink(path.join(__dirname, oldPath), () => {});
+  }
+}
 
-const submissionStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_ROOT),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
-    const uniqueName = `${req.employeeId}_${Date.now()}${ext}`;
-    cb(null, uniqueName);
-  },
+const submissionStorage = new CloudinaryStorage({
+  cloudinary,
+  params: (req) => ({
+    folder: 'wellness/submissions',
+    public_id: `${req.employeeId}_${Date.now()}`,
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+  }),
 });
 
 const uploadProof = multer({
@@ -71,17 +89,13 @@ const uploadProof = multer({
 });
 
 // ---- Phase 4: badge icon upload (แอดมินอัปโหลดรูปไอคอนที่วาด/ดีไซน์เองได้ ไม่ต้องมี URL ภายนอก) ----
-const BADGE_ICON_ROOT = path.join(__dirname, 'uploads', 'badges');
-if (!fs.existsSync(BADGE_ICON_ROOT)) {
-  fs.mkdirSync(BADGE_ICON_ROOT, { recursive: true });
-}
-
-const badgeIconStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, BADGE_ICON_ROOT),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.png';
-    cb(null, `badge_${Date.now()}${ext}`);
-  },
+const badgeIconStorage = new CloudinaryStorage({
+  cloudinary,
+  params: () => ({
+    folder: 'wellness/badges',
+    public_id: `badge_${Date.now()}`,
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+  }),
 });
 
 const uploadBadgeIcon = multer({
@@ -108,17 +122,13 @@ function handleBadgeIconUpload(req, res, next) {
 }
 
 // ---- Phase 5: reward image upload (แอดมินอัปโหลดรูปของรางวัล) ----
-const REWARD_IMAGE_ROOT = path.join(__dirname, 'uploads', 'rewards');
-if (!fs.existsSync(REWARD_IMAGE_ROOT)) {
-  fs.mkdirSync(REWARD_IMAGE_ROOT, { recursive: true });
-}
-
-const rewardImageStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, REWARD_IMAGE_ROOT),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
-    cb(null, `reward_${Date.now()}${ext}`);
-  },
+const rewardImageStorage = new CloudinaryStorage({
+  cloudinary,
+  params: () => ({
+    folder: 'wellness/rewards',
+    public_id: `reward_${Date.now()}`,
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+  }),
 });
 
 const uploadRewardImage = multer({
@@ -527,7 +537,7 @@ function handleProofUpload(req, res, next) {
 app.post('/api/submissions', requireAuth, handleProofUpload, async (req, res) => {
   const cleanupUploadedFile = () => {
     if (req.file) {
-      fs.unlink(req.file.path, () => {});
+      cloudinary.uploader.destroy(req.file.filename, () => {});
     }
   };
 
@@ -568,9 +578,7 @@ app.post('/api/submissions', requireAuth, handleProofUpload, async (req, res) =>
       return res.status(400).json({ message: 'กิจกรรมนี้ต้องแนบรูปหลักฐาน' });
     }
 
-    const proofImagePath = req.file
-      ? path.posix.join('uploads', 'submissions', req.file.filename)
-      : null;
+    const proofImagePath = req.file ? req.file.path : null;
 
     const [result] = await pool.query(
       `INSERT INTO running_submission
@@ -1781,7 +1789,7 @@ function validateBadgeInput(body) {
 // สร้าง badge ใหม่ — รับไฟล์ไอคอนที่แอดมินวาด/ดีไซน์เองผ่าน field 'iconFile' (multipart/form-data)
 app.post('/api/admin/badges', requireAdmin, handleBadgeIconUpload, async (req, res) => {
   const cleanupUploadedFile = () => {
-    if (req.file) fs.unlink(req.file.path, () => {});
+    if (req.file) cloudinary.uploader.destroy(req.file.filename, () => {});
   };
 
   const { badgeName, description, conditionType, conditionValue } = req.body;
@@ -1791,7 +1799,7 @@ app.post('/api/admin/badges', requireAdmin, handleBadgeIconUpload, async (req, r
     return res.status(400).json({ message: validationError });
   }
 
-  const iconPath = req.file ? path.posix.join('uploads', 'badges', req.file.filename) : null;
+  const iconPath = req.file ? req.file.path : null;
 
   try {
     const [result] = await pool.query(
@@ -1813,7 +1821,7 @@ app.post('/api/admin/badges', requireAdmin, handleBadgeIconUpload, async (req, r
 app.put('/api/admin/badges/:id', requireAdmin, handleBadgeIconUpload, async (req, res) => {
   const badgeId = req.params.id;
   const cleanupUploadedFile = () => {
-    if (req.file) fs.unlink(req.file.path, () => {});
+    if (req.file) cloudinary.uploader.destroy(req.file.filename, () => {});
   };
 
   const { badgeName, description, conditionType, conditionValue, status, removeIcon } = req.body;
@@ -1838,7 +1846,7 @@ app.put('/api/admin/badges/:id', requireAdmin, handleBadgeIconUpload, async (req
     // ลำดับความสำคัญ: มีไฟล์ใหม่ > สั่งลบ (removeIcon) > คงรูปเดิมไว้
     let newIcon = oldIcon;
     if (req.file) {
-      newIcon = path.posix.join('uploads', 'badges', req.file.filename);
+      newIcon = req.file.path;
     } else if (removeIcon === 'true' || removeIcon === true) {
       newIcon = null;
     }
@@ -1850,10 +1858,8 @@ app.put('/api/admin/badges/:id', requireAdmin, handleBadgeIconUpload, async (req
       [badgeName.trim(), description || null, newIcon, conditionType, conditionValue, status, badgeId]
     );
 
-    // ลบไฟล์ไอคอนเก่าทิ้งถ้าถูกแทนที่/ลบไป และเป็นไฟล์ที่อัปโหลดไว้เอง (ไม่แตะถ้าเป็น URL ภายนอก) กันไฟล์ขยะสะสมบน disk
-    if (oldIcon && oldIcon !== newIcon && oldIcon.startsWith('uploads/badges/')) {
-      fs.unlink(path.join(__dirname, oldIcon), () => {});
-    }
+    // ลบไอคอนเก่าทิ้งถ้าถูกแทนที่/ลบไป (บน Cloudinary หรือ local path เก่าที่ตกค้าง) กันไฟล์ขยะสะสม
+    deleteOldUploadedFile(oldIcon, newIcon, 'uploads/badges/');
 
     res.json({ badgeId: Number(badgeId), status, icon: newIcon });
   } catch (err) {
@@ -2086,7 +2092,7 @@ function validateRewardInput(body) {
 // สร้างของรางวัลใหม่ — รับไฟล์รูปผ่าน field 'imageFile' (multipart/form-data) เหมือนแนวทาง badge icon
 app.post('/api/admin/rewards', requireAdmin, handleRewardImageUpload, async (req, res) => {
   const cleanupUploadedFile = () => {
-    if (req.file) fs.unlink(req.file.path, () => {});
+    if (req.file) cloudinary.uploader.destroy(req.file.filename, () => {});
   };
 
   const { rewardName, requiredScore, stock, description } = req.body;
@@ -2096,7 +2102,7 @@ app.post('/api/admin/rewards', requireAdmin, handleRewardImageUpload, async (req
     return res.status(400).json({ message: validationError });
   }
 
-  const imagePath = req.file ? path.posix.join('uploads', 'rewards', req.file.filename) : null;
+  const imagePath = req.file ? req.file.path : null;
 
   try {
     const [result] = await pool.query(
@@ -2118,7 +2124,7 @@ app.post('/api/admin/rewards', requireAdmin, handleRewardImageUpload, async (req
 app.put('/api/admin/rewards/:id', requireAdmin, handleRewardImageUpload, async (req, res) => {
   const rewardId = req.params.id;
   const cleanupUploadedFile = () => {
-    if (req.file) fs.unlink(req.file.path, () => {});
+    if (req.file) cloudinary.uploader.destroy(req.file.filename, () => {});
   };
 
   const { rewardName, requiredScore, stock, description, status, removeImage } = req.body;
@@ -2143,7 +2149,7 @@ app.put('/api/admin/rewards/:id', requireAdmin, handleRewardImageUpload, async (
     // ลำดับความสำคัญ: มีไฟล์ใหม่ > สั่งลบ (removeImage) > คงรูปเดิมไว้
     let newImage = oldImage;
     if (req.file) {
-      newImage = path.posix.join('uploads', 'rewards', req.file.filename);
+      newImage = req.file.path;
     } else if (removeImage === 'true' || removeImage === true) {
       newImage = null;
     }
@@ -2155,10 +2161,8 @@ app.put('/api/admin/rewards/:id', requireAdmin, handleRewardImageUpload, async (
       [rewardName.trim(), requiredScore, stock, newImage, description ? description.trim() : null, status, rewardId]
     );
 
-    // ลบไฟล์รูปเก่าทิ้งถ้าถูกแทนที่/ลบไป กันไฟล์ขยะสะสมบน disk
-    if (oldImage && oldImage !== newImage && oldImage.startsWith('uploads/rewards/')) {
-      fs.unlink(path.join(__dirname, oldImage), () => {});
-    }
+    // ลบรูปเก่าทิ้งถ้าถูกแทนที่/ลบไป (บน Cloudinary หรือ local path เก่าที่ตกค้าง) กันไฟล์ขยะสะสม
+    deleteOldUploadedFile(oldImage, newImage, 'uploads/rewards/');
 
     res.json({ rewardId: Number(rewardId), status, image: newImage });
   } catch (err) {

@@ -1,3 +1,5 @@
+import { resolveImageUrl } from '../utils/resolveImageUrl';
+
 export default function NewBadgePopup({ badges, apiBase, onClose }) {
   if (badges.length === 0) return null;
 
@@ -10,7 +12,7 @@ export default function NewBadgePopup({ badges, apiBase, onClose }) {
             <div key={b.badgeId}>
               <div className="ws-icon-circle" style={{ width: 72, height: 72, margin: '0 auto 6px' }}>
                 {b.icon ? (
-                  <img src={`${apiBase}/${b.icon}`} alt={b.badgeName} />
+                  <img src={resolveImageUrl(apiBase, b.icon)} alt={b.badgeName} />
                 ) : (
                   <span style={{ fontSize: 32 }}>🏅</span>
                 )}

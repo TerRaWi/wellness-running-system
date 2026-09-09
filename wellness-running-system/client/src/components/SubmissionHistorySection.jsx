@@ -1,4 +1,5 @@
 import { formatDateTimeShort } from '../utils/formatDateTime';
+import { resolveImageUrl } from '../utils/resolveImageUrl';
 
 const SUBMISSION_STATUS_LABEL_TH = {
   PENDING: 'รอตรวจสอบ',
@@ -18,7 +19,7 @@ export default function SubmissionHistorySection({ mySubmissions, apiBase }) {
             <div key={s.submission_id} className="ws-card ws-card-row" style={{ alignItems: 'flex-start' }}>
               {s.proof_image && (
                 <img
-                  src={`${apiBase}/${s.proof_image}`}
+                  src={resolveImageUrl(apiBase, s.proof_image)}
                   alt=""
                   style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }}
                 />

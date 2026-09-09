@@ -1,3 +1,5 @@
+import { resolveImageUrl } from '../utils/resolveImageUrl';
+
 const BADGE_CONDITION_LABEL_TH = {
   DISTANCE: 'สะสมระยะทาง',
   SUBMISSION_COUNT: 'ส่งกิจกรรมสำเร็จ',
@@ -25,7 +27,7 @@ export default function BadgesSection({ badges, apiBase }) {
             >
               <div className="ws-icon-circle" style={{ width: 64, height: 64, margin: '0 auto 6px' }}>
                 {b.icon ? (
-                  <img src={`${apiBase}/${b.icon}`} alt={b.badgeName} />
+                  <img src={resolveImageUrl(apiBase, b.icon)} alt={b.badgeName} />
                 ) : (
                   <span style={{ fontSize: 24 }}>🏅</span>
                 )}

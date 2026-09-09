@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { formatDateTimeShort } from './utils/formatDateTime';
+import { resolveImageUrl } from './utils/resolveImageUrl';
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
@@ -1748,9 +1749,9 @@ body: JSON.stringify({
                   <td>{s.duration != null ? `${s.duration} นาที` : '-'}</td>
                   <td>
                     {s.proof_image ? (
-                      <a href={`${API_BASE}/${s.proof_image}`} target="_blank" rel="noreferrer">
+                      <a href={resolveImageUrl(API_BASE, s.proof_image)} target="_blank" rel="noreferrer">
                         <img
-                          src={`${API_BASE}/${s.proof_image}`}
+                          src={resolveImageUrl(API_BASE, s.proof_image)}
                           alt="proof"
                           style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 4 }}
                         />
@@ -2340,7 +2341,7 @@ body: JSON.stringify({
                           <td>
                             {editBadgeForm.icon && !editRemoveIcon && (
                               <img
-                                src={`${API_BASE}/${editBadgeForm.icon}`}
+                                src={resolveImageUrl(API_BASE, editBadgeForm.icon)}
                                 alt=""
                                 style={{
                                   width: 40,
@@ -2455,7 +2456,7 @@ body: JSON.stringify({
                         <td>
                           {b.icon ? (
                             <img
-                              src={`${API_BASE}/${b.icon}`}
+                              src={resolveImageUrl(API_BASE, b.icon)}
                               alt=""
                               style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }}
                             />
@@ -2970,7 +2971,7 @@ body: JSON.stringify({
                           <td>
                             {editRewardForm.image && !editRemoveRewardImage && (
                               <img
-                                src={`${API_BASE}/${editRewardForm.image}`}
+                                src={resolveImageUrl(API_BASE, editRewardForm.image)}
                                 alt=""
                                 style={{
                                   width: 40,
@@ -3085,7 +3086,7 @@ body: JSON.stringify({
                         <td>
                           {r.image ? (
                             <img
-                              src={`${API_BASE}/${r.image}`}
+                              src={resolveImageUrl(API_BASE, r.image)}
                               alt=""
                               style={{ width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }}
                             />
