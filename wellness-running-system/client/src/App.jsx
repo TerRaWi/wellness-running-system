@@ -87,6 +87,10 @@ export default function App() {
   const [challengeMessageType, setChallengeMessageType] = useState('info'); // 'success' | 'error'
   const [joiningChallengeId, setJoiningChallengeId] = useState(null);
   const [joinModeByChallenge, setJoinModeByChallenge] = useState({}); // { [challengeId]: 'PUBLIC' | 'ANONYMOUS' }
+  const [joinAliasByChallenge, setJoinAliasByChallenge] = useState({}); // { [challengeId]: string } ชื่อที่ตั้งตอนเข้าร่วมแบบ ANONYMOUS
+  const [editingAliasChallengeId, setEditingAliasChallengeId] = useState(null);
+  const [aliasDraftByChallenge, setAliasDraftByChallenge] = useState({}); // { [challengeId]: string } ชื่อที่กำลังแก้ไข
+  const [savingAliasChallengeId, setSavingAliasChallengeId] = useState(null);
   const [leaderboardChallengeId, setLeaderboardChallengeId] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
@@ -323,6 +327,8 @@ export default function App() {
   }
 
   async function handleJoinChallenge(challengeId) {
+    const joinMode = joinModeByChallenge[challengeId] || 'PUBLIC';
+
     setJoiningChallengeId(challengeId);
     setChallengeMessage('');
 
@@ -330,7 +336,10 @@ export default function App() {
       const res = await fetch(`${API_BASE}/api/challenges/${challengeId}/join`, authFetchOptions({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ joinMode: joinModeByChallenge[challengeId] || 'PUBLIC' }),
+        body: JSON.stringify({
+          joinMode,
+          displayAlias: joinMode === 'ANONYMOUS' ? joinAliasByChallenge[challengeId] || '' : undefined,
+        }),
       }));
 
       const data = await res.json().catch(() => ({}));
@@ -341,12 +350,53 @@ export default function App() {
 
       setChallengeMessageType('success');
       setChallengeMessage(data.message || 'เข้าร่วม challenge สำเร็จ');
+      setJoinAliasByChallenge((prev) => ({ ...prev, [challengeId]: '' }));
       await loadChallengeData();
     } catch (err) {
       setChallengeMessageType('error');
       setChallengeMessage(err.message || 'เกิดข้อผิดพลาด');
     } finally {
       setJoiningChallengeId(null);
+    }
+  }
+
+  function startEditAlias(challengeId) {
+    const mc = myChallenges.find((m) => m.challenge_id === challengeId);
+    setAliasDraftByChallenge((prev) => ({ ...prev, [challengeId]: mc?.display_alias || '' }));
+    setEditingAliasChallengeId(challengeId);
+  }
+
+  function cancelEditAlias(challengeId) {
+    setEditingAliasChallengeId(null);
+    setAliasDraftByChallenge((prev) => ({ ...prev, [challengeId]: '' }));
+  }
+
+  async function handleSaveAlias(challengeId) {
+    setSavingAliasChallengeId(challengeId);
+    setChallengeMessage('');
+
+    try {
+      const res = await fetch(`${API_BASE}/api/challenges/${challengeId}/alias`, authFetchOptions({
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayAlias: aliasDraftByChallenge[challengeId] || '' }),
+      }));
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.message || 'แก้ไขชื่อที่แสดงไม่สำเร็จ');
+      }
+
+      setChallengeMessageType('success');
+      setChallengeMessage(data.message || 'แก้ไขชื่อที่แสดงสำเร็จ');
+      setEditingAliasChallengeId(null);
+      await loadChallengeData();
+    } catch (err) {
+      setChallengeMessageType('error');
+      setChallengeMessage(err.message || 'เกิดข้อผิดพลาด');
+    } finally {
+      setSavingAliasChallengeId(null);
     }
   }
 
@@ -657,8 +707,17 @@ export default function App() {
               joiningChallengeId={joiningChallengeId}
               joinModeByChallenge={joinModeByChallenge}
               setJoinModeByChallenge={setJoinModeByChallenge}
+              joinAliasByChallenge={joinAliasByChallenge}
+              setJoinAliasByChallenge={setJoinAliasByChallenge}
               onJoinChallenge={handleJoinChallenge}
               onOpenLeaderboard={openLeaderboard}
+              editingAliasChallengeId={editingAliasChallengeId}
+              aliasDraftByChallenge={aliasDraftByChallenge}
+              setAliasDraftByChallenge={setAliasDraftByChallenge}
+              onStartEditAlias={startEditAlias}
+              onCancelEditAlias={cancelEditAlias}
+              onSaveAlias={handleSaveAlias}
+              savingAliasChallengeId={savingAliasChallengeId}
             />
           )}
         </div>

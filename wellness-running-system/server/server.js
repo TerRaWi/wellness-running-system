@@ -1430,6 +1430,15 @@ app.post('/api/admin/redeems/:id/reject', requireAdmin, async (req, res) => {
 // หลักการ: status ของ challenge ไม่ได้ผูก cron job แยก แต่ "lazy sync" ทุกครั้งก่อน query
 // (UPCOMING -> ONGOING เมื่อถึง start_date, ONGOING/UPCOMING -> ENDED เมื่อเลย end_date)
 // ไม่แตะ CANCELLED เพราะเป็นการยกเลิกโดย admin เท่านั้น ระบบจะไม่เปลี่ยนสถานะนี้เอง
+
+// trim + จำกัดความยาว display_alias (รองรับอิโมจิเพราะคอลัมน์เป็น utf8mb4) คืนค่า null ถ้าว่างหรือเกินความยาว
+function normalizeDisplayAlias(raw) {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0 || trimmed.length > 50) return null;
+  return trimmed;
+}
+
 async function syncChallengeStatuses(runner = pool) {
   await runner.query(
     `UPDATE challenge SET status = 'ONGOING'
@@ -1478,7 +1487,7 @@ app.get('/api/my-challenges', requireAuth, async (req, res) => {
       `SELECT
         c.challenge_id, c.challenge_name, c.status, c.start_date, c.end_date,
         ac.category_name,
-        cp.participant_id, cp.join_mode, cp.joined_at,
+        cp.participant_id, cp.join_mode, cp.display_alias, cp.joined_at,
         COALESCE(SUM(rs.distance), 0) AS my_distance
        FROM challenge_participant cp
        JOIN challenge c ON c.challenge_id = cp.challenge_id
@@ -1502,6 +1511,11 @@ app.get('/api/my-challenges', requireAuth, async (req, res) => {
 app.post('/api/challenges/:id/join', requireAuth, async (req, res) => {
   const challengeId = req.params.id;
   const joinMode = req.body.joinMode === 'ANONYMOUS' ? 'ANONYMOUS' : 'PUBLIC';
+  const displayAlias = joinMode === 'ANONYMOUS' ? normalizeDisplayAlias(req.body.displayAlias) : null;
+
+  if (joinMode === 'ANONYMOUS' && req.body.displayAlias && displayAlias === null) {
+    return res.status(400).json({ message: 'ชื่อที่แสดงต้องมีความยาว 1-50 ตัวอักษร' });
+  }
 
   try {
     await syncChallengeStatuses();
@@ -1518,18 +1532,60 @@ app.post('/api/challenges/:id/join', requireAuth, async (req, res) => {
     }
 
     await pool.query(
-      `INSERT INTO challenge_participant (challenge_id, employee_id, join_mode, joined_at)
-       VALUES (?, ?, ?, NOW())`,
-      [challengeId, req.employeeId, joinMode]
+      `INSERT INTO challenge_participant (challenge_id, employee_id, join_mode, display_alias, joined_at)
+       VALUES (?, ?, ?, ?, NOW())`,
+      [challengeId, req.employeeId, joinMode, displayAlias]
     );
 
-    res.status(201).json({ challengeId: Number(challengeId), joinMode, message: 'เข้าร่วม challenge สำเร็จ' });
+    res.status(201).json({ challengeId: Number(challengeId), joinMode, displayAlias, message: 'เข้าร่วม challenge สำเร็จ' });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(400).json({ message: 'คุณเข้าร่วม challenge นี้ไปแล้ว' });
     }
     console.error('join challenge error:', err);
     res.status(500).json({ message: 'เข้าร่วม challenge ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
+  }
+});
+
+// แก้ไขชื่อที่แสดง (display_alias) ของการเข้าร่วมแบบ ANONYMOUS ได้ตลอดช่วงที่ challenge ยังไม่จบ
+app.patch('/api/challenges/:id/alias', requireAuth, async (req, res) => {
+  const challengeId = req.params.id;
+  const displayAlias = normalizeDisplayAlias(req.body.displayAlias);
+
+  if (displayAlias === null) {
+    return res.status(400).json({ message: 'ชื่อที่แสดงต้องมีความยาว 1-50 ตัวอักษร' });
+  }
+
+  try {
+    await syncChallengeStatuses();
+
+    const [rows] = await pool.query(
+      `SELECT cp.participant_id, cp.join_mode, c.status
+       FROM challenge_participant cp
+       JOIN challenge c ON c.challenge_id = cp.challenge_id
+       WHERE cp.challenge_id = ? AND cp.employee_id = ?`,
+      [challengeId, req.employeeId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'คุณยังไม่ได้เข้าร่วม challenge นี้' });
+    }
+    if (rows[0].join_mode !== 'ANONYMOUS') {
+      return res.status(400).json({ message: 'ตั้งชื่อที่แสดงได้เฉพาะการเข้าร่วมแบบไม่ระบุตัวตนเท่านั้น' });
+    }
+    if (!['UPCOMING', 'ONGOING'].includes(rows[0].status)) {
+      return res.status(400).json({ message: 'challenge นี้จบแล้ว ไม่สามารถแก้ไขชื่อที่แสดงได้' });
+    }
+
+    await pool.query(`UPDATE challenge_participant SET display_alias = ? WHERE participant_id = ?`, [
+      displayAlias,
+      rows[0].participant_id,
+    ]);
+
+    res.json({ challengeId: Number(challengeId), displayAlias, message: 'แก้ไขชื่อที่แสดงสำเร็จ' });
+  } catch (err) {
+    console.error('update challenge alias error:', err);
+    res.status(500).json({ message: 'แก้ไขชื่อที่แสดงไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' });
   }
 });
 
@@ -1548,7 +1604,7 @@ app.get('/api/challenges/:id/leaderboard', requireAuth, async (req, res) => {
 
     const [rows] = await pool.query(
       `SELECT
-        cp.participant_id, cp.employee_id, cp.join_mode, e.full_name,
+        cp.participant_id, cp.employee_id, cp.join_mode, cp.display_alias, e.full_name,
         COALESCE(SUM(rs.distance), 0) AS total_distance,
         COUNT(cs.challenge_submission_id) AS run_count
        FROM challenge_participant cp
@@ -1567,7 +1623,7 @@ app.get('/api/challenges/:id/leaderboard', requireAuth, async (req, res) => {
       return {
         rank: index + 1,
         isMe,
-        displayName: isAnonymous ? 'ผู้เข้าร่วมไม่ระบุตัวตน' : r.full_name,
+        displayName: isAnonymous ? r.display_alias || 'ผู้เข้าร่วมไม่ระบุตัวตน' : r.full_name,
         totalDistance: r.total_distance,
         runCount: r.run_count,
       };
@@ -1714,7 +1770,7 @@ app.get('/api/admin/challenges/:id/participants', requireAdmin, async (req, res)
 
     const [rows] = await pool.query(
       `SELECT
-        cp.participant_id, cp.employee_id, cp.join_mode, cp.joined_at,
+        cp.participant_id, cp.employee_id, cp.join_mode, cp.display_alias, cp.joined_at,
         e.full_name, e.department,
         COALESCE(SUM(rs.distance), 0) AS total_distance,
         COUNT(cs.challenge_submission_id) AS run_count
@@ -1735,6 +1791,7 @@ app.get('/api/admin/challenges/:id/participants', requireAdmin, async (req, res)
       fullName: r.full_name,
       department: r.department,
       joinMode: r.join_mode,
+      displayAlias: r.display_alias,
       joinedAt: r.joined_at,
       totalDistance: r.total_distance,
       runCount: r.run_count,
