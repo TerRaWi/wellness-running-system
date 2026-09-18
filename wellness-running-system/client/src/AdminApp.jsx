@@ -3201,9 +3201,6 @@ body: JSON.stringify({
 
               <div style={{ marginBottom: 12 }}>
                 <label>เลือกฟิลด์ที่จะให้พนักงานกรอกในรอบนี้</label>
-                <p style={{ fontSize: 12, color: 'var(--ws-text-muted)', margin: '4px 0 8px' }}>
-                  ฟิลด์ที่มีจุดสีคือฟิลด์ที่ระบบใช้คำนวณค่าอัตโนมัติ (BMI / คะแนนกิจกรรม) — ดูสถานะความครบถ้วนด้านล่างสุด
-                </p>
                 {CAMPAIGN_FIELD_GROUPS.map((g) => (
                   <div key={g.group} style={{ marginTop: 8 }}>
                     <div style={{ fontSize: 13, color: 'var(--ws-text-secondary)', marginBottom: 4 }}>{g.group}</div>
