@@ -46,6 +46,37 @@ const SETTINGS_TABS = [
 ];
 
 // ฟิลด์ที่เลือกได้ตอนสร้างรอบ follow-up จัดกลุ่มตามหมวดของแบบสอบถาม (ตรงกับ field key ใน HealthAssessmentWizard)
+// ฟิลด์ที่ถูกใช้คำนวณค่า generated column ในตาราง health_assessment (ดู wellness.sql)
+// ใช้ mark สีบนปุ่มเลือกฟิลด์ + เตือน admin ตอนสร้างรอบ follow-up ว่าเลือกไม่ครบกลุ่ม
+// mode 'required': เลือกไม่ครบคู่ -> DB คำนวณค่าไม่ได้เลย (เป็น NULL)
+// mode 'recommended': เลือกไม่ครบ -> ยังคำนวณได้ แต่ส่วนที่ไม่ได้เลือกจะถูกนับเป็น 0 ในสูตร (ค่าคลาดเคลื่อน)
+const CALC_RULES = {
+  bmi: {
+    label: 'BMI',
+    icon: '⚖️',
+    color: 'var(--ws-info)',
+    bg: 'var(--ws-info-bg)',
+    keys: ['weightKg', 'heightCm'],
+    mode: 'required',
+    formula: 'BMI = น้ำหนัก(กก.) ÷ ส่วนสูง(ม.)²',
+  },
+  met: {
+    label: 'คะแนนกิจกรรม MET',
+    icon: '🏃',
+    color: 'var(--ws-warning)',
+    bg: 'var(--ws-warning-bg)',
+    keys: ['vigorousDays', 'moderateDays', 'walkingDays'],
+    mode: 'recommended',
+    formula: 'MET-min/week = (8.0×วันหนัก×นาที) + (4.0×วันปานกลาง×นาที) + (3.3×วันเดิน×นาที)',
+  },
+};
+
+// หา calc rule ที่ field นี้เป็นส่วนหนึ่ง (ถ้ามี) — ใช้ mark badge สีบนปุ่มเลือกฟิลด์
+function findCalcRuleForField(fieldKey) {
+  const entry = Object.entries(CALC_RULES).find(([, rule]) => rule.keys.includes(fieldKey));
+  return entry ? { calcKey: entry[0], ...entry[1] } : null;
+}
+
 const CAMPAIGN_FIELD_GROUPS = [
   {
     group: 'ข้อมูลสุขภาพพื้นฐาน',
@@ -3170,31 +3201,88 @@ body: JSON.stringify({
 
               <div style={{ marginBottom: 12 }}>
                 <label>เลือกฟิลด์ที่จะให้พนักงานกรอกในรอบนี้</label>
+                <p style={{ fontSize: 12, color: 'var(--ws-text-muted)', margin: '4px 0 8px' }}>
+                  ฟิลด์ที่มีจุดสีคือฟิลด์ที่ระบบใช้คำนวณค่าอัตโนมัติ (BMI / คะแนนกิจกรรม) — ดูสถานะความครบถ้วนด้านล่างสุด
+                </p>
                 {CAMPAIGN_FIELD_GROUPS.map((g) => (
                   <div key={g.group} style={{ marginTop: 8 }}>
                     <div style={{ fontSize: 13, color: 'var(--ws-text-secondary)', marginBottom: 4 }}>{g.group}</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {g.fields.map((f) => {
                         const active = campaignForm.includedFields.includes(f.key);
+                        const calcRule = findCalcRuleForField(f.key);
                         return (
                           <button
                             key={f.key}
                             type="button"
                             onClick={() => toggleCampaignField(f.key)}
                             className="ws-btn ws-btn-sm"
+                            title={calcRule ? `ใช้คำนวณ ${calcRule.label}: ${calcRule.formula}` : undefined}
                             style={{
-                              borderColor: active ? 'var(--ws-primary)' : undefined,
+                              position: 'relative',
+                              borderColor: active ? 'var(--ws-primary)' : (calcRule ? calcRule.color : undefined),
                               background: active ? 'var(--ws-primary)' : undefined,
                               color: active ? '#fff' : undefined,
+                              paddingRight: calcRule ? 22 : undefined,
                             }}
                           >
                             {f.label}
+                            {calcRule && (
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  position: 'absolute',
+                                  top: 2,
+                                  right: 4,
+                                  fontSize: 10,
+                                  lineHeight: 1,
+                                }}
+                              >
+                                {calcRule.icon}
+                              </span>
+                            )}
                           </button>
                         );
                       })}
                     </div>
                   </div>
                 ))}
+
+                <div className="ws-card" style={{ marginTop: 12, padding: 12, background: 'var(--ws-surface-subtle, transparent)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 'bold', marginBottom: 6 }}>สถานะการคำนวณอัตโนมัติ</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {Object.entries(CALC_RULES).map(([calcKey, rule]) => {
+                      const selectedKeys = rule.keys.filter((k) => campaignForm.includedFields.includes(k));
+                      const selectedCount = selectedKeys.length;
+                      const total = rule.keys.length;
+
+                      let badgeClass = 'ws-badge-neutral';
+                      let statusText = `ยังไม่ได้เลือกฟิลด์ในกลุ่มนี้ — จะไม่มี ${rule.label} ให้ในรอบนี้`;
+
+                      if (selectedCount === total) {
+                        badgeClass = 'ws-badge-success';
+                        statusText = `เลือกครบ — ระบบจะคำนวณ ${rule.label} ให้อัตโนมัติ`;
+                      } else if (selectedCount > 0 && rule.mode === 'required') {
+                        badgeClass = 'ws-badge-danger';
+                        statusText = `เลือกแค่ ${selectedCount}/${total} — ${rule.label} จะคำนวณไม่ได้ (ค่าว่าง) เพราะต้องมีทั้ง ${rule.keys
+                          .map((k) => CAMPAIGN_FIELD_GROUPS.flatMap((g) => g.fields).find((f) => f.key === k)?.label || k)
+                          .join(' + ')}`;
+                      } else if (selectedCount > 0 && rule.mode === 'recommended') {
+                        badgeClass = 'ws-badge-warning';
+                        statusText = `เลือกแค่ ${selectedCount}/${total} — ${rule.label} จะยังคำนวณได้ แต่ระดับที่ไม่เลือกจะถูกนับเป็น 0 (ค่าอาจคลาดเคลื่อน)`;
+                      }
+
+                      return (
+                        <div key={calcKey} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                          <span className={`ws-badge ${badgeClass}`} style={{ flexShrink: 0 }}>
+                            {rule.icon} {rule.label}
+                          </span>
+                          <span style={{ fontSize: 12, color: 'var(--ws-text-secondary)' }}>{statusText}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
               {campaignFormError && <div className="ws-alert ws-alert-danger">{campaignFormError}</div>}

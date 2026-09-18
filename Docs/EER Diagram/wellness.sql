@@ -400,7 +400,7 @@ ENGINE = InnoDB
 AUTO_INCREMENT = 6
 DEFAULT CHARACTER SET = utf8mb4
 COLLATE = utf8mb4_0900_ai_ci
-COMMENT = 'แบบสอบถามข้อมูลสุขภาพพื้นฐานและพฤติกรรมออกกำลังกาย (baseline) กรอกครั้งเดียวตอน onboarding — ยังไม่รองรับ follow-up/campaign';
+COMMENT = 'แบบสอบถามข้อมูลสุขภาพพื้นฐานและพฤติกรรมออกกำลังกาย เก็บแบบ time-series ต่อพนักงาน: assessment_type=BASELINE กรอกครั้งเดียวตอน onboarding (บังคับครบทุกข้อ), FOLLOWUP อ้างอิง campaign_id -> assessment_campaign กรอกเฉพาะฟิลด์ที่ admin เลือกไว้ต่อรอบ (ไม่บังคับครบ)';
 
 
 -- -----------------------------------------------------
