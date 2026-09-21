@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS `wellness_db`.`employee` (
   `job_position` VARCHAR(50) NULL DEFAULT NULL COMMENT 'ตำแหน่ง/สายงาน (ข้อ 1.5): พยาบาล, ผู้ช่วยพยาบาล, เจ้าหน้าที่, อื่นๆ — ถ้า Pulse มี field นี้อยู่แล้วให้ sync มาแทนการถามเอง',
   `years_of_service` DECIMAL(4,1) NULL DEFAULT NULL COMMENT 'ระยะเวลาปฏิบัติงานในโรงพยาบาลนี้ เป็นปี (ข้อ 1.6) — ค่าที่กรอกครั้งเดียวตอน onboarding ไม่ auto-update ตามเวลา ถ้า Pulse มี hire_date ควรเปลี่ยนไปคำนวณจากตรงนั้นแทนในอนาคต',
   `shift_type` ENUM('DAY', 'SHIFT') NULL DEFAULT NULL COMMENT 'ลักษณะเวรที่ปฏิบัติงานเป็นส่วนใหญ่ (ข้อ 1.7): DAY=เวรทำการ, SHIFT=เวรผลัด',
+  `date_of_birth` DATE NULL DEFAULT NULL COMMENT 'วันเกิด ใช้คำนวณอายุแบบสดผ่าน TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) — ถ้า Pulse มี field นี้อยู่แล้วควร sync มาแทนการกรอกเอง',
   `employment_status` ENUM('ACTIVE', 'RESIGNED') NOT NULL DEFAULT 'ACTIVE' COMMENT 'ACTIVE=ยังทำงานอยู่ (login/ส่งกิจกรรมได้), RESIGNED=ลาออกแล้ว (ต้องบล็อกไม่ให้ login ใหม่)',
   `role` ENUM('EMPLOYEE', 'ADMIN') NOT NULL DEFAULT 'EMPLOYEE',
   `national_id_hash` VARCHAR(255) NULL DEFAULT NULL COMMENT 'bcrypt hash ของเลขบัตรประชาชน 13 หลัก (จาก Pulse) ใช้ verify ตอนผูกบัญชี LIFF ครั้งแรก ห้ามเก็บ plaintext เด็ดขาด',

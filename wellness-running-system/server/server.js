@@ -479,10 +479,14 @@ app.get('/api/admin/health-assessments', requireAdmin, async (req, res) => {
   res.json(rows);
 });
 
-// ทุกแถว (baseline + follow-up ทั้งหมด) ของพนักงานคนเดียว เรียงเก่า -> ใหม่ ใช้ทำกราฟ trend
+// ทุกแถว (baseline + follow-up ทั้งหมด) ของพนักงานคนเดียว เรียงเก่า -> ใหม่ ใช้ทำ detail panel + กราฟ trend
+// employee ต้องดึง years_of_service/shift_type มาด้วย เพราะแท็บ "ทั่วไป" ของ detail panel ใช้ฟิลด์นี้
+// (jobPosition/yearsOfService/shiftType ถูกเก็บที่ตาราง employee ไม่ใช่ health_assessment — ดู POST /api/health-assessments)
 app.get('/api/admin/health-assessments/:employeeId', requireAdmin, async (req, res) => {
   const [empRows] = await pool.query(
-    `SELECT employee_id, full_name, department, job_position FROM employee WHERE employee_id = ?`,
+    `SELECT employee_id, full_name, department, job_position, years_of_service, shift_type,
+       TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) AS age
+     FROM employee WHERE employee_id = ?`,
     [req.params.employeeId]
   );
   if (empRows.length === 0) {
@@ -494,7 +498,13 @@ app.get('/api/admin/health-assessments/:employeeId', requireAdmin, async (req, r
     [req.params.employeeId]
   );
 
-  res.json({ employee: empRows[0], assessments });
+  // คะแนนคงเหลือ = SUM(score) เสมอ ไม่มี column balance แยกเก็บ (ดู comment ใน wellness.sql ตาราง score_transaction)
+  const [scoreRows] = await pool.query(
+    `SELECT COALESCE(SUM(score), 0) AS balance FROM score_transaction WHERE employee_id = ?`,
+    [req.params.employeeId]
+  );
+
+  res.json({ employee: empRows[0], scoreBalance: scoreRows[0].balance, assessments });
 });
 
 // ---- activity submission loop (Phase 1 Part B) ----

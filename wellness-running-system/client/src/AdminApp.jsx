@@ -133,6 +133,168 @@ const CAMPAIGN_STATUS_LABEL_TH = {
   CLOSED: 'ปิดแล้ว',
 };
 
+// ---- Employee Health Detail (Admin) — detail panel ----
+// แท็บของ detail panel ตรงกับ step ของ HealthAssessmentWizard.jsx (ดู STEP_FIELD_KEYS) — ยกเว้น
+// step 'consent' (ไม่มีอะไรให้แสดง) และไม่มีแท็บคะแนนแยก (คะแนนคงเหลือย้ายไปอยู่ header การ์ดพนักงานแล้ว)
+// source 'employee': ฟิลด์นี้เก็บที่ตาราง employee ไม่ใช่ health_assessment (jobPosition/yearsOfService/shiftType
+// ถูก sync มาจาก Pulse ตอน onboarding ดู POST /api/health-assessments ใน server.js)
+// weightKg/heightCm/bmi/metMinutesPerWeek ไม่อยู่ในแท็บไหนเพราะแสดงเป็นการ์ดสรุป 4 อันด้านบนแล้ว (ไม่ซ้ำ)
+const HEALTH_DETAIL_TABS = [
+  {
+    key: 'general',
+    title: 'ทั่วไป',
+    source: 'employee',
+    fields: [
+      { key: 'job_position', label: 'ตำแหน่ง/สายงาน' },
+      { key: 'years_of_service', label: 'อายุงาน' },
+      { key: 'shift_type', label: 'ลักษณะเวร' },
+    ],
+  },
+  {
+    key: 'anthro',
+    title: 'สุขภาพพื้นฐาน',
+    source: 'assessment',
+    trend: 'weight',
+    fields: [
+      { key: 'age', label: 'อายุ', source: 'employee' },
+      { key: 'waist_cm', label: 'รอบเอว' },
+      { key: 'bp_systolic', label: 'ความดันโลหิต (ค่าบน)' },
+      { key: 'bp_diastolic', label: 'ความดันโลหิต (ค่าล่าง)' },
+    ],
+  },
+  {
+    key: 'history',
+    title: 'ประวัติ/ปัจจัยเสี่ยง',
+    source: 'assessment',
+    fields: [
+      { key: 'chronic_disease', label: 'โรคประจำตัว' },
+      { key: 'chronic_disease_other', label: 'โรคประจำตัวอื่นๆ' },
+      { key: 'smoking_status', label: 'การสูบบุหรี่' },
+      { key: 'alcohol_status', label: 'การดื่มแอลกอฮอล์' },
+      { key: 'physical_limitation', label: 'ข้อจำกัดทางร่างกาย' },
+      { key: 'physical_limitation_note', label: 'รายละเอียดข้อจำกัด' },
+    ],
+  },
+  {
+    key: 'ipaq',
+    title: 'พฤติกรรมออกกำลังกาย',
+    source: 'assessment',
+    trend: 'met',
+    fields: [
+      { key: 'vigorous_days', label: 'ออกกำลังกายหนัก (วัน/สัปดาห์)' },
+      { key: 'vigorous_minutes', label: 'ออกกำลังกายหนัก (นาที/ครั้ง)' },
+      { key: 'moderate_days', label: 'ออกกำลังกายปานกลาง (วัน/สัปดาห์)' },
+      { key: 'moderate_minutes', label: 'ออกกำลังกายปานกลาง (นาที/ครั้ง)' },
+      { key: 'walking_days', label: 'การเดิน (วัน/สัปดาห์)' },
+      { key: 'walking_minutes', label: 'การเดิน (นาที/ครั้ง)' },
+      { key: 'exercise_pattern', label: 'รูปแบบการออกกำลังกาย' },
+      { key: 'exercise_barrier', label: 'อุปสรรคในการออกกำลังกาย' },
+    ],
+  },
+  {
+    key: 'diet',
+    title: 'พฤติกรรมกิน',
+    source: 'assessment',
+    fields: [
+      { key: 'meals_per_day', label: 'จำนวนมื้อต่อวัน' },
+      { key: 'fried_food_freq', label: 'ความถี่อาหารทอด/มัน' },
+      { key: 'sweet_food_freq', label: 'ความถี่ของหวาน' },
+      { key: 'veggie_fruit_freq', label: 'ความถี่ผัก/ผลไม้' },
+      { key: 'late_night_eating', label: 'พฤติกรรมกินมื้อดึก' },
+      { key: 'past_dieting', label: 'ประวัติควบคุมอาหาร' },
+    ],
+  },
+  {
+    key: 'goals',
+    title: 'เป้าหมาย',
+    source: 'assessment',
+    fields: [
+      { key: 'goal_type', label: 'เป้าหมายหลัก' },
+      { key: 'stage_of_change', label: 'ขั้นความพร้อมเปลี่ยนพฤติกรรม' },
+      { key: 'target_weight_kg', label: 'น้ำหนักเป้าหมาย' },
+    ],
+  },
+];
+
+const SMOKING_STATUS_LABEL_TH = { NONE: 'ไม่สูบ', SMOKER: 'สูบ', FORMER: 'เลิกแล้ว' };
+const ALCOHOL_STATUS_LABEL_TH = { NONE: 'ไม่ดื่ม', OCCASIONAL: 'ครั้งคราว', REGULAR: 'เป็นประจำ' };
+const SHIFT_TYPE_LABEL_TH = { DAY: 'เวรทำการ', SHIFT: 'เวรผลัด' };
+const MEALS_PER_DAY_LABEL_TH = { 1: '1 มื้อ', 2: '2 มื้อ', 3: '3 มื้อ', MORE_THAN_3: 'มากกว่า 3 มื้อ' };
+const FOOD_FREQ_LABEL_TH = {
+  NEVER: 'ไม่เลย',
+  '1_2_PER_WEEK': '1-2 ครั้ง/สัปดาห์',
+  '3_4_PER_WEEK': '3-4 ครั้ง/สัปดาห์',
+  '5_PLUS_PER_WEEK': '5 ครั้งขึ้นไป/สัปดาห์',
+};
+const VEGGIE_FREQ_LABEL_TH = {
+  NONE: 'ไม่ทาน',
+  '1_SERVING': '1 ส่วน/วัน',
+  '2_SERVINGS': '2 ส่วน/วัน',
+  '3_PLUS_SERVINGS': '3 ส่วนขึ้นไป/วัน',
+};
+const LATE_NIGHT_LABEL_TH = { NEVER: 'ไม่เลย', SOMETIMES: 'บางครั้ง', REGULARLY: 'เป็นประจำ' };
+const PAST_DIETING_LABEL_TH = { NEVER: 'ไม่เคย', CURRENTLY: 'กำลังควบคุมอยู่', PAST_ONLY: 'เคยควบคุมในอดีต' };
+const STAGE_OF_CHANGE_LABEL_TH = {
+  NOT_CONSIDERING: 'ยังไม่คิดจะเปลี่ยน',
+  CONSIDERING_6M: 'กำลังคิดอยู่ (ภายใน 6 เดือน)',
+  PLANNING_1M: 'วางแผนจะเริ่ม (ภายใน 1 เดือน)',
+  ACTIVE_UNDER_6M: 'เริ่มทำแล้ว (ไม่ถึง 6 เดือน)',
+  ACTIVE_OVER_6M: 'ทำต่อเนื่อง (เกิน 6 เดือน)',
+};
+
+// หาค่าล่าสุดที่ "มีค่า" ของฟิลด์นี้จากทุกแถว assessment (baseline+follow-up เรียงเก่า->ใหม่) —
+// ไม่ใช่แถวล่าสุดเฉยๆ เพราะ follow-up บางรอบอาจไม่ได้ถามทุกฟิลด์ (ตรรกะเดียวกับ endpoint รายชื่อ)
+function getLatestAssessmentValue(assessments, field) {
+  const rowsWithValue = assessments.filter((a) => a[field] !== null && a[field] !== undefined && a[field] !== '');
+  if (rowsWithValue.length === 0) return null;
+  return rowsWithValue[rowsWithValue.length - 1][field];
+}
+
+// แปลงค่าดิบจาก DB ให้เป็นข้อความไทยอ่านง่ายสำหรับ detail panel — คืน null ถ้าไม่มีค่า (ใช้ซ่อนแถวนั้น)
+function formatHealthFieldValue(fieldKey, rawValue) {
+  if (rawValue === null || rawValue === undefined || rawValue === '') return null;
+  switch (fieldKey) {
+    case 'chronic_disease':
+    case 'exercise_pattern':
+    case 'goal_type': {
+      const arr = Array.isArray(rawValue)
+        ? rawValue
+        : (() => {
+            try {
+              return JSON.parse(rawValue);
+            } catch {
+              return [];
+            }
+          })();
+      return arr.length ? arr.join(', ') : null;
+    }
+    case 'smoking_status': return SMOKING_STATUS_LABEL_TH[rawValue] || rawValue;
+    case 'alcohol_status': return ALCOHOL_STATUS_LABEL_TH[rawValue] || rawValue;
+    case 'shift_type': return SHIFT_TYPE_LABEL_TH[rawValue] || rawValue;
+    case 'physical_limitation': return rawValue ? 'มี' : 'ไม่มี';
+    case 'meals_per_day': return MEALS_PER_DAY_LABEL_TH[rawValue] || rawValue;
+    case 'fried_food_freq':
+    case 'sweet_food_freq': return FOOD_FREQ_LABEL_TH[rawValue] || rawValue;
+    case 'veggie_fruit_freq': return VEGGIE_FREQ_LABEL_TH[rawValue] || rawValue;
+    case 'late_night_eating': return LATE_NIGHT_LABEL_TH[rawValue] || rawValue;
+    case 'past_dieting': return PAST_DIETING_LABEL_TH[rawValue] || rawValue;
+    case 'stage_of_change': return STAGE_OF_CHANGE_LABEL_TH[rawValue] || rawValue;
+    case 'age': return `${rawValue} ปี`;
+    case 'waist_cm': return `${rawValue} ซม.`;
+    case 'target_weight_kg': return `${rawValue} กก.`;
+    case 'bp_systolic':
+    case 'bp_diastolic': return `${rawValue} mmHg`;
+    case 'years_of_service': return `${rawValue} ปี`;
+    case 'vigorous_days':
+    case 'moderate_days':
+    case 'walking_days': return `${rawValue} วัน/สัปดาห์`;
+    case 'vigorous_minutes':
+    case 'moderate_minutes':
+    case 'walking_minutes': return `${rawValue} นาที/ครั้ง`;
+    default: return String(rawValue);
+  }
+}
+
 // กราฟเส้นแนวโน้มอย่างง่ายด้วย SVG ล้วน (ไม่พึ่ง library ภายนอก) — ใช้แสดงค่า metric ของพนักงาน
 // ข้าม baseline ไปจนถึง follow-up ล่าสุด points: [{ label, value }], ค่า null จะถูกกรองออกก่อนเรียกใช้แล้ว
 function HealthTrendChart({ points, unit }) {
@@ -368,9 +530,10 @@ export default function AdminApp() {
   const [healthListError, setHealthListError] = useState('');
   const [healthSearch, setHealthSearch] = useState('');
   const [selectedHealthEmployeeId, setSelectedHealthEmployeeId] = useState(null);
-  const [healthDetail, setHealthDetail] = useState(null); // { employee, assessments }
+  const [healthDetail, setHealthDetail] = useState(null); // { employee, scoreBalance, assessments }
   const [healthDetailLoading, setHealthDetailLoading] = useState(false);
   const [healthDetailError, setHealthDetailError] = useState('');
+  const [detailPanelTab, setDetailPanelTab] = useState(null);
 
   // เช็คว่ามี admin session ที่ยัง valid อยู่ไหมตอนโหลดหน้า กันต้อง login ใหม่ทุกครั้งที่ refresh
   useEffect(() => {
@@ -1168,6 +1331,7 @@ body: JSON.stringify({
     setSelectedHealthEmployeeId(employeeId);
     setHealthDetail(null);
     setHealthDetailError('');
+    setDetailPanelTab(null);
     setHealthDetailLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/admin/health-assessments/${employeeId}`, adminFetchOptions());
@@ -1187,6 +1351,7 @@ body: JSON.stringify({
     setSelectedHealthEmployeeId(null);
     setHealthDetail(null);
     setHealthDetailError('');
+    setDetailPanelTab(null);
   }
 
   // ---- Phase 5: activity-type CRUD handlers ----
@@ -3439,65 +3604,145 @@ body: JSON.stringify({
 
           {selectedHealthEmployeeId && (
             <div>
-              <button className="ws-btn ws-btn-secondary ws-btn-sm" style={{ marginBottom: 16 }} onClick={closeHealthDetail}>
-                ← กลับไปรายชื่อ
+              <button
+                className="ws-btn ws-btn-ghost ws-btn-sm"
+                style={{ marginBottom: 16, marginLeft: -14 }}
+                onClick={closeHealthDetail}
+              >
+                ← รายชื่อพนักงาน
               </button>
 
               {healthDetailLoading && <p className="ws-empty">กำลังโหลด...</p>}
               {healthDetailError && <div className="ws-alert ws-alert-danger">{healthDetailError}</div>}
 
-              {healthDetail && (
-                <>
-                  <div className="ws-row-between" style={{ marginBottom: 16 }}>
-                    <div>
-                      <p style={{ fontWeight: 'bold', fontSize: 16, margin: 0 }}>{healthDetail.employee.full_name}</p>
-                      <p style={{ fontSize: 13, color: 'var(--ws-text-secondary)', margin: 0 }}>
-                        {healthDetail.employee.employee_id} · {healthDetail.employee.department || '-'} · {healthDetail.employee.job_position || '-'}
-                      </p>
-                    </div>
-                  </div>
+              {healthDetail && (() => {
+                const initials = (healthDetail.employee.full_name || '?').trim().charAt(0).toUpperCase();
+                const visibleDetailTabs = HEALTH_DETAIL_TABS.filter((tab) =>
+                  tab.fields.some((f) => {
+                    if ((f.source || tab.source) === 'employee') {
+                      const v = healthDetail.employee[f.key];
+                      return v !== null && v !== undefined && v !== '';
+                    }
+                    return getLatestAssessmentValue(healthDetail.assessments, f.key) !== null;
+                  })
+                );
+                const activeDetailTab = visibleDetailTabs.find((t) => t.key === detailPanelTab) || visibleDetailTabs[0] || null;
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
-                    {['weight_kg', 'bmi', 'met_minutes_per_week'].map((field) => {
-                      const rowsWithValue = healthDetail.assessments.filter((a) => a[field] !== null && a[field] !== undefined);
-                      const latest = rowsWithValue[rowsWithValue.length - 1];
-                      const labelMap = { weight_kg: 'น้ำหนักล่าสุด (กก.)', bmi: 'BMI ล่าสุด', met_minutes_per_week: 'MET-min/wk ล่าสุด' };
-                      return (
-                        <div key={field} className="ws-card" style={{ padding: '1rem' }}>
-                          <p style={{ fontSize: 13, color: 'var(--ws-text-secondary)', margin: '0 0 4px' }}>{labelMap[field]}</p>
-                          <p style={{ fontSize: 24, fontWeight: 'bold', margin: 0 }}>{latest ? latest[field] : '-'}</p>
+                return (
+                  <>
+                    <div className="ws-card" style={{ marginBottom: 20, padding: '1rem' }}>
+                      <div className="ws-row" style={{ gap: 12, flexWrap: 'nowrap', alignItems: 'center' }}>
+                        <div
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: '50%',
+                            background: 'var(--ws-primary-light)',
+                            color: 'var(--ws-primary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 'bold',
+                            fontSize: 18,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {initials}
                         </div>
-                      );
-                    })}
-                    <div className="ws-card" style={{ padding: '1rem' }}>
-                      <p style={{ fontSize: 13, color: 'var(--ws-text-secondary)', margin: '0 0 4px' }}>จำนวนรอบที่ตอบ</p>
-                      <p style={{ fontSize: 24, fontWeight: 'bold', margin: 0 }}>{healthDetail.assessments.length}</p>
+                        <div>
+                          <p style={{ fontWeight: 'bold', fontSize: 16, margin: 0 }}>{healthDetail.employee.full_name}</p>
+                          <p style={{ fontSize: 13, color: 'var(--ws-text-secondary)', margin: 0 }}>
+                            {healthDetail.employee.employee_id} · {healthDetail.employee.age != null ? `${healthDetail.employee.age} ปี` : '-'} · {healthDetail.employee.job_position || '-'} · คะแนนคงเหลือ {healthDetail.scoreBalance}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
 
-                  <h4>แนวโน้มน้ำหนัก (baseline → follow-up)</h4>
-                  <HealthTrendChart
-                    unit=" กก."
-                    points={healthDetail.assessments
-                      .filter((a) => a.weight_kg !== null && a.weight_kg !== undefined)
-                      .map((a) => ({
-                        label: a.assessment_type === 'BASELINE' ? 'Baseline' : new Date(a.created_at).toLocaleDateString('th-TH', { month: 'short', day: 'numeric' }),
-                        value: Number(a.weight_kg),
-                      }))}
-                  />
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
+                      {['weight_kg', 'bmi', 'met_minutes_per_week'].map((field) => {
+                        const latestValue = getLatestAssessmentValue(healthDetail.assessments, field);
+                        const labelMap = { weight_kg: 'น้ำหนักล่าสุด (กก.)', bmi: 'BMI ล่าสุด', met_minutes_per_week: 'MET-min/wk ล่าสุด' };
+                        return (
+                          <div key={field} className="ws-card" style={{ padding: '1rem' }}>
+                            <p style={{ fontSize: 13, color: 'var(--ws-text-secondary)', margin: '0 0 4px' }}>{labelMap[field]}</p>
+                            <p style={{ fontSize: 24, fontWeight: 'bold', margin: 0 }}>{latestValue ?? '-'}</p>
+                          </div>
+                        );
+                      })}
+                      <div className="ws-card" style={{ padding: '1rem' }}>
+                        <p style={{ fontSize: 13, color: 'var(--ws-text-secondary)', margin: '0 0 4px' }}>จำนวนรอบที่ตอบ</p>
+                        <p style={{ fontSize: 24, fontWeight: 'bold', margin: 0 }}>{healthDetail.assessments.length}</p>
+                      </div>
+                    </div>
 
-                  <h4 style={{ marginTop: 24 }}>แนวโน้ม MET-minutes/สัปดาห์</h4>
-                  <HealthTrendChart
-                    unit=""
-                    points={healthDetail.assessments
-                      .filter((a) => a.met_minutes_per_week !== null && a.met_minutes_per_week !== undefined)
-                      .map((a) => ({
-                        label: a.assessment_type === 'BASELINE' ? 'Baseline' : new Date(a.created_at).toLocaleDateString('th-TH', { month: 'short', day: 'numeric' }),
-                        value: Number(a.met_minutes_per_week),
-                      }))}
-                  />
-                </>
-              )}
+                    {activeDetailTab && (
+                      <div className="ws-card" style={{ padding: '1rem' }}>
+                        <div className="ws-tabs" style={{ marginTop: -4 }}>
+                          {visibleDetailTabs.map((tab) => (
+                            <button
+                              key={tab.key}
+                              className={`ws-tab ${activeDetailTab.key === tab.key ? 'active' : ''}`}
+                              onClick={() => setDetailPanelTab(tab.key)}
+                            >
+                              {tab.title}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="ws-stack" style={{ marginTop: 16 }}>
+                          {activeDetailTab.fields.map((f) => {
+                            const rawValue = (f.source || activeDetailTab.source) === 'employee'
+                              ? healthDetail.employee[f.key]
+                              : getLatestAssessmentValue(healthDetail.assessments, f.key);
+                            const displayValue = formatHealthFieldValue(f.key, rawValue);
+                            if (displayValue === null) return null;
+                            return (
+                              <div
+                                key={f.key}
+                                className="ws-row-between"
+                                style={{ borderBottom: '1px solid var(--ws-border)', paddingBottom: 8 }}
+                              >
+                                <span style={{ fontSize: 13, color: 'var(--ws-text-secondary)' }}>{f.label}</span>
+                                <span style={{ fontSize: 14, fontWeight: 600 }}>{displayValue}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {activeDetailTab.trend === 'weight' && (
+                          <div style={{ marginTop: 20 }}>
+                            <h4 style={{ margin: '0 0 8px' }}>แนวโน้มน้ำหนัก (baseline → follow-up)</h4>
+                            <HealthTrendChart
+                              unit=" กก."
+                              points={healthDetail.assessments
+                                .filter((a) => a.weight_kg !== null && a.weight_kg !== undefined)
+                                .map((a) => ({
+                                  label: a.assessment_type === 'BASELINE' ? 'Baseline' : new Date(a.created_at).toLocaleDateString('th-TH', { month: 'short', day: 'numeric' }),
+                                  value: Number(a.weight_kg),
+                                }))}
+                            />
+                          </div>
+                        )}
+
+                        {activeDetailTab.trend === 'met' && (
+                          <div style={{ marginTop: 20 }}>
+                            <h4 style={{ margin: '0 0 8px' }}>แนวโน้ม MET-minutes/สัปดาห์</h4>
+                            <HealthTrendChart
+                              unit=""
+                              points={healthDetail.assessments
+                                .filter((a) => a.met_minutes_per_week !== null && a.met_minutes_per_week !== undefined)
+                                .map((a) => ({
+                                  label: a.assessment_type === 'BASELINE' ? 'Baseline' : new Date(a.created_at).toLocaleDateString('th-TH', { month: 'short', day: 'numeric' }),
+                                  value: Number(a.met_minutes_per_week),
+                                }))}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
         </>
