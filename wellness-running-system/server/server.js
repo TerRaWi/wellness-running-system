@@ -470,8 +470,8 @@ app.get('/api/admin/health-assessments', requireAdmin, async (req, res) => {
        (SELECT ha.met_minutes_per_week FROM health_assessment ha
          WHERE ha.employee_id = e.employee_id AND ha.met_minutes_per_week IS NOT NULL
          ORDER BY ha.created_at DESC LIMIT 1) AS latest_met_minutes_per_week,
-       (SELECT COUNT(*) FROM health_assessment ha
-         WHERE ha.employee_id = e.employee_id AND ha.assessment_type = 'FOLLOWUP') AS followup_count
+       (SELECT COALESCE(SUM(st.score), 0) FROM score_transaction st
+         WHERE st.employee_id = e.employee_id) AS score_balance
      FROM employee e
      WHERE e.employment_status = 'ACTIVE'
      ORDER BY e.full_name`

@@ -3549,11 +3549,10 @@ body: JSON.stringify({
                     <thead>
                       <tr>
                         <th>พนักงาน</th>
-                        <th>Baseline</th>
                         <th>น้ำหนักล่าสุด</th>
                         <th>BMI</th>
                         <th>MET-min/wk</th>
-                        <th>Follow-up ตอบแล้ว</th>
+                        <th>คะแนนคงเหลือ</th>
                         <th></th>
                       </tr>
                     </thead>
@@ -3573,17 +3572,10 @@ body: JSON.stringify({
                               {row.full_name}
                               <div style={{ fontSize: 12, color: 'var(--ws-text-muted)' }}>{row.employee_id}</div>
                             </td>
-                            <td>
-                              {row.baseline_completed ? (
-                                <span className="ws-badge ws-badge-success">ครบ</span>
-                              ) : (
-                                <span className="ws-badge ws-badge-warning">ยังไม่กรอก</span>
-                              )}
-                            </td>
                             <td>{row.latest_weight_kg ?? '-'}</td>
                             <td>{row.latest_bmi ?? '-'}</td>
                             <td>{row.latest_met_minutes_per_week ?? '-'}</td>
-                            <td>{row.followup_count}</td>
+                            <td>{row.score_balance}</td>
                             <td>
                               <button
                                 className="ws-btn ws-btn-secondary ws-btn-sm"
@@ -3649,8 +3641,8 @@ body: JSON.stringify({
                         >
                           {initials}
                         </div>
-                        <div>
-                          <p style={{ fontWeight: 'bold', fontSize: 16, margin: 0 }}>{healthDetail.employee.full_name}</p>
+                        <div style={{ textAlign: 'left' }}>
+                          <p style={{ fontWeight: 'bold', fontSize: 16, margin: 0 }}>{(healthDetail.employee.full_name || '').trim()}</p>
                           <p style={{ fontSize: 13, color: 'var(--ws-text-secondary)', margin: 0 }}>
                             {healthDetail.employee.employee_id} · {healthDetail.employee.age != null ? `${healthDetail.employee.age} ปี` : '-'} · {healthDetail.employee.job_position || '-'} · คะแนนคงเหลือ {healthDetail.scoreBalance}
                           </p>
