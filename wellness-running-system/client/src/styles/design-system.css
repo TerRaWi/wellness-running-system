@@ -424,6 +424,9 @@
 .ws-stat-value {
   font-size: 28px;
   font-weight: 700;
+  /* เผื่อพื้นที่ด้านบน: background-clip:text ระบายสีได้แค่ในกรอบบรรทัด
+     วรรณยุกต์ไทยที่ซ้อนบนสระบน (เช่น "ชิ้น") สูงเกินกรอบเลยถูกตัดหายไป */
+  padding-top: 0.15em;
   background: var(--ws-primary-gradient);
   background-clip: text;
   -webkit-background-clip: text;
@@ -669,4 +672,143 @@
 }
 .ws-form-grid .ws-field-full {
   grid-column: 1 / -1;
+}
+/* -------------------------------------------------------------------------
+   ThaiDatePicker — ปฏิทินภาษาไทย ปี พ.ศ. (components/ThaiDatePicker.jsx)
+   ใช้สีกลุ่ม "เลือกจากตัวเลือก" (น้ำเงิน) เหมือนช่องวันที่เดิม
+   ------------------------------------------------------------------------- */
+.ws-datepicker {
+  position: relative;
+  min-width: 170px;
+}
+.ws-app input.ws-input.ws-date-input {
+  border-color: var(--ws-field-choice-border);
+  border-left: 3px solid var(--ws-field-choice);
+  padding-right: 38px;
+  font-variant-numeric: tabular-nums;
+}
+.ws-app input.ws-input.ws-date-input:focus {
+  border-color: var(--ws-field-choice);
+  box-shadow: 0 0 0 3px var(--ws-field-choice-light);
+}
+.ws-app input.ws-input.ws-date-input:focus-visible {
+  outline-color: var(--ws-field-choice);
+}
+.ws-datepicker-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--ws-radius-sm);
+  background: transparent;
+  color: var(--ws-text-secondary);
+  cursor: pointer;
+}
+.ws-datepicker-toggle:hover {
+  background: var(--ws-field-choice-light);
+  color: var(--ws-field-choice);
+}
+.ws-datepicker-popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  padding: 12px;
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-border);
+  border-radius: var(--ws-radius-md);
+  box-shadow: var(--ws-shadow-md);
+  text-align: center;
+}
+.ws-datepicker-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.ws-datepicker-nav {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border: none;
+  border-radius: var(--ws-radius-sm);
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--ws-text-secondary);
+  cursor: pointer;
+}
+.ws-datepicker-nav:hover {
+  background: var(--ws-bg);
+  color: var(--ws-text);
+}
+.ws-datepicker-select {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--ws-font);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ws-text);
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-border);
+  border-radius: var(--ws-radius-sm);
+  padding: 5px 6px;
+}
+.ws-datepicker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.ws-datepicker-weekday {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ws-text-muted);
+  padding: 4px 0;
+}
+.ws-datepicker-weekday.is-sunday {
+  color: var(--ws-danger);
+}
+.ws-datepicker-day {
+  height: 34px;
+  border: none;
+  border-radius: var(--ws-radius-sm);
+  background: transparent;
+  font-family: var(--ws-font);
+  font-size: 14px;
+  color: var(--ws-text);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.ws-datepicker-day:hover:not(:disabled) {
+  background: var(--ws-field-choice-light);
+}
+.ws-datepicker-day.is-outside {
+  color: var(--ws-text-muted);
+}
+.ws-datepicker-day.is-today {
+  box-shadow: inset 0 0 0 1.5px var(--ws-field-choice);
+}
+.ws-datepicker-day.is-selected,
+.ws-datepicker-day.is-selected:hover {
+  background: var(--ws-field-choice);
+  color: #fff;
+  font-weight: 700;
+}
+.ws-datepicker-day:disabled {
+  color: var(--ws-border-strong);
+  cursor: not-allowed;
+}
+.ws-datepicker-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ws-border);
 }

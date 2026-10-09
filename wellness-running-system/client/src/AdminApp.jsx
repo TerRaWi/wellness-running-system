@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { formatDateTimeShort } from './utils/formatDateTime';
 import { resolveImageUrl } from './utils/resolveImageUrl';
+import AdminReportSection from './components/AdminReportSection';
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
@@ -1773,6 +1774,9 @@ body: JSON.stringify({
         <button className={`ws-tab ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
           แดชบอร์ด
         </button>
+        <button className={`ws-tab ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}>
+          รายงาน
+        </button>
         <button className={`ws-tab ${activeTab === 'submissions' ? 'active' : ''}`} onClick={() => setActiveTab('submissions')}>
           ตรวจสอบกิจกรรม
         </button>
@@ -1799,6 +1803,10 @@ body: JSON.stringify({
             </button>
           ))}
         </div>
+      )}
+
+      {activeTab === 'reports' && (
+        <AdminReportSection apiBase={API_BASE} fetchOptions={adminFetchOptions} />
       )}
 
       {activeTab === 'dashboard' && (

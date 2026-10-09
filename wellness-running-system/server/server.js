@@ -10,6 +10,7 @@ const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const { registerReportRoutes } = require('./reports');
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -1015,6 +1016,9 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
     res.status(500).json({ message: 'โหลดข้อมูลแดชบอร์ดไม่สำเร็จ' });
   }
 });
+
+// รายงานผู้บริหาร + export Excel (logic อยู่ใน reports.js)
+registerReportRoutes(app, pool, requireAdmin);
 
 // preset เหตุผลปฏิเสธสำหรับ dropdown ฝั่งแอดมิน (is_other บอกว่าแถวไหนต้องให้พิมพ์เหตุผลเอง)
 app.get('/api/admin/reject-reasons', requireAdmin, async (req, res) => {
