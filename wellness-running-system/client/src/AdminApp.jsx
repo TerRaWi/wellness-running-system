@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { formatDateTimeShort } from './utils/formatDateTime';
 import { resolveImageUrl } from './utils/resolveImageUrl';
 import AdminReportSection from './components/AdminReportSection';
+import AdminAuditLogSection from './components/AdminAuditLogSection';
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
@@ -44,6 +45,7 @@ const SETTINGS_TABS = [
   { key: 'healthCampaigns', label: 'แบบสอบถามติดตามผล' },
   { key: 'healthResults', label: 'ผลข้อมูลสุขภาพ' },
   { key: 'admins', label: 'จัดการสิทธิ์แอดมิน' },
+  { key: 'auditLog', label: 'ประวัติการใช้งาน' },
 ];
 
 // ฟิลด์ที่เลือกได้ตอนสร้างรอบ follow-up จัดกลุ่มตามหมวดของแบบสอบถาม (ตรงกับ field key ใน HealthAssessmentWizard)
@@ -1807,6 +1809,10 @@ body: JSON.stringify({
 
       {activeTab === 'reports' && (
         <AdminReportSection apiBase={API_BASE} fetchOptions={adminFetchOptions} />
+      )}
+
+      {activeTab === 'auditLog' && (
+        <AdminAuditLogSection apiBase={API_BASE} fetchOptions={adminFetchOptions} />
       )}
 
       {activeTab === 'dashboard' && (

@@ -899,8 +899,7 @@ function registerReportRoutes(app, pool, requireAdmin) {
       const [adminRows] = await pool.query(`SELECT full_name FROM employee WHERE employee_id = ?`, [req.adminEmployeeId]);
       const adminName = `${adminRows[0]?.full_name || ''} (${req.adminEmployeeId})`;
       const buffer = buildWorkbook(report, adminName);
-      // บันทึกร่องรอยการ export ไว้ใน log ของ server ก่อน (รอทำ audit_log table ตาม checklist PDPA)
-      console.info('[report-export]', JSON.stringify({ admin: req.adminEmployeeId, ...params, at: new Date().toISOString() }));
+      // การ export ถูกบันทึกลง audit_log อัตโนมัติ (ดู RULES ใน audit.js)
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="wellness-report_${params.from}_${params.to}.xlsx"`);
       res.setHeader('Cache-Control', 'no-store');

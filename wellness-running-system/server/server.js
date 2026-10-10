@@ -13,6 +13,7 @@ const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const helmet = require('helmet');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const { registerReportRoutes } = require('./reports');
+const { createAudit, registerAuditLogRoutes } = require('./audit');
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -69,6 +70,10 @@ const pool = mysql.createPool({
 pool.on('connection', (connection) => {
   connection.query("SET time_zone = '+07:00'");
 });
+
+// audit log ต้องดักก่อน route ทั้งหมด (ดู audit.js — กฎว่า route ไหนบันทึกอะไรอยู่ที่ RULES)
+const audit = createAudit(pool);
+app.use(audit.auditMiddleware);
 
 // ---- file upload setup (เก็บขึ้น Cloudinary — Render ไม่มี persistent disk, เขียนลง local จะหายทุกครั้งที่ deploy/restart) ----
 
@@ -912,7 +917,7 @@ function loginLimiter({ limit, keyGenerator, skip, message }) {
     ...(keyGenerator && { keyGenerator }),
     ...(skip && { skip }),
     handler: (req, res, next, options) => {
-      // เก็บร่องรอยไว้ใน log ของ server ก่อน (รอย้ายไป audit_log table)
+      // audit_log บันทึกให้อัตโนมัติ (result = BLOCKED) — บรรทัดนี้ไว้ดูเร็วๆ ใน log ของ Render
       console.warn('[rate-limit]', req.method, req.originalUrl, 'ip=', req.ip, 'xff=', req.headers['x-forwarded-for']);
       res.status(options.statusCode).json({ message });
     },
@@ -1074,6 +1079,7 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
 
 // รายงานผู้บริหาร + export Excel (logic อยู่ใน reports.js)
 registerReportRoutes(app, pool, requireAdmin);
+registerAuditLogRoutes(app, pool, requireAdmin);
 
 // preset เหตุผลปฏิเสธสำหรับ dropdown ฝั่งแอดมิน (is_other บอกว่าแถวไหนต้องให้พิมพ์เหตุผลเอง)
 app.get('/api/admin/reject-reasons', requireAdmin, async (req, res) => {
@@ -1944,7 +1950,7 @@ app.post('/api/admin/badges', requireAdmin, handleBadgeIconUpload, async (req, r
 // แก้ไข badge ที่มีอยู่ (ชื่อ/คำอธิบาย/ไอคอน/เงื่อนไข/สถานะ ACTIVE-INACTIVE)
 // เปลี่ยนไอคอนได้ทีหลังเสมอ: ส่งไฟล์ใหม่มาใน 'iconFile' เพื่อแทนที่รูปเดิม หรือส่ง removeIcon=true เพื่อลบรูปออก (ไม่ส่งอะไรเลย = รูปเดิมยังอยู่)
 // หมายเหตุ: แก้ condition_type/condition_value ของ badge ที่มีคนได้ไปแล้วจะไม่กระทบคนที่ได้ไปแล้ว (employee_badge ไม่ผูกค่า ณ ตอนนั้นไว้)
-app.put('/api/admin/badges/:id', requireAdmin, handleBadgeIconUpload, async (req, res) => {
+app.put('/api/admin/badges/:id', requireAdmin, audit.captureBefore('badge', 'badge_id'), handleBadgeIconUpload, async (req, res) => {
   const badgeId = req.params.id;
   const cleanupUploadedFile = () => {
     if (req.file) cloudinary.uploader.destroy(req.file.filename, () => {});
@@ -2043,7 +2049,7 @@ app.post('/api/admin/categories', requireAdmin, async (req, res) => {
 });
 
 // แก้ไขหมวดหมู่ (ชื่อ/สถานะ) — ไม่มีปุ่มลบเพราะมีประเภทกิจกรรมย่อย/challenge ผูกอยู่ ใช้ INACTIVE แทนเสมอ
-app.put('/api/admin/categories/:id', requireAdmin, async (req, res) => {
+app.put('/api/admin/categories/:id', requireAdmin, audit.captureBefore('activity_category', 'category_id'), async (req, res) => {
   const categoryId = req.params.id;
   const validationError = validateCategoryInput(req.body);
   if (validationError) {
@@ -2140,7 +2146,7 @@ app.post('/api/admin/activity-types', requireAdmin, async (req, res) => {
 
 // แก้ไขประเภทกิจกรรมย่อย (ชื่อ/คะแนน/บังคับรูป/หมวดหมู่/สถานะ)
 // หมายเหตุ: แก้ score ของกิจกรรมที่มีคนส่งไปแล้วจะไม่กระทบคะแนนที่อนุมัติไปแล้ว (running_submission ไม่ snapshot score ไว้ ใช้ activity_type.score ปัจจุบัน ณ ตอน approve เท่านั้น)
-app.put('/api/admin/activity-types/:id', requireAdmin, async (req, res) => {
+app.put('/api/admin/activity-types/:id', requireAdmin, audit.captureBefore('activity_type', 'activity_id'), async (req, res) => {
   const activityId = req.params.id;
   const validationError = validateActivityTypeInput(req.body);
   if (validationError) {
@@ -2247,7 +2253,7 @@ app.post('/api/admin/rewards', requireAdmin, handleRewardImageUpload, async (req
 // แก้ไขของรางวัล (ชื่อ/คะแนนที่ใช้แลก/จำนวนคงเหลือ/รูป/คำอธิบาย/สถานะ)
 // เปลี่ยนรูปได้ทีหลังเสมอ: ส่งไฟล์ใหม่มาใน 'imageFile' เพื่อแทนที่รูปเดิม หรือส่ง removeImage=true เพื่อลบรูปออก (ไม่ส่งอะไรเลย = รูปเดิมยังอยู่)
 // หมายเหตุ: แก้ stock ตรงนี้เป็นการ set ค่าตรงๆ แอดมินต้องเผื่อ stock ที่ถูกจองไว้จาก redeem สถานะ PENDING เอง
-app.put('/api/admin/rewards/:id', requireAdmin, handleRewardImageUpload, async (req, res) => {
+app.put('/api/admin/rewards/:id', requireAdmin, audit.captureBefore('reward', 'reward_id'), handleRewardImageUpload, async (req, res) => {
   const rewardId = req.params.id;
   const cleanupUploadedFile = () => {
     if (req.file) cloudinary.uploader.destroy(req.file.filename, () => {});
@@ -2533,4 +2539,5 @@ app.post('/api/auth/line-login', lineBindPerIpLimiter, requireLineIdToken, lineB
 
 app.listen(process.env.PORT, () => {
   console.log(`server running on port ${process.env.PORT}`);
+  audit.startRetentionJob();
 });
