@@ -52,9 +52,21 @@ const VEGGIE_FRUIT_OPTIONS = [
   { value: '3_PLUS_SERVINGS', label: '3 ส่วนขึ้นไป' },
 ];
 
+// อายุงาน: เลือกปี 0-40 และเดือน 0-11 (ตอบคร่าวๆ ระบบนับเพิ่มให้เองตามเวลา)
+const SERVICE_YEAR_OPTIONS = Array.from({ length: 41 }, (_, i) => i);
+const SERVICE_MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => i);
+
+// ปี + เดือน → ปีทศนิยม 2 ตำแหน่ง (ตรงกับ employee.years_of_service) / ไม่ได้เลือกเลย → null
+function toServiceYears(years, months) {
+  if (years === '' && months === '') return null;
+  const total = Number(years || 0) + Number(months || 0) / 12;
+  return Math.round(total * 100) / 100;
+}
+
 const initialForm = {
   jobPosition: '',
-  yearsOfService: '',
+  serviceYears: '', // อายุงาน ตอบเป็น ปี + เดือน แล้วรวมเป็น yearsOfService ตอนส่ง
+  serviceMonths: '',
   shiftType: '',
   weightKg: '',
   heightCm: '',
@@ -272,6 +284,7 @@ export default function HealthAssessmentWizard({
         credentials: 'include',
         body: JSON.stringify({
           ...form,
+          yearsOfService: toServiceYears(form.serviceYears, form.serviceMonths),
           assessmentType,
           campaignId,
         }),
@@ -353,16 +366,30 @@ export default function HealthAssessmentWizard({
               </select>
             </div>
             <div>
-              <label className="ws-label" htmlFor="yearsOfService">ระยะเวลาปฏิบัติงานในโรงพยาบาลนี้ (ปี)</label>
-              <input
-                id="yearsOfService"
-                type="number"
-                step="0.5"
-                min="0"
-                className="ws-input"
-                value={form.yearsOfService}
-                onChange={(e) => setField('yearsOfService', e.target.value)}
-              />
+              <label className="ws-label" htmlFor="serviceYears">ระยะเวลาปฏิบัติงานในโรงพยาบาลนี้ (โดยประมาณ)</label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <select
+                  id="serviceYears"
+                  className="ws-select"
+                  value={form.serviceYears}
+                  onChange={(e) => setField('serviceYears', e.target.value)}
+                  aria-label="จำนวนปี"
+                >
+                  <option value="">-- ปี --</option>
+                  {SERVICE_YEAR_OPTIONS.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+                <span>ปี</span>
+                <select
+                  className="ws-select"
+                  value={form.serviceMonths}
+                  onChange={(e) => setField('serviceMonths', e.target.value)}
+                  aria-label="จำนวนเดือน"
+                >
+                  <option value="">-- เดือน --</option>
+                  {SERVICE_MONTH_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+                <span>เดือน</span>
+              </div>
             </div>
             <div>
               <label className="ws-label">ลักษณะเวรที่ปฏิบัติงานเป็นส่วนใหญ่</label>

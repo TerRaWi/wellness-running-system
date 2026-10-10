@@ -151,7 +151,7 @@ const HEALTH_DETAIL_TABS = [
     source: 'employee',
     fields: [
       { key: 'job_position', label: 'ตำแหน่ง/สายงาน' },
-      { key: 'years_of_service', label: 'อายุงาน' },
+      { key: 'service_months', label: 'อายุงาน' }, // คำนวณสดจากที่ตอบไว้ + เวลาที่ผ่านไป (server)
       { key: 'shift_type', label: 'ลักษณะเวร' },
     ],
   },
@@ -289,7 +289,13 @@ function formatHealthFieldValue(fieldKey, rawValue) {
     case 'target_weight_kg': return `${rawValue} กก.`;
     case 'bp_systolic':
     case 'bp_diastolic': return `${rawValue} mmHg`;
-    case 'years_of_service': return `${rawValue} ปี`;
+    case 'service_months': {
+      const total = Number(rawValue);
+      const years = Math.floor(total / 12);
+      const months = total % 12;
+      if (years === 0 && months === 0) return 'น้อยกว่า 1 เดือน';
+      return [years > 0 && `${years} ปี`, months > 0 && `${months} เดือน`].filter(Boolean).join(' ');
+    }
     case 'vigorous_days':
     case 'moderate_days':
     case 'walking_days': return `${rawValue} วัน/สัปดาห์`;

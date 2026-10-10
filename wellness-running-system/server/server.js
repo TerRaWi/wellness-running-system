@@ -338,6 +338,14 @@ app.post('/api/health-assessment', requireAuth, async (req, res) => {
 
   const type = assessmentType === 'FOLLOWUP' ? 'FOLLOWUP' : 'BASELINE';
 
+  // อายุงาน (ปี, ทศนิยม = เดือน/12) — 0 ใช้ได้ (เพิ่งเริ่มงาน) ว่าง = ไม่ได้ตอบ
+  const serviceYears = yearsOfService === undefined || yearsOfService === null || yearsOfService === ''
+    ? null
+    : Number(yearsOfService);
+  if (serviceYears !== null && (!Number.isFinite(serviceYears) || serviceYears < 0 || serviceYears > 60)) {
+    return res.status(400).json({ message: 'อายุงานไม่ถูกต้อง' });
+  }
+
   if (type === 'BASELINE') {
     // BASELINE ต้องกรอกครบทุกข้อบังคับเหมือนเดิม
     if (
@@ -385,13 +393,15 @@ app.post('/api/health-assessment', requireAuth, async (req, res) => {
     // ข้อมูลทั่วไปที่เก็บไว้ที่ employee (ไม่ใช่ time-series แบบ health_assessment)
     // อัปเดตเฉพาะตอน BASELINE หรือถ้า follow-up รอบนั้นตั้งใจถามซ้ำ (ส่งค่ามาไม่ null)
     if (jobPosition !== undefined || yearsOfService !== undefined || shiftType !== undefined) {
+      // อายุงานเก็บคู่กับ "วันที่ตอบ" — อายุงานปัจจุบันคำนวณตอนแสดงผล (เพิ่มเองทุกเดือน)
       await conn.query(
         `UPDATE employee SET
            job_position = COALESCE(?, job_position),
+           years_of_service_as_of = IF(? IS NULL, years_of_service_as_of, CURDATE()),
            years_of_service = COALESCE(?, years_of_service),
            shift_type = COALESCE(?, shift_type)
          WHERE employee_id = ?`,
-        [jobPosition || null, yearsOfService || null, shiftType || null, req.employeeId]
+        [jobPosition || null, serviceYears, serviceYears === null ? null : Math.round(serviceYears * 100) / 100, shiftType || null, req.employeeId]
       );
     }
 
@@ -536,7 +546,12 @@ app.get('/api/admin/health-assessments', requireAdmin, async (req, res) => {
 app.get('/api/admin/health-assessments/:employeeId', requireAdmin, async (req, res) => {
   const [empRows] = await pool.query(
     `SELECT employee_id, full_name, department, job_position, years_of_service, shift_type,
-       TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) AS age
+       TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) AS age,
+       -- อายุงานปัจจุบัน (เดือน) = ที่ตอบไว้ + เดือนเต็มที่ผ่านไปนับจากวันที่ตอบ
+       CASE WHEN years_of_service IS NULL THEN NULL
+            ELSE CAST(ROUND(years_of_service * 12)
+                 + IFNULL(GREATEST(TIMESTAMPDIFF(MONTH, years_of_service_as_of, CURDATE()), 0), 0) AS SIGNED)
+       END AS service_months
      FROM employee WHERE employee_id = ?`,
     [req.params.employeeId]
   );
