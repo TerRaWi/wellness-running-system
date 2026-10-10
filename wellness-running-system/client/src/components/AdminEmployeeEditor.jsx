@@ -229,7 +229,17 @@ export default function AdminEmployeeEditor({ apiBase, fetchOptions, employeeId,
 
             <div style={{ marginBottom: 12 }}>
               <label className="ws-label" htmlFor="empDob">วันเกิด (ถ้ามี)</label>
-              <ThaiDatePicker id="empDob" value={form.dateOfBirth} max={todayIso()} onChange={(v) => update({ dateOfBirth: v })} />
+              <ThaiDatePicker
+                id="empDob"
+                value={form.dateOfBirth}
+                max={todayIso()}
+                minYear={new Date().getFullYear() - 100}
+                openTo={`${new Date().getFullYear() - 30}-01-01`}
+                onChange={(v) => update({ dateOfBirth: v })}
+              />
+              <div style={{ fontSize: 12, color: 'var(--ws-text-muted)', marginTop: 4 }}>
+                เลือกปีจากรายการ พ.ศ. ด้านบนปฏิทิน หรือพิมพ์ตรงๆ เช่น 15/03/2530
+              </div>
             </div>
 
             {error && <div className="ws-alert ws-alert-danger">{error}</div>}

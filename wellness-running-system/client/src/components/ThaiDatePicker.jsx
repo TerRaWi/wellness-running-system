@@ -45,10 +45,12 @@ function inRange(iso, min, max) {
   return (!min || iso >= min) && (!max || iso <= max);
 }
 
-export default function ThaiDatePicker({ id, value, onChange, min, max, placeholder = 'วว/ดด/ปปปป' }) {
+// minYear: ปี ค.ศ. แรกสุดในรายการปี (ค่าเริ่มต้น 2020 พอสำหรับรายงาน/ชาเลนจ์ — ช่องวันเกิดส่งค่าย้อนไปไกลกว่านี้)
+// openTo: วันที่ที่ปฏิทินเปิดไปแสดงเมื่อยังไม่มีค่า (เช่น วันเกิด เปิดไปที่ราว 30 ปีก่อน ไม่ใช่เดือนนี้)
+export default function ThaiDatePicker({ id, value, onChange, min, max, placeholder = 'วว/ดด/ปปปป', minYear = 2020, openTo }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(null); // ข้อความที่กำลังพิมพ์ (null = แสดงตาม value)
-  const initial = value || (min && min > todayIso() ? min : todayIso());
+  const initial = value || openTo || (min && min > todayIso() ? min : todayIso());
   const [view, setView] = useState(() => ({ year: Number(initial.slice(0, 4)), month: Number(initial.slice(5, 7)) - 1 }));
   const rootRef = useRef(null);
 
@@ -110,9 +112,15 @@ export default function ThaiDatePicker({ id, value, onChange, min, max, placehol
   });
   const today = todayIso();
   const thisYear = new Date().getFullYear();
+  // รายการปี: ตั้งแต่ปีของ max (หรือปีหน้า) ย้อนลงไปถึง minYear (หรือปีของ min ถ้าใหม่กว่า) เรียงใหม่ → เก่า
+  const lastYear = max ? Number(max.slice(0, 4)) : thisYear + 1;
+  const firstYear = min ? Math.max(minYear, Number(min.slice(0, 4))) : minYear;
   const yearOptions = [];
-  for (let y = thisYear + 1; y >= 2020; y -= 1) yearOptions.push(y);
-  if (!yearOptions.includes(view.year)) yearOptions.push(view.year);
+  for (let y = lastYear; y >= firstYear; y -= 1) yearOptions.push(y);
+  if (!yearOptions.includes(view.year)) {
+    yearOptions.push(view.year);
+    yearOptions.sort((a, b) => b - a);
+  }
 
   return (
     <div className="ws-datepicker" ref={rootRef}>
