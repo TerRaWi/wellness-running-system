@@ -749,17 +749,74 @@
   background: var(--ws-bg);
   color: var(--ws-text);
 }
-.ws-datepicker-select {
+.ws-datepicker-nav:disabled {
+  color: var(--ws-border-strong);
+  background: transparent;
+  cursor: not-allowed;
+}
+/* หัวปฏิทิน "มกราคม 2539 ▾" — กดเพื่อสลับไปหน้าเลือกปี/เดือน */
+.ws-datepicker-title {
   flex: 1;
   min-width: 0;
-  font-family: var(--ws-font);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ws-text);
-  background: var(--ws-surface);
-  border: 1px solid var(--ws-border);
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
   border-radius: var(--ws-radius-sm);
-  padding: 5px 6px;
+  background: transparent;
+  font-family: var(--ws-font);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ws-text);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.ws-datepicker-title:hover {
+  background: var(--ws-field-choice-light);
+  color: var(--ws-field-choice);
+}
+.ws-datepicker-caret {
+  font-size: 11px;
+  color: var(--ws-text-muted);
+}
+.ws-datepicker-title:hover .ws-datepicker-caret {
+  color: inherit;
+}
+/* ตารางเลือกปี/เดือน 3 คอลัมน์ ความสูงใกล้เคียงตารางวัน ปฏิทินจะได้ไม่ยืดหด */
+.ws-datepicker-picks {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 4px 0;
+}
+.ws-datepicker-pick {
+  height: 52px;
+  border: none;
+  border-radius: var(--ws-radius-sm);
+  background: transparent;
+  font-family: var(--ws-font);
+  font-size: 15px;
+  color: var(--ws-text);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.ws-datepicker-pick:hover:not(:disabled) {
+  background: var(--ws-field-choice-light);
+}
+.ws-datepicker-pick.is-today {
+  box-shadow: inset 0 0 0 1.5px var(--ws-field-choice);
+}
+.ws-datepicker-pick.is-selected,
+.ws-datepicker-pick.is-selected:hover {
+  background: var(--ws-field-choice);
+  color: #fff;
+  font-weight: 700;
+}
+.ws-datepicker-pick:disabled {
+  color: var(--ws-border-strong);
+  cursor: not-allowed;
 }
 .ws-datepicker-grid {
   display: grid;

@@ -5,7 +5,9 @@ import { useEffect, useRef, useState } from 'react';
 // value / onChange / min / max ใช้รูปแบบ 'YYYY-MM-DD' (ค.ศ.) เหมือน input type=date เดิม — เปลี่ยนแค่การแสดงผล
 
 const TH_MONTHS_FULL = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+const TH_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 const TH_WEEKDAYS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+const YEARS_PER_PAGE = 12; // หน้าเลือกปี: ตาราง 3 x 4
 
 function pad2(n) {
   return String(n).padStart(2, '0');
@@ -52,6 +54,9 @@ export default function ThaiDatePicker({ id, value, onChange, min, max, placehol
   const [draft, setDraft] = useState(null); // ข้อความที่กำลังพิมพ์ (null = แสดงตาม value)
   const initial = value || openTo || (min && min > todayIso() ? min : todayIso());
   const [view, setView] = useState(() => ({ year: Number(initial.slice(0, 4)), month: Number(initial.slice(5, 7)) - 1 }));
+  // หน้าในปฏิทิน: days = เลือกวัน, months = เลือกเดือน, years = เลือกปี (กดที่หัวปฏิทินเพื่อสลับ)
+  const [mode, setMode] = useState('days');
+  const [yearPageStart, setYearPageStart] = useState(0);
   const rootRef = useRef(null);
 
   // ปิด popup เมื่อคลิกนอกกล่องหรือกด Esc
@@ -74,6 +79,7 @@ export default function ThaiDatePicker({ id, value, onChange, min, max, placehol
   function openPicker() {
     const base = value || initial;
     setView({ year: Number(base.slice(0, 4)), month: Number(base.slice(5, 7)) - 1 });
+    setMode('days');
     setOpen(true);
   }
 
@@ -112,15 +118,35 @@ export default function ThaiDatePicker({ id, value, onChange, min, max, placehol
   });
   const today = todayIso();
   const thisYear = new Date().getFullYear();
-  // รายการปี: ตั้งแต่ปีของ max (หรือปีหน้า) ย้อนลงไปถึง minYear (หรือปีของ min ถ้าใหม่กว่า) เรียงใหม่ → เก่า
+  // ช่วงปีที่เลือกได้: ปีของ min (หรือ minYear) ถึงปีของ max (หรือปีหน้า)
   const lastYear = max ? Number(max.slice(0, 4)) : thisYear + 1;
   const firstYear = min ? Math.max(minYear, Number(min.slice(0, 4))) : minYear;
-  const yearOptions = [];
-  for (let y = lastYear; y >= firstYear; y -= 1) yearOptions.push(y);
-  if (!yearOptions.includes(view.year)) {
-    yearOptions.push(view.year);
-    yearOptions.sort((a, b) => b - a);
+  const yearPage = Array.from({ length: YEARS_PER_PAGE }, (_, i) => yearPageStart + i);
+
+  function showYears() {
+    // เปิดหน้าที่มีปีที่ดูอยู่ โดยให้ปีนั้นอยู่แถวกลางๆ
+    setYearPageStart(view.year - 5);
+    setMode('years');
   }
+
+  function chooseYear(year) {
+    setView((v) => ({ ...v, year }));
+    setMode('months');
+  }
+
+  function chooseMonth(month) {
+    setView((v) => ({ ...v, month }));
+    setMode('days');
+  }
+
+  // เดือนนี้มีวันที่เลือกได้ไหม (ใช้หรี่ปุ่มเดือนที่อยู่นอก min/max)
+  function monthSelectable(year, month) {
+    const first = toIso(year, month, 1);
+    const last = toIso(year, month, new Date(year, month + 1, 0).getDate());
+    return (!min || last >= min) && (!max || first <= max);
+  }
+
+  const keepFocus = (ev) => ev.preventDefault(); // กดปุ่มในปฏิทินแล้วช่องพิมพ์ไม่หลุด focus
 
   return (
     <div className="ws-datepicker" ref={rootRef}>
@@ -159,52 +185,135 @@ export default function ThaiDatePicker({ id, value, onChange, min, max, placehol
 
       {open && (
         <div className="ws-datepicker-popup" role="dialog" aria-label="เลือกวันที่">
-          <div className="ws-datepicker-header">
-            <button type="button" className="ws-datepicker-nav" onClick={() => shiftMonth(-1)} aria-label="เดือนก่อนหน้า">‹</button>
-            <select
-              className="ws-datepicker-select"
-              value={view.month}
-              onChange={(ev) => setView((v) => ({ ...v, month: Number(ev.target.value) }))}
-              aria-label="เดือน"
-            >
-              {TH_MONTHS_FULL.map((name, i) => <option key={name} value={i}>{name}</option>)}
-            </select>
-            <select
-              className="ws-datepicker-select"
-              value={view.year}
-              onChange={(ev) => setView((v) => ({ ...v, year: Number(ev.target.value) }))}
-              aria-label="ปี พ.ศ."
-            >
-              {yearOptions.map((y) => <option key={y} value={y}>{y + 543}</option>)}
-            </select>
-            <button type="button" className="ws-datepicker-nav" onClick={() => shiftMonth(1)} aria-label="เดือนถัดไป">›</button>
-          </div>
-          <div className="ws-datepicker-grid">
-            {TH_WEEKDAYS.map((w, i) => (
-              <div key={w} className={`ws-datepicker-weekday${i === 0 ? ' is-sunday' : ''}`}>{w}</div>
-            ))}
-            {cells.map((c) => {
-              const disabled = !inRange(c.iso, min, max);
-              const classes = ['ws-datepicker-day'];
-              if (!c.inMonth) classes.push('is-outside');
-              if (c.iso === today) classes.push('is-today');
-              if (c.iso === value) classes.push('is-selected');
-              return (
+          {mode === 'days' && (
+            <div className="ws-datepicker-header">
+              <button type="button" className="ws-datepicker-nav" onMouseDown={keepFocus} onClick={() => shiftMonth(-1)} aria-label="เดือนก่อนหน้า">‹</button>
+              <button type="button" className="ws-datepicker-title" onMouseDown={keepFocus} onClick={showYears} aria-label="เลือกเดือนและปี">
+                {TH_MONTHS_FULL[view.month]} {view.year + 543}
+                <span className="ws-datepicker-caret" aria-hidden="true">▾</span>
+              </button>
+              <button type="button" className="ws-datepicker-nav" onMouseDown={keepFocus} onClick={() => shiftMonth(1)} aria-label="เดือนถัดไป">›</button>
+            </div>
+          )}
+
+          {mode === 'years' && (
+            <>
+              <div className="ws-datepicker-header">
                 <button
-                  key={c.iso}
                   type="button"
-                  className={classes.join(' ')}
-                  disabled={disabled}
-                  onMouseDown={(ev) => ev.preventDefault()} // กันช่อง input blur ก่อนเลือก
-                  onClick={() => pick(c.iso)}
-                  aria-label={`${c.day} ${TH_MONTHS_FULL[Number(c.iso.slice(5, 7)) - 1]} ${Number(c.iso.slice(0, 4)) + 543}`}
-                  aria-pressed={c.iso === value}
-                >
-                  {c.day}
+                  className="ws-datepicker-nav"
+                  onMouseDown={keepFocus}
+                  onClick={() => setYearPageStart((y) => y - YEARS_PER_PAGE)}
+                  disabled={yearPageStart <= firstYear}
+                  aria-label="ช่วงปีก่อนหน้า"
+                >‹</button>
+                <button type="button" className="ws-datepicker-title" onMouseDown={keepFocus} onClick={() => setMode('days')} aria-label="กลับไปเลือกวัน">
+                  {yearPageStart + 543} – {yearPageStart + YEARS_PER_PAGE - 1 + 543}
                 </button>
-              );
-            })}
-          </div>
+                <button
+                  type="button"
+                  className="ws-datepicker-nav"
+                  onMouseDown={keepFocus}
+                  onClick={() => setYearPageStart((y) => y + YEARS_PER_PAGE)}
+                  disabled={yearPageStart + YEARS_PER_PAGE - 1 >= lastYear}
+                  aria-label="ช่วงปีถัดไป"
+                >›</button>
+              </div>
+              <div className="ws-datepicker-picks">
+                {yearPage.map((y) => {
+                  const classes = ['ws-datepicker-pick'];
+                  if (y === view.year) classes.push('is-selected');
+                  if (y === thisYear) classes.push('is-today');
+                  return (
+                    <button
+                      key={y}
+                      type="button"
+                      className={classes.join(' ')}
+                      disabled={y < firstYear || y > lastYear}
+                      onMouseDown={keepFocus}
+                      onClick={() => chooseYear(y)}
+                    >
+                      {y + 543}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {mode === 'months' && (
+            <>
+              <div className="ws-datepicker-header">
+                <button
+                  type="button"
+                  className="ws-datepicker-nav"
+                  onMouseDown={keepFocus}
+                  onClick={() => setView((v) => ({ ...v, year: v.year - 1 }))}
+                  disabled={view.year <= firstYear}
+                  aria-label="ปีก่อนหน้า"
+                >‹</button>
+                <button type="button" className="ws-datepicker-title" onMouseDown={keepFocus} onClick={showYears} aria-label="เลือกปี">
+                  พ.ศ. {view.year + 543}
+                  <span className="ws-datepicker-caret" aria-hidden="true">▾</span>
+                </button>
+                <button
+                  type="button"
+                  className="ws-datepicker-nav"
+                  onMouseDown={keepFocus}
+                  onClick={() => setView((v) => ({ ...v, year: v.year + 1 }))}
+                  disabled={view.year >= lastYear}
+                  aria-label="ปีถัดไป"
+                >›</button>
+              </div>
+              <div className="ws-datepicker-picks">
+                {TH_MONTHS_SHORT.map((name, i) => {
+                  const classes = ['ws-datepicker-pick'];
+                  if (value && Number(value.slice(0, 4)) === view.year && Number(value.slice(5, 7)) - 1 === i) classes.push('is-selected');
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      className={classes.join(' ')}
+                      disabled={!monthSelectable(view.year, i)}
+                      onMouseDown={keepFocus}
+                      onClick={() => chooseMonth(i)}
+                    >
+                      {name}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {mode === 'days' && (
+            <div className="ws-datepicker-grid">
+              {TH_WEEKDAYS.map((w, i) => (
+                <div key={w} className={`ws-datepicker-weekday${i === 0 ? ' is-sunday' : ''}`}>{w}</div>
+              ))}
+              {cells.map((c) => {
+                const disabled = !inRange(c.iso, min, max);
+                const classes = ['ws-datepicker-day'];
+                if (!c.inMonth) classes.push('is-outside');
+                if (c.iso === today) classes.push('is-today');
+                if (c.iso === value) classes.push('is-selected');
+                return (
+                  <button
+                    key={c.iso}
+                    type="button"
+                    className={classes.join(' ')}
+                    disabled={disabled}
+                    onMouseDown={(ev) => ev.preventDefault()} // กันช่อง input blur ก่อนเลือก
+                    onClick={() => pick(c.iso)}
+                    aria-label={`${c.day} ${TH_MONTHS_FULL[Number(c.iso.slice(5, 7)) - 1]} ${Number(c.iso.slice(0, 4)) + 543}`}
+                    aria-pressed={c.iso === value}
+                  >
+                    {c.day}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <div className="ws-datepicker-footer">
             <button
               type="button"
@@ -215,7 +324,7 @@ export default function ThaiDatePicker({ id, value, onChange, min, max, placehol
             >
               วันนี้
             </button>
-            <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm" onClick={() => setOpen(false)}>ปิด</button>
+            <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm" onMouseDown={keepFocus} onClick={() => setOpen(false)}>ปิด</button>
           </div>
         </div>
       )}
