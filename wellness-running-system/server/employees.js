@@ -1,12 +1,13 @@
 // ---- admin: จัดการข้อมูลพนักงาน (เพิ่ม/แก้ไข/ปิดใช้งาน/เปิดใช้งาน/ยกเลิกผูก LINE/ลบ) ----
 // ทุก endpoint ถูกบันทึกลง audit_log ผ่าน RULES ใน audit.js
-// - employee_id แก้ไม่ได้ (เป็น key ที่ตารางอื่นอ้างถึงทั้งหมด)
+// - employee_id ระบบกำหนดให้เอง (EMP + เลขต่อจากล่าสุด) และแก้ไม่ได้ (เป็น key ที่ตารางอื่นอ้างถึงทั้งหมด)
 // - เลขบัตรประชาชนเก็บเป็น bcrypt เท่านั้น ไม่ส่งกลับไปหน้าเว็บ
 // - "ลาออก" = ปิดใช้งาน (เก็บประวัติไว้) ลบจริงได้เฉพาะคนที่ยังไม่มีข้อมูลใดๆ ผูกอยู่เลย
 
 const bcrypt = require('bcryptjs');
 
-const EMPLOYEE_ID_RE = /^[A-Za-z0-9_-]{1,20}$/;
+const EMPLOYEE_ID_PREFIX = 'EMP';
+const EMPLOYEE_ID_DIGITS = 4; // EMP0001 … EMP9999 (ถ้าเกินจะยาวขึ้นเอง)
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // ตารางที่อ้างถึง employee ทั้งหมด (FK แบบ RESTRICT) — มีแถวในตารางไหนก็ลบจริงไม่ได้
@@ -51,7 +52,34 @@ function parseEmployeeInput(body, { partial }) {
   return { fullName, department: department || null, nationalId: nationalId || null, dateOfBirth: dateOfBirth || null };
 }
 
+// รหัสถัดไป = เลขสูงสุดที่เคยใช้ + 1 — ดูทั้งตาราง employee และประวัติการสร้างใน audit_log
+// เพื่อไม่ให้รหัสของคนที่ถูกลบไปแล้วถูกนำกลับมาใช้ซ้ำ (ประวัติใน log จะปนกันระหว่างสองคน)
+async function nextEmployeeId(runner) {
+  const pattern = `^${EMPLOYEE_ID_PREFIX}[0-9]+$`;
+  const [[fromEmployee]] = await runner.query(
+    `SELECT MAX(CAST(SUBSTRING(employee_id, ?) AS UNSIGNED)) AS n FROM employee WHERE employee_id REGEXP ?`,
+    [EMPLOYEE_ID_PREFIX.length + 1, pattern]
+  );
+  const [[fromLog]] = await runner.query(
+    `SELECT MAX(CAST(SUBSTRING(target_id, ?) AS UNSIGNED)) AS n FROM audit_log
+     WHERE action = 'EMPLOYEE_CREATE' AND result = 'SUCCESS' AND target_id REGEXP ?`,
+    [EMPLOYEE_ID_PREFIX.length + 1, pattern]
+  );
+  const next = Math.max(Number(fromEmployee.n) || 0, Number(fromLog.n) || 0) + 1;
+  return `${EMPLOYEE_ID_PREFIX}${String(next).padStart(EMPLOYEE_ID_DIGITS, '0')}`;
+}
+
 function registerEmployeeRoutes(app, pool, requireAdmin, audit) {
+  // รหัสที่จะได้ (แสดงในฟอร์มเพิ่มพนักงาน) — รหัสจริงกำหนดตอนบันทึก เผื่อมีแอดมินอีกคนเพิ่มพร้อมกัน
+  app.get('/api/admin/employees/next-id', requireAdmin, async (req, res) => {
+    try {
+      res.json({ employeeId: await nextEmployeeId(pool) });
+    } catch (err) {
+      console.error('next employee id error:', err);
+      res.status(500).json({ message: 'คำนวณรหัสพนักงานถัดไปไม่สำเร็จ' });
+    }
+  });
+
   // รายชื่อแผนกที่มีอยู่แล้ว ใช้เป็นตัวเลือกในฟอร์ม (กันพิมพ์ผิดแบบ "พนักงานบริกา")
   app.get('/api/admin/employees/departments', requireAdmin, async (req, res) => {
     try {
@@ -105,28 +133,31 @@ function registerEmployeeRoutes(app, pool, requireAdmin, audit) {
     }
   });
 
+  // รหัสพนักงานไม่รับจากหน้าเว็บ — ระบบกำหนดเองเสมอ (กันกรอกผิดรูปแบบ เช่น EMP137)
   app.post('/api/admin/employees', requireAdmin, async (req, res) => {
-    const employeeId = String(req.body.employeeId || '').trim().toUpperCase();
-    if (!EMPLOYEE_ID_RE.test(employeeId)) {
-      return res.status(400).json({ message: 'รหัสพนักงานต้องเป็นตัวอักษรอังกฤษ/ตัวเลข ไม่เกิน 20 ตัว เช่น EMP0175' });
-    }
     const input = parseEmployeeInput(req.body, { partial: false });
     if (input.error) return res.status(400).json({ message: input.error });
 
     try {
       const nationalIdHash = await bcrypt.hash(input.nationalId, 10);
-      await pool.query(
-        `INSERT INTO employee
-          (employee_id, full_name, department, date_of_birth, employment_status, role, national_id_hash)
-         VALUES (?, ?, ?, ?, 'ACTIVE', 'EMPLOYEE', ?)`,
-        [employeeId, input.fullName, input.department, input.dateOfBirth, nationalIdHash]
-      );
-      res.locals.audit = { detail: { fullName: input.fullName, department: input.department, dateOfBirth: input.dateOfBirth } };
-      res.status(201).json({ employeeId });
-    } catch (err) {
-      if (err.code === 'ER_DUP_ENTRY') {
-        return res.status(409).json({ message: `มีรหัสพนักงาน ${employeeId} อยู่ในระบบแล้ว` });
+      // แอดมิน 2 คนกดเพิ่มพร้อมกันอาจได้เลขเดียวกัน — คนที่ช้ากว่าชน PK แล้วคำนวณเลขใหม่
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const employeeId = await nextEmployeeId(pool);
+        try {
+          await pool.query(
+            `INSERT INTO employee
+              (employee_id, full_name, department, date_of_birth, employment_status, role, national_id_hash)
+             VALUES (?, ?, ?, ?, 'ACTIVE', 'EMPLOYEE', ?)`,
+            [employeeId, input.fullName, input.department, input.dateOfBirth, nationalIdHash]
+          );
+          res.locals.audit = { detail: { fullName: input.fullName, department: input.department, dateOfBirth: input.dateOfBirth } };
+          return res.status(201).json({ employeeId });
+        } catch (err) {
+          if (err.code !== 'ER_DUP_ENTRY') throw err;
+        }
       }
+      res.status(409).json({ message: 'มีการเพิ่มพนักงานพร้อมกันหลายรายการ กรุณากดบันทึกอีกครั้ง' });
+    } catch (err) {
       console.error('create employee error:', err);
       res.status(500).json({ message: 'เพิ่มพนักงานไม่สำเร็จ' });
     }
@@ -258,4 +289,4 @@ function registerEmployeeRoutes(app, pool, requireAdmin, audit) {
   });
 }
 
-module.exports = { registerEmployeeRoutes, isValidThaiNationalId };
+module.exports = { registerEmployeeRoutes, isValidThaiNationalId, nextEmployeeId };

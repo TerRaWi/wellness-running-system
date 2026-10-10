@@ -20,7 +20,8 @@ function todayIso() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function AdminEmployeeEditor({ apiBase, fetchOptions, employeeId, adminId, onClose, onOpenHistory }) {
+// onCreated(id): เพิ่มสำเร็จ → เปิดหน้าแก้ไขของคนที่เพิ่งเพิ่ม พร้อมข้อความแจ้งรหัสที่ได้ (initialNotice)
+export default function AdminEmployeeEditor({ apiBase, fetchOptions, employeeId, adminId, onClose, onCreated, onOpenHistory, initialNotice = '' }) {
   const isNew = !employeeId;
   const [departments, setDepartments] = useState([]);
   const [info, setInfo] = useState(null); // { employee, lineAccounts, related, canDelete }
@@ -30,7 +31,7 @@ export default function AdminEmployeeEditor({ apiBase, fetchOptions, employeeId,
   const [saving, setSaving] = useState(false);
   const [actioning, setActioning] = useState('');
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState(initialNotice);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -41,7 +42,13 @@ export default function AdminEmployeeEditor({ apiBase, fetchOptions, employeeId,
         const depData = await depRes.json().catch(() => []);
         if (!cancelled && depRes.ok) setDepartments(depData);
 
-        if (isNew) return;
+        if (isNew) {
+          // รหัสพนักงานระบบกำหนดเอง — แสดงให้เห็นก่อนว่าจะได้รหัสอะไร
+          const idRes = await fetch(`${apiBase}/api/admin/employees/next-id`, fetchOptions());
+          const idData = await idRes.json().catch(() => ({}));
+          if (!cancelled && idRes.ok) setForm((prev) => ({ ...prev, employeeId: idData.employeeId }));
+          return;
+        }
         setLoading(true);
         const res = await fetch(`${apiBase}/api/admin/employees/${encodeURIComponent(employeeId)}`, fetchOptions());
         const data = await res.json().catch(() => ({}));
@@ -89,7 +96,6 @@ export default function AdminEmployeeEditor({ apiBase, fetchOptions, employeeId,
     try {
       const body = { fullName: form.fullName, department, dateOfBirth: form.dateOfBirth || null };
       if (nationalIdDigits) body.nationalId = nationalIdDigits;
-      if (isNew) body.employeeId = form.employeeId;
       const res = await fetch(
         isNew ? `${apiBase}/api/admin/employees` : `${apiBase}/api/admin/employees/${encodeURIComponent(employeeId)}`,
         fetchOptions({
@@ -100,7 +106,8 @@ export default function AdminEmployeeEditor({ apiBase, fetchOptions, employeeId,
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || 'บันทึกไม่สำเร็จ');
-      onClose(true);
+      if (isNew) onCreated(data.employeeId);
+      else onClose(true);
     } catch (err) {
       setError(err.message || 'เกิดข้อผิดพลาด');
     } finally {
@@ -154,17 +161,12 @@ export default function AdminEmployeeEditor({ apiBase, fetchOptions, employeeId,
 
             <div style={{ marginBottom: 12 }}>
               <label className="ws-label" htmlFor="empId">รหัสพนักงาน</label>
-              <input
-                id="empId"
-                className="ws-input"
-                value={form.employeeId}
-                onChange={(e) => update({ employeeId: e.target.value.toUpperCase() })}
-                placeholder="เช่น EMP0175"
-                disabled={!isNew}
-                required
-                maxLength={20}
-              />
-              {!isNew && <div style={{ fontSize: 12, color: 'var(--ws-text-muted)', marginTop: 4 }}>รหัสพนักงานแก้ไม่ได้ เพราะข้อมูลทุกส่วนผูกกับรหัสนี้</div>}
+              <input id="empId" className="ws-input" value={form.employeeId} placeholder="กำลังคำนวณ..." disabled readOnly />
+              <div style={{ fontSize: 12, color: 'var(--ws-text-muted)', marginTop: 4 }}>
+                {isNew
+                  ? 'ระบบกำหนดให้อัตโนมัติ ต่อจากรหัสล่าสุดในฐานข้อมูล (ถ้ามีแอดมินอื่นเพิ่มพร้อมกัน รหัสอาจเลื่อนไป)'
+                  : 'รหัสพนักงานแก้ไม่ได้ เพราะข้อมูลทุกส่วนผูกกับรหัสนี้'}
+              </div>
             </div>
 
             <div style={{ marginBottom: 12 }}>

@@ -538,6 +538,7 @@ export default function AdminApp() {
   // หน้า "ข้อมูลพนักงาน": กรองสถานะ + ฟอร์มเพิ่ม/แก้ไข (null = แสดงรายชื่อ, '' = เพิ่มใหม่, รหัส = แก้ไขคนนั้น)
   const [employeeStatusFilter, setEmployeeStatusFilter] = useState('ACTIVE');
   const [editingEmployeeId, setEditingEmployeeId] = useState(null);
+  const [employeeEditorNotice, setEmployeeEditorNotice] = useState('');
   // เปิดแท็บประวัติการใช้งานแบบกรองพนักงานคนเดียว (จากปุ่ม "ดูประวัติ" ในฟอร์มพนักงาน)
   const [auditPresetEmployeeId, setAuditPresetEmployeeId] = useState('');
   const [healthDetail, setHealthDetail] = useState(null); // { employee, scoreBalance, assessments }
@@ -1339,7 +1340,15 @@ body: JSON.stringify({
 
   function closeEmployeeEditor(changed) {
     setEditingEmployeeId(null);
+    setEmployeeEditorNotice('');
     if (changed) loadHealthList();
+  }
+
+  // เพิ่มพนักงานสำเร็จ → เปิดหน้าของคนนั้นต่อ พร้อมบอกรหัสที่ระบบกำหนดให้
+  function handleEmployeeCreated(employeeId) {
+    setEmployeeEditorNotice(`เพิ่มพนักงานแล้ว รหัสพนักงาน ${employeeId}`);
+    setEditingEmployeeId(employeeId);
+    loadHealthList();
   }
 
   function openEmployeeHistory(employeeId) {
@@ -1795,14 +1804,14 @@ body: JSON.stringify({
         <button className={`ws-tab ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
           แดชบอร์ด
         </button>
-        <button className={`ws-tab ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}>
-          รายงาน
-        </button>
         <button className={`ws-tab ${activeTab === 'submissions' ? 'active' : ''}`} onClick={() => setActiveTab('submissions')}>
           ตรวจสอบกิจกรรม
         </button>
         <button className={`ws-tab ${activeTab === 'redeems' ? 'active' : ''}`} onClick={() => setActiveTab('redeems')}>
           คำขอแลกของรางวัล
+        </button>
+        <button className={`ws-tab ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}>
+          รายงาน
         </button>
         <button
           className={`ws-tab ${SETTINGS_TABS.some(t => t.key === activeTab) ? 'active' : ''}`}
@@ -3566,7 +3575,9 @@ body: JSON.stringify({
           employeeId={editingEmployeeId || null}
           adminId={adminId}
           onClose={closeEmployeeEditor}
+          onCreated={handleEmployeeCreated}
           onOpenHistory={openEmployeeHistory}
+          initialNotice={employeeEditorNotice}
         />
       )}
 
@@ -3598,7 +3609,7 @@ body: JSON.stringify({
                 </div>
                 <div className="ws-row" style={{ gap: 8 }}>
                   <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={loadHealthList}>รีเฟรช</button>
-                  <button className="ws-btn ws-btn-primary ws-btn-sm" onClick={() => setEditingEmployeeId('')}>+ เพิ่มพนักงาน</button>
+                  <button className="ws-btn ws-btn-primary ws-btn-sm" onClick={() => { setEmployeeEditorNotice(''); setEditingEmployeeId(''); }}>+ เพิ่มพนักงาน</button>
                 </div>
               </div>
 
@@ -3664,7 +3675,7 @@ body: JSON.stringify({
                               </button>{' '}
                               <button
                                 className="ws-btn ws-btn-ghost ws-btn-sm"
-                                onClick={() => setEditingEmployeeId(row.employee_id)}
+                                onClick={() => { setEmployeeEditorNotice(''); setEditingEmployeeId(row.employee_id); }}
                               >
                                 จัดการ
                               </button>
