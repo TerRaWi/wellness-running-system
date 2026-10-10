@@ -84,6 +84,12 @@ export default function ThaiDatePicker({ id, value, onChange, min, max, placehol
 
   function commitDraft() {
     if (draft === null) return;
+    // ลบข้อความจนว่าง = ล้างค่า (ใช้กับช่องที่ไม่บังคับ เช่น วันปิดรับรอบติดตามผล)
+    if (draft.trim() === '') {
+      if (value) onChange('');
+      setDraft(null);
+      return;
+    }
     const iso = parseDisplay(draft);
     if (iso && inRange(iso, min, max)) onChange(iso);
     setDraft(null); // พิมพ์ผิด/นอกช่วง → กลับไปแสดงค่าเดิม

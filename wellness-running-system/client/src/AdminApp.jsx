@@ -3,6 +3,7 @@ import { formatDateTimeShort } from './utils/formatDateTime';
 import { resolveImageUrl } from './utils/resolveImageUrl';
 import AdminReportSection from './components/AdminReportSection';
 import AdminAuditLogSection from './components/AdminAuditLogSection';
+import ThaiDatePicker from './components/ThaiDatePicker';
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
@@ -2195,19 +2196,18 @@ body: JSON.stringify({
                     const startParts = splitDatetimeLocal(newChallengeStartDate);
                     return (
                       <div className="ws-row" style={{ gap: 6 }}>
-                        <input
-                          id="newChallengeStart"
-                          type="date"
-                          value={startParts.date}
-                          min={getNowForDatetimeInput().slice(0, 10)}
-                          onChange={(e) =>
-                            setNewChallengeStartDate(
-                              joinDatetimeLocal(e.target.value, startParts.hour || '00', startParts.minute || '00')
-                            )
-                          }
-                          className="ws-input"
-                          style={{ flex: 1 }}
-                        />
+                        <div style={{ flex: 1 }}>
+                          <ThaiDatePicker
+                            id="newChallengeStart"
+                            value={startParts.date}
+                            min={getNowForDatetimeInput().slice(0, 10)}
+                            onChange={(v) =>
+                              setNewChallengeStartDate(
+                                joinDatetimeLocal(v, startParts.hour || '00', startParts.minute || '00')
+                              )
+                            }
+                          />
+                        </div>
                         <select
                           aria-label="ชั่วโมงเริ่ม"
                           value={startParts.hour || '00'}
@@ -2250,19 +2250,18 @@ body: JSON.stringify({
                     const endParts = splitDatetimeLocal(newChallengeEndDate);
                     return (
                       <div className="ws-row" style={{ gap: 6 }}>
-                        <input
-                          id="newChallengeEnd"
-                          type="date"
-                          value={endParts.date}
-                          min={(newChallengeStartDate || getNowForDatetimeInput()).slice(0, 10)}
-                          onChange={(e) =>
-                            setNewChallengeEndDate(
-                              joinDatetimeLocal(e.target.value, endParts.hour || '00', endParts.minute || '00')
-                            )
-                          }
-                          className="ws-input"
-                          style={{ flex: 1 }}
-                        />
+                        <div style={{ flex: 1 }}>
+                          <ThaiDatePicker
+                            id="newChallengeEnd"
+                            value={endParts.date}
+                            min={(newChallengeStartDate || getNowForDatetimeInput()).slice(0, 10)}
+                            onChange={(v) =>
+                              setNewChallengeEndDate(
+                                joinDatetimeLocal(v, endParts.hour || '00', endParts.minute || '00')
+                              )
+                            }
+                          />
+                        </div>
                         <select
                           aria-label="ชั่วโมงจบ"
                           value={endParts.hour || '00'}
@@ -3357,23 +3356,22 @@ body: JSON.stringify({
                 <div style={{ flex: 1 }}>
                   <label htmlFor="newCampaignReleaseDate">วันที่เปิดให้กรอก</label>
                   <br />
-                  <input
+                  <ThaiDatePicker
                     id="newCampaignReleaseDate"
-                    type="date"
                     value={campaignForm.releaseDate}
-                    onChange={(e) => setCampaignForm((prev) => ({ ...prev, releaseDate: e.target.value }))}
-                    className="ws-input"
+                    max={campaignForm.closeDate || undefined}
+                    onChange={(v) => setCampaignForm((prev) => ({ ...prev, releaseDate: v }))}
                   />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label htmlFor="newCampaignCloseDate">วันที่ปิดรับ (ถ้ามี)</label>
                   <br />
-                  <input
+                  <ThaiDatePicker
                     id="newCampaignCloseDate"
-                    type="date"
                     value={campaignForm.closeDate}
-                    onChange={(e) => setCampaignForm((prev) => ({ ...prev, closeDate: e.target.value }))}
-                    className="ws-input"
+                    min={campaignForm.releaseDate || undefined}
+                    placeholder="ไม่ระบุ = เปิดรับไปเรื่อยๆ"
+                    onChange={(v) => setCampaignForm((prev) => ({ ...prev, closeDate: v }))}
                   />
                 </div>
               </div>
