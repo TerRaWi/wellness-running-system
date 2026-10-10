@@ -10,6 +10,8 @@ const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const helmet = require('helmet');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const { registerReportRoutes } = require('./reports');
 
 cloudinary.config({
@@ -19,6 +21,26 @@ cloudinary.config({
 });
 
 const app = express();
+
+// ---- security hardening (PDPA checklist ข้อ 3-4) ----
+// Render วาง proxy ไว้หน้าแอป 1 ชั้น — ต้อง trust เพื่อให้ req.ip / req.secure อ่านจาก X-Forwarded-* ได้ถูก
+app.set('trust proxy', 1);
+
+// บังคับ HTTPS: redirect เฉพาะคำขอที่ proxy บอกว่าเข้ามาทาง http
+// (คำขอตรงไม่ผ่าน proxy เช่น health check ภายใน หรือรันในเครื่อง จะไม่มี header นี้ ปล่อยผ่าน)
+// ใช้ 308 เพื่อให้ POST ยังเป็น POST หลัง redirect
+app.use((req, res, next) => {
+  if (req.headers['x-forwarded-proto'] === 'http') {
+    return res.redirect(308, `https://${req.headers.host}${req.originalUrl}`);
+  }
+  next();
+});
+
+app.use(helmet({
+  // frontend อยู่คนละโดเมนกับ API — ค่า default same-origin จะบล็อกการโหลด resource ข้ามโดเมน
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
+
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
@@ -876,8 +898,41 @@ app.get('/api/my-badges', requireAuth, async (req, res) => {
 // แยก session/cookie คนละชุดจากฝั่งพนักงาน (LINE) เพราะ use case ต่างกัน (แอดมินรีวิวบนคอมพิวเตอร์)
 // แต่สิทธิ์แอดมินยังผูกกับ employee_id จริงเสมอ ผ่าน employee.role + ตาราง admin_credential
 
-// route ปกติ ไม่ต้อง login ก่อนเรียก แต่ควรมี rate limit ในอนาคตกันการ brute force รหัสผ่าน
-app.post('/api/admin/login', async (req, res) => {
+// ---- rate limit กัน brute force (นับเฉพาะครั้งที่ล้มเหลว — ล็อกอินสำเร็จไม่ถูกนับ) ----
+// เก็บตัวนับใน memory ของ process (Render รัน instance เดียว) — restart แล้วตัวนับเริ่มใหม่ ยอมรับได้
+const LOGIN_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+
+function loginLimiter({ limit, keyGenerator, skip, message }) {
+  return rateLimit({
+    windowMs: LOGIN_LIMIT_WINDOW_MS,
+    limit,
+    skipSuccessfulRequests: true,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    ...(keyGenerator && { keyGenerator }),
+    ...(skip && { skip }),
+    handler: (req, res, next, options) => {
+      // เก็บร่องรอยไว้ใน log ของ server ก่อน (รอย้ายไป audit_log table)
+      console.warn('[rate-limit]', req.method, req.originalUrl, 'ip=', req.ip, 'xff=', req.headers['x-forwarded-for']);
+      res.status(options.statusCode).json({ message });
+    },
+  });
+}
+
+// แอดมิน: จำกัดต่อ IP + รหัสพนักงาน (กันเดารหัสผ่านของแอดมินคนใดคนหนึ่ง)
+// และจำกัดต่อ IP อย่างเดียวอีกชั้น (กันไล่สุ่มหลายรหัสพนักงานจากเครื่องเดียว)
+const adminLoginPerAccountLimiter = loginLimiter({
+  limit: 5,
+  keyGenerator: (req) => `${ipKeyGenerator(req.ip)}:${String(req.body?.employeeId || '').trim()}`,
+  message: 'กรอกรหัสผ่านผิดหลายครั้งเกินไป กรุณารอ 15 นาทีแล้วลองใหม่',
+});
+const adminLoginPerIpLimiter = loginLimiter({
+  limit: 20,
+  message: 'มีการพยายามเข้าสู่ระบบผิดหลายครั้งเกินไป กรุณารอ 15 นาทีแล้วลองใหม่',
+});
+
+// route ปกติ ไม่ต้อง login ก่อนเรียก
+app.post('/api/admin/login', adminLoginPerIpLimiter, adminLoginPerAccountLimiter, async (req, res) => {
   const { employeeId, password } = req.body;
   if (!employeeId || !password) {
     return res.status(400).json({ message: 'กรุณากรอกรหัสพนักงานและรหัสผ่าน' });
@@ -2339,8 +2394,28 @@ async function verifyLineIdToken(idToken) {
   return verifyRes.json(); // { sub, name, picture, ... }
 }
 
-app.post('/api/auth/line-login', async (req, res) => {
-  const { idToken, nationalId } = req.body;
+// rate limit เฉพาะคำขอที่แนบเลขบัตรประชาชนมาผูกบัญชี (จุดที่เดาเลขบัตรได้)
+// การเข้าแอปปกติของคนที่ผูกแล้วไม่ถูกจำกัด
+const isNationalIdBindAttempt = (req) => Boolean(req.body?.nationalId);
+
+// ต่อบัญชี LINE: เดาเลขบัตรผิดได้ 5 ครั้งต่อ 15 นาที — ใช้ LINE user id ที่ verify แล้ว
+// จึงไม่โดนผลกระทบเมื่อพนักงานหลายคนออกเน็ตผ่าน IP เดียวกันของโรงพยาบาล
+const lineBindPerAccountLimiter = loginLimiter({
+  limit: 5,
+  skip: (req) => !isNationalIdBindAttempt(req),
+  keyGenerator: (req) => `line:${req.linePayload.sub}`,
+  message: 'กรอกเลขบัตรประชาชนไม่ถูกต้องหลายครั้งเกินไป กรุณารอ 15 นาทีแล้วลองใหม่ หรือติดต่อแอดมิน',
+});
+// ต่อ IP: กันคนสร้างบัญชี LINE หลายบัญชีมาไล่เดา — ตั้งเพดานสูงไว้เผื่อพนักงานใช้ IP ร่วมกัน
+const lineBindPerIpLimiter = loginLimiter({
+  limit: 30,
+  skip: (req) => !isNationalIdBindAttempt(req),
+  message: 'มีการกรอกเลขบัตรประชาชนผิดจากเครือข่ายนี้มากเกินไป กรุณารอ 15 นาทีแล้วลองใหม่',
+});
+
+// verify LINE id token ก่อนเข้า limiter ต่อบัญชี (ต้องรู้ LINE user id ก่อน)
+async function requireLineIdToken(req, res, next) {
+  const { idToken } = req.body;
   if (!idToken) {
     return res.status(400).json({ message: 'missing idToken' });
   }
@@ -2350,7 +2425,19 @@ app.post('/api/auth/line-login', async (req, res) => {
     if (!payload) {
       return res.status(401).json({ message: 'LINE token ไม่ถูกต้องหรือหมดอายุ' });
     }
+    req.linePayload = payload;
+    next();
+  } catch (err) {
+    console.error('line-login verify error:', err);
+    res.status(500).json({ message: 'internal error' });
+  }
+}
 
+app.post('/api/auth/line-login', lineBindPerIpLimiter, requireLineIdToken, lineBindPerAccountLimiter, async (req, res) => {
+  const { nationalId } = req.body;
+  const payload = req.linePayload;
+
+  try {
     const lineUserId = payload.sub;
     const displayName = payload.name || null;
     const pictureUrl = payload.picture || null;
