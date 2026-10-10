@@ -54,9 +54,16 @@ const RULES = {
   'PUT /api/admin/rewards/:id': { action: 'REWARD_UPDATE', category: 'DATA_CHANGE', targetType: 'REWARD', targetParam: 'id' },
   'POST /api/admin/admins': { action: 'ADMIN_GRANT', category: 'DATA_CHANGE', targetType: 'EMPLOYEE', targetBody: 'employeeId' },
   'POST /api/admin/admins/:employeeId/revoke': { action: 'ADMIN_REVOKE', category: 'DATA_CHANGE', targetType: 'EMPLOYEE', targetParam: 'employeeId' },
+  'POST /api/admin/employees': { action: 'EMPLOYEE_CREATE', category: 'DATA_CHANGE', targetType: 'EMPLOYEE', targetResponse: 'employeeId' },
+  'PUT /api/admin/employees/:employeeId': { action: 'EMPLOYEE_UPDATE', category: 'DATA_CHANGE', targetType: 'EMPLOYEE', targetParam: 'employeeId' },
+  'POST /api/admin/employees/:employeeId/deactivate': { action: 'EMPLOYEE_DEACTIVATE', category: 'DATA_CHANGE', targetType: 'EMPLOYEE', targetParam: 'employeeId' },
+  'POST /api/admin/employees/:employeeId/reactivate': { action: 'EMPLOYEE_REACTIVATE', category: 'DATA_CHANGE', targetType: 'EMPLOYEE', targetParam: 'employeeId' },
+  'POST /api/admin/employees/:employeeId/unlink-line': { action: 'EMPLOYEE_UNLINK_LINE', category: 'DATA_CHANGE', targetType: 'EMPLOYEE', targetParam: 'employeeId' },
+  'DELETE /api/admin/employees/:employeeId': { action: 'EMPLOYEE_DELETE', category: 'DATA_CHANGE', targetType: 'EMPLOYEE', targetParam: 'employeeId' },
 
   // การเข้าถึงข้อมูลสุขภาพ/รายงาน
   'GET /api/admin/health-assessments': { action: 'HEALTH_LIST_VIEW', category: 'DATA_ACCESS' },
+  'GET /api/admin/employees/:employeeId': { action: 'EMPLOYEE_VIEW', category: 'DATA_ACCESS', targetType: 'EMPLOYEE', targetParam: 'employeeId' },
   'GET /api/admin/health-assessments/:employeeId': { action: 'HEALTH_RECORD_VIEW', category: 'DATA_ACCESS', targetType: 'EMPLOYEE', targetParam: 'employeeId' },
   'GET /api/admin/reports/summary': { action: 'REPORT_VIEW', category: 'DATA_ACCESS', logQuery: true },
   'GET /api/admin/reports/export': { action: 'REPORT_EXPORT', category: 'EXPORT', logQuery: true },
@@ -227,7 +234,10 @@ function createAudit(pool) {
             for (const [field, oldValue] of Object.entries(before.row)) {
               const newValue = after[field];
               if (String(oldValue ?? '') !== String(newValue ?? '')) {
-                changes[field] = { from: sanitize(oldValue), to: sanitize(newValue) };
+                // ฟิลด์ลับ (เช่น national_id_hash) บอกแค่ว่ามีการเปลี่ยน ไม่เก็บค่า
+                changes[field] = SENSITIVE_KEY.test(field)
+                  ? { changed: true }
+                  : { from: sanitize(oldValue), to: sanitize(newValue) };
               }
             }
             entry.detail = { ...entry.detail, changes };
@@ -311,6 +321,13 @@ const ACTION_LABELS = {
   REWARD_UPDATE: 'แก้ไขของรางวัล',
   ADMIN_GRANT: 'ให้สิทธิ์แอดมิน',
   ADMIN_REVOKE: 'ถอดสิทธิ์แอดมิน',
+  EMPLOYEE_CREATE: 'เพิ่มพนักงาน',
+  EMPLOYEE_UPDATE: 'แก้ไขข้อมูลพนักงาน',
+  EMPLOYEE_DEACTIVATE: 'ปิดใช้งานพนักงาน (ลาออก)',
+  EMPLOYEE_REACTIVATE: 'เปิดใช้งานพนักงานอีกครั้ง',
+  EMPLOYEE_UNLINK_LINE: 'ยกเลิกการผูก LINE ของพนักงาน',
+  EMPLOYEE_DELETE: 'ลบพนักงาน',
+  EMPLOYEE_VIEW: 'เปิดดูข้อมูลพนักงาน',
   HEALTH_LIST_VIEW: 'เปิดดูตารางผลข้อมูลสุขภาพ (ทุกคน)',
   HEALTH_RECORD_VIEW: 'เปิดดูข้อมูลสุขภาพรายบุคคล',
   REPORT_VIEW: 'เปิดดูรายงานผู้บริหาร',

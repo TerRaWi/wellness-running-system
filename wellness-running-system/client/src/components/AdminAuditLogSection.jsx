@@ -73,17 +73,18 @@ function DetailView({ row }) {
   );
 }
 
-export default function AdminAuditLogSection({ apiBase, fetchOptions }) {
+// initialEmployeeId: เปิดมาจากหน้าข้อมูลพนักงาน ("ดูประวัติของคนนี้") → กรองคนนั้น ทุกช่วงเวลา
+export default function AdminAuditLogSection({ apiBase, fetchOptions, initialEmployeeId = '' }) {
   const [filters, setFilters] = useState({
-    from: isoDaysAgo(6),
+    from: initialEmployeeId ? '' : isoDaysAgo(6),
     to: isoDaysAgo(0),
     category: '',
     result: '',
     action: '',
-    employeeId: '',
+    employeeId: initialEmployeeId,
   });
   // ช่องรหัสพนักงานพิมพ์ทีละตัว — ค้นหาเมื่อกดปุ่ม/Enter ไม่ยิง API ทุกตัวอักษร
-  const [employeeIdInput, setEmployeeIdInput] = useState('');
+  const [employeeIdInput, setEmployeeIdInput] = useState(initialEmployeeId);
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
   const [labels, setLabels] = useState(null);

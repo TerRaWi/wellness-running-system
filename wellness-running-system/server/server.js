@@ -14,6 +14,7 @@ const helmet = require('helmet');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const { registerReportRoutes } = require('./reports');
 const { createAudit, registerAuditLogRoutes } = require('./audit');
+const { registerEmployeeRoutes } = require('./employees');
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -212,20 +213,35 @@ function issueSessionCookie(res, employeeId) {
 // middleware เช็คว่า login อยู่ไหม ใช้ครอบทุก route ที่ต้อง login ก่อนเรียก
 // เช็ค Authorization: Bearer header ก่อน (ทางหลัก — ใช้ได้แม้ cross-site cookie โดนบล็อก)
 // แล้วค่อย fallback ไปเช็ค cookie (เผื่อ browser ที่ cookie ใช้ได้ปกติ)
-function requireAuth(req, res, next) {
+// และเช็คสดจาก DB ทุกครั้งว่ายังเป็นพนักงาน ACTIVE ที่ผูก LINE อยู่ (token อายุ 7 วัน —
+// ถ้าแอดมินปิดใช้งาน/ยกเลิกผูก LINE ระหว่างนั้น ต้องใช้ต่อไม่ได้ทันที)
+async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization || '';
   const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
   const token = bearerToken || req.cookies.session;
   if (!token) {
     return res.status(401).json({ message: 'กรุณาเข้าสู่ระบบก่อน' });
   }
+  let payload;
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    req.employeeId = payload.employeeId; // ใช้ต่อใน route อื่นๆ ได้เลย ไม่ต้องเชื่อค่าจาก frontend
-    next();
+    payload = jwt.verify(token, process.env.JWT_SECRET);
   } catch (err) {
     return res.status(401).json({ message: 'session หมดอายุ กรุณาเข้าสู่ระบบใหม่' });
   }
+
+  const [rows] = await pool.query(
+    `SELECT e.employment_status,
+       EXISTS(SELECT 1 FROM employee_account ea
+              WHERE ea.employee_id = e.employee_id AND ea.provider = 'LINE' AND ea.status = 'ACTIVE') AS line_active
+     FROM employee e WHERE e.employee_id = ?`,
+    [payload.employeeId]
+  );
+  if (rows.length === 0 || rows[0].employment_status !== 'ACTIVE' || !rows[0].line_active) {
+    return res.status(401).json({ message: 'บัญชีนี้ถูกระงับหรือยกเลิกการผูก LINE แล้ว กรุณาเข้าสู่ระบบใหม่ หรือติดต่อแอดมิน' });
+  }
+
+  req.employeeId = payload.employeeId; // ใช้ต่อใน route อื่นๆ ได้เลย ไม่ต้องเชื่อค่าจาก frontend
+  next();
 }
 
 // route ทดสอบ: ต้อง login ก่อนถึงจะเรียกได้ ใช้เช็คว่า middleware ทำงานถูก
@@ -482,9 +498,15 @@ app.post('/api/admin/campaigns/:id/close', requireAdmin, async (req, res) => {
 // รายชื่อพนักงานพร้อมค่าล่าสุดที่มี (แต่ละ metric ดึงจากแถวล่าสุดที่ "มีค่านั้น" ไม่ใช่แถวล่าสุดเฉยๆ
 // เพราะ follow-up บางรอบอาจไม่ได้ถามทุกฟิลด์)
 app.get('/api/admin/health-assessments', requireAdmin, async (req, res) => {
+  // ?status=ACTIVE (ค่าเริ่มต้น) | RESIGNED | ALL — ใช้ในหน้า "ข้อมูลพนักงาน"
+  const status = ['ACTIVE', 'RESIGNED', 'ALL'].includes(req.query.status) ? req.query.status : 'ACTIVE';
   const [rows] = await pool.query(
     `SELECT
-       e.employee_id, e.full_name, e.department, e.job_position,
+       e.employee_id, e.full_name, e.department, e.job_position, e.employment_status,
+       EXISTS(
+         SELECT 1 FROM employee_account ea
+         WHERE ea.employee_id = e.employee_id AND ea.provider = 'LINE' AND ea.status = 'ACTIVE'
+       ) AS line_linked,
        EXISTS(
          SELECT 1 FROM health_assessment ha
          WHERE ha.employee_id = e.employee_id AND ha.assessment_type = 'BASELINE'
@@ -501,8 +523,9 @@ app.get('/api/admin/health-assessments', requireAdmin, async (req, res) => {
        (SELECT COALESCE(SUM(st.score), 0) FROM score_transaction st
          WHERE st.employee_id = e.employee_id) AS score_balance
      FROM employee e
-     WHERE e.employment_status = 'ACTIVE'
-     ORDER BY e.full_name`
+     ${status === 'ALL' ? '' : 'WHERE e.employment_status = ?'}
+     ORDER BY e.full_name`,
+    status === 'ALL' ? [] : [status]
   );
   res.json(rows);
 });
@@ -1080,6 +1103,7 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
 // รายงานผู้บริหาร + export Excel (logic อยู่ใน reports.js)
 registerReportRoutes(app, pool, requireAdmin);
 registerAuditLogRoutes(app, pool, requireAdmin);
+registerEmployeeRoutes(app, pool, requireAdmin, audit);
 
 // preset เหตุผลปฏิเสธสำหรับ dropdown ฝั่งแอดมิน (is_other บอกว่าแถวไหนต้องให้พิมพ์เหตุผลเอง)
 app.get('/api/admin/reject-reasons', requireAdmin, async (req, res) => {
@@ -2448,11 +2472,19 @@ app.post('/api/auth/line-login', lineBindPerIpLimiter, requireLineIdToken, lineB
     const displayName = payload.name || null;
     const pictureUrl = payload.picture || null;
 
-    // 1. เคยผูกบัญชีนี้กับ LINE user นี้ไว้แล้วหรือยัง
+    // 1. เคยผูกบัญชีนี้กับ LINE user นี้ไว้แล้วหรือยัง (นับเฉพาะที่ยัง ACTIVE —
+    //    ถ้าแอดมินยกเลิกการผูก/ปิดใช้งานไปแล้ว ต้องยืนยันเลขบัตรประชาชนใหม่)
     const [existingRows] = await pool.query(
-      `SELECT * FROM employee_account WHERE provider = 'LINE' AND provider_user_id = ?`,
+      `SELECT ea.*, e.employment_status
+       FROM employee_account ea
+       JOIN employee e ON e.employee_id = ea.employee_id
+       WHERE ea.provider = 'LINE' AND ea.provider_user_id = ? AND ea.status = 'ACTIVE'`,
       [lineUserId]
     );
+
+    if (existingRows.length > 0 && existingRows[0].employment_status !== 'ACTIVE') {
+      return res.status(403).json({ message: 'บัญชีพนักงานนี้ถูกปิดใช้งานแล้ว กรุณาติดต่อแอดมิน' });
+    }
 
     if (existingRows.length > 0) {
       const account = existingRows[0];
@@ -2515,12 +2547,22 @@ app.post('/api/auth/line-login', lineBindPerIpLimiter, requireLineIdToken, lineB
       });
     }
 
-    // 4. ผูกบัญชีใหม่
+    // 4. ผูกบัญชีใหม่ — LINE user เดิมที่เคยถูกยกเลิก (REVOKED) มีแถวเดิมค้างอยู่ (unique provider_user_id)
+    //    จึงเปิดใช้แถวเดิมแทนการ insert ซ้ำ
     await pool.query(
       `INSERT INTO employee_account
         (employee_id, provider, provider_user_id, display_name, picture_url, status, linked_at, last_login)
-        VALUES (?, 'LINE', ?, ?, ?, 'ACTIVE', NOW(), NOW())`,
+        VALUES (?, 'LINE', ?, ?, ?, 'ACTIVE', NOW(), NOW())
+       ON DUPLICATE KEY UPDATE
+         employee_id = VALUES(employee_id), display_name = VALUES(display_name), picture_url = VALUES(picture_url),
+         status = 'ACTIVE', linked_at = NOW(), last_login = NOW()`,
       [matchedEmployeeId, lineUserId, displayName, pictureUrl]
+    );
+
+    // คนที่กลับมาผูกใหม่ (เปลี่ยนเครื่อง/กลับมาทำงาน) อาจทำ baseline ไปแล้ว
+    const [baselineRows] = await pool.query(
+      `SELECT assessment_id FROM health_assessment WHERE employee_id = ? AND assessment_type = 'BASELINE'`,
+      [matchedEmployeeId]
     );
 
     const sessionToken2 = issueSessionCookie(res, matchedEmployeeId);
@@ -2528,7 +2570,7 @@ app.post('/api/auth/line-login', lineBindPerIpLimiter, requireLineIdToken, lineB
       linked: true,
       employeeId: matchedEmployeeId,
       displayName,
-      needsHealthAssessment: true,
+      needsHealthAssessment: baselineRows.length === 0,
       token: sessionToken2,
     });
   } catch (err) {

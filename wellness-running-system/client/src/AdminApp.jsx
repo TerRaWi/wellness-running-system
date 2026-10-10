@@ -4,6 +4,7 @@ import { resolveImageUrl } from './utils/resolveImageUrl';
 import AdminReportSection from './components/AdminReportSection';
 import AdminAuditLogSection from './components/AdminAuditLogSection';
 import ThaiDatePicker from './components/ThaiDatePicker';
+import AdminEmployeeEditor from './components/AdminEmployeeEditor';
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
@@ -44,7 +45,7 @@ const SETTINGS_TABS = [
   { key: 'categories', label: 'หมวดหมู่กิจกรรม' },
   { key: 'activityTypes', label: 'ประเภทกิจกรรม' },
   { key: 'healthCampaigns', label: 'แบบสอบถามติดตามผล' },
-  { key: 'healthResults', label: 'ผลข้อมูลสุขภาพ' },
+  { key: 'healthResults', label: 'ข้อมูลพนักงาน' },
   { key: 'admins', label: 'จัดการสิทธิ์แอดมิน' },
   { key: 'auditLog', label: 'ประวัติการใช้งาน' },
 ];
@@ -534,6 +535,11 @@ export default function AdminApp() {
   const [healthListError, setHealthListError] = useState('');
   const [healthSearch, setHealthSearch] = useState('');
   const [selectedHealthEmployeeId, setSelectedHealthEmployeeId] = useState(null);
+  // หน้า "ข้อมูลพนักงาน": กรองสถานะ + ฟอร์มเพิ่ม/แก้ไข (null = แสดงรายชื่อ, '' = เพิ่มใหม่, รหัส = แก้ไขคนนั้น)
+  const [employeeStatusFilter, setEmployeeStatusFilter] = useState('ACTIVE');
+  const [editingEmployeeId, setEditingEmployeeId] = useState(null);
+  // เปิดแท็บประวัติการใช้งานแบบกรองพนักงานคนเดียว (จากปุ่ม "ดูประวัติ" ในฟอร์มพนักงาน)
+  const [auditPresetEmployeeId, setAuditPresetEmployeeId] = useState('');
   const [healthDetail, setHealthDetail] = useState(null); // { employee, scoreBalance, assessments }
   const [healthDetailLoading, setHealthDetailLoading] = useState(false);
   const [healthDetailError, setHealthDetailError] = useState('');
@@ -1313,7 +1319,7 @@ body: JSON.stringify({
     setHealthListLoading(true);
     setHealthListError('');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/health-assessments`, adminFetchOptions());
+      const res = await fetch(`${API_BASE}/api/admin/health-assessments?status=${employeeStatusFilter}`, adminFetchOptions());
       const data = await res.json().catch(() => []);
       if (!res.ok) {
         throw new Error(data.message || 'โหลดข้อมูลสุขภาพพนักงานไม่สำเร็จ');
@@ -1329,7 +1335,19 @@ body: JSON.stringify({
   useEffect(() => {
     if (!isLoggedIn || activeTab !== 'healthResults') return;
     loadHealthList();
-  }, [isLoggedIn, activeTab]);
+  }, [isLoggedIn, activeTab, employeeStatusFilter]);
+
+  function closeEmployeeEditor(changed) {
+    setEditingEmployeeId(null);
+    if (changed) loadHealthList();
+  }
+
+  function openEmployeeHistory(employeeId) {
+    setEditingEmployeeId(null);
+    setAuditPresetEmployeeId(employeeId);
+    setActiveTab('auditLog');
+    setLastSettingsTab('auditLog');
+  }
 
   async function openHealthDetail(employeeId) {
     setSelectedHealthEmployeeId(employeeId);
@@ -1788,7 +1806,7 @@ body: JSON.stringify({
         </button>
         <button
           className={`ws-tab ${SETTINGS_TABS.some(t => t.key === activeTab) ? 'active' : ''}`}
-          onClick={() => setActiveTab(lastSettingsTab)}
+          onClick={() => { setActiveTab(lastSettingsTab); setAuditPresetEmployeeId(''); }}
         >
           ตั้งค่า
         </button>
@@ -1800,7 +1818,7 @@ body: JSON.stringify({
             <button
               key={t.key}
               className={`ws-tab ${activeTab === t.key ? 'active' : ''}`}
-              onClick={() => { setActiveTab(t.key); setLastSettingsTab(t.key); }}
+              onClick={() => { setActiveTab(t.key); setLastSettingsTab(t.key); setAuditPresetEmployeeId(''); setEditingEmployeeId(null); }}
             >
               {t.label}
             </button>
@@ -1813,7 +1831,12 @@ body: JSON.stringify({
       )}
 
       {activeTab === 'auditLog' && (
-        <AdminAuditLogSection apiBase={API_BASE} fetchOptions={adminFetchOptions} />
+        <AdminAuditLogSection
+          key={auditPresetEmployeeId || 'all'}
+          apiBase={API_BASE}
+          fetchOptions={adminFetchOptions}
+          initialEmployeeId={auditPresetEmployeeId}
+        />
       )}
 
       {activeTab === 'dashboard' && (
@@ -3535,20 +3558,48 @@ body: JSON.stringify({
         </>
       )}
 
-      {activeTab === 'healthResults' && (
+      {activeTab === 'healthResults' && editingEmployeeId !== null && (
+        <AdminEmployeeEditor
+          key={editingEmployeeId || 'new'}
+          apiBase={API_BASE}
+          fetchOptions={adminFetchOptions}
+          employeeId={editingEmployeeId || null}
+          adminId={adminId}
+          onClose={closeEmployeeEditor}
+          onOpenHistory={openEmployeeHistory}
+        />
+      )}
+
+      {activeTab === 'healthResults' && editingEmployeeId === null && (
         <>
           {!selectedHealthEmployeeId && (
             <>
               <div className="ws-row-between" style={{ marginBottom: 16 }}>
-                <input
-                  type="text"
-                  placeholder="ค้นหาชื่อหรือรหัสพนักงาน"
-                  value={healthSearch}
-                  onChange={(e) => setHealthSearch(e.target.value)}
-                  className="ws-input"
-                  style={{ maxWidth: 280 }}
-                />
-                <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={loadHealthList}>รีเฟรช</button>
+                <div className="ws-row" style={{ gap: 8 }}>
+                  <input
+                    type="text"
+                    placeholder="ค้นหาชื่อ รหัส หรือแผนก"
+                    value={healthSearch}
+                    onChange={(e) => setHealthSearch(e.target.value)}
+                    className="ws-input"
+                    style={{ maxWidth: 280 }}
+                  />
+                  <select
+                    aria-label="สถานะพนักงาน"
+                    className="ws-select"
+                    style={{ width: 'auto' }}
+                    value={employeeStatusFilter}
+                    onChange={(e) => setEmployeeStatusFilter(e.target.value)}
+                  >
+                    <option value="ACTIVE">ใช้งานอยู่</option>
+                    <option value="RESIGNED">ปิดใช้งาน (ลาออก)</option>
+                    <option value="ALL">ทั้งหมด</option>
+                  </select>
+                </div>
+                <div className="ws-row" style={{ gap: 8 }}>
+                  <button className="ws-btn ws-btn-secondary ws-btn-sm" onClick={loadHealthList}>รีเฟรช</button>
+                  <button className="ws-btn ws-btn-primary ws-btn-sm" onClick={() => setEditingEmployeeId('')}>+ เพิ่มพนักงาน</button>
+                </div>
               </div>
 
               {healthListError && <div className="ws-alert ws-alert-danger">{healthListError}</div>}
@@ -3561,6 +3612,8 @@ body: JSON.stringify({
                     <thead>
                       <tr>
                         <th>พนักงาน</th>
+                        <th>แผนก/ตำแหน่ง</th>
+                        <th>LINE</th>
                         <th>น้ำหนักล่าสุด</th>
                         <th>BMI</th>
                         <th>MET-min/wk</th>
@@ -3575,26 +3628,45 @@ body: JSON.stringify({
                           if (!q) return true;
                           return (
                             row.full_name.toLowerCase().includes(q) ||
-                            row.employee_id.toLowerCase().includes(q)
+                            row.employee_id.toLowerCase().includes(q) ||
+                            (row.department || '').toLowerCase().includes(q)
                           );
                         })
                         .map((row) => (
                           <tr key={row.employee_id}>
                             <td>
                               {row.full_name}
-                              <div style={{ fontSize: 12, color: 'var(--ws-text-muted)' }}>{row.employee_id}</div>
+                              <div style={{ fontSize: 12, color: 'var(--ws-text-muted)' }}>
+                                {row.employee_id}
+                                {row.employment_status === 'RESIGNED' && (
+                                  <span className="ws-badge ws-badge-neutral" style={{ marginLeft: 6, fontSize: 11 }}>ปิดใช้งาน</span>
+                                )}
+                              </div>
+                            </td>
+                            <td>{row.department || '-'}</td>
+                            <td>
+                              {row.line_linked
+                                ? <span className="ws-badge ws-badge-success">ผูกแล้ว</span>
+                                : <span className="ws-badge ws-badge-neutral">ยังไม่ผูก</span>}
                             </td>
                             <td>{row.latest_weight_kg ?? '-'}</td>
                             <td>{row.latest_bmi ?? '-'}</td>
                             <td>{row.latest_met_minutes_per_week ?? '-'}</td>
                             <td>{row.score_balance}</td>
-                            <td>
+                            <td style={{ whiteSpace: 'nowrap' }}>
                               <button
                                 className="ws-btn ws-btn-secondary ws-btn-sm"
                                 onClick={() => openHealthDetail(row.employee_id)}
                                 disabled={!row.baseline_completed}
+                                title={row.baseline_completed ? '' : 'ยังไม่ได้กรอกแบบสอบถามสุขภาพ'}
                               >
-                                ดูรายละเอียด
+                                ข้อมูลสุขภาพ
+                              </button>{' '}
+                              <button
+                                className="ws-btn ws-btn-ghost ws-btn-sm"
+                                onClick={() => setEditingEmployeeId(row.employee_id)}
+                              >
+                                จัดการ
                               </button>
                             </td>
                           </tr>
