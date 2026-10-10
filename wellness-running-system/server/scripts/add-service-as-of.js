@@ -58,6 +58,14 @@ async function main() {
     );
     console.log(`backfilled answer date from baseline: ${result.affectedRows} employee(s)`);
 
+    // แก้ข้อมูลรายคนที่ยืนยันกับผู้ดูแลระบบแล้ว (2026-10-10): ช่องเดิมเป็นทศนิยมของปี
+    // EMP0137 กรอก 0.4 ตั้งใจหมายถึง 4 เดือน (ไม่ใช่ 0.4 ปี ≈ 5 เดือน) — แก้เฉพาะเมื่อยังเป็นค่าเดิม รันซ้ำไม่แก้ซ้ำ
+    const [fix] = await connection.query(
+      `UPDATE employee SET years_of_service = ROUND(4 / 12, 2)
+       WHERE employee_id = 'EMP0137' AND years_of_service = 0.40`
+    );
+    console.log(`EMP0137 0.4 -> 4 months: ${fix.affectedRows ? 'fixed' : 'skipped (already fixed or different value)'}`);
+
     const [[left]] = await connection.query(
       `SELECT COUNT(*) AS n FROM employee WHERE years_of_service IS NOT NULL AND years_of_service_as_of IS NULL`
     );
