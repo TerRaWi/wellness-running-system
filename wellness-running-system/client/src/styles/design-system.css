@@ -905,14 +905,16 @@
 }
 
 /* splash — ลู่วิ่ง 3 เลน มีจุดนักวิ่งเคลื่อนไปทางเส้นชัย */
+/* เส้นเลน 4 เส้นอยู่ที่ y = 0/10/20/30 → กรอบต้องสูง 31px ไม่งั้นเส้นล่างสุดหลุดกรอบ
+   ธงเส้นชัยสูงเท่ากรอบพอดี (ตาราง 5px ลงล็อกกับเลนละ 10px) จุดนักวิ่งหยุดก่อนถึงธง */
 @keyframes ws-run {
   from { left: 0; }
-  to   { left: calc(100% - 10px); }
+  to   { left: calc(100% - 20px); }
 }
 .ws-track {
   position: relative;
   width: 200px;
-  height: 30px;
+  height: 31px;
   margin: 0 auto var(--ws-sp-4);
   background:
     linear-gradient(var(--ws-border-strong), var(--ws-border-strong)) 0 0 / 100% 1px no-repeat,
@@ -923,10 +925,11 @@
 .ws-track::before {
   content: "";
   position: absolute;
-  top: 0;
+  /* จากกึ่งกลางเส้นบนสุด (0.5px) ถึงกึ่งกลางเส้นล่างสุด (30.5px) = 30px ลงล็อกตาราง 10px พอดี */
+  top: 0.5px;
   right: 0;
   width: 10px;
-  height: 31px;
+  height: 30px;
   background: conic-gradient(var(--ws-ink) 25%, transparent 0 50%, var(--ws-ink) 0 75%, transparent 0) 0 0 / 10px 10px;
   opacity: 0.8;
 }
@@ -935,8 +938,8 @@
   position: absolute;
   top: 12px;
   left: 0;
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--ws-primary);
   animation: ws-run 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
