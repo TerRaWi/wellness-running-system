@@ -12,13 +12,34 @@ import HealthAssessmentWizard from './components/HealthAssessmentWizard.jsx';
 const LIFF_ID = import.meta.env.VITE_LIFF_ID;
 const API_BASE = import.meta.env.VITE_API_BASE;
 
-// แท็บหน้าพนักงาน — สลับกันแสดงทีละหน้าแทนการยาวสกอลรวด
+// แท็บหน้าพนักงาน — สลับกันแสดงทีละหน้าแทนการยาวสกอลรวด (เป็นแถบเมนูล่างจอ)
 const TABS = [
-  { key: 'submit', label: 'ส่งกิจกรรม' },
-  { key: 'challenges', label: 'ชาเลนจ์' },
-  { key: 'rewards', label: 'แลกของรางวัล' },
-  { key: 'badges', label: 'เหรียญตรา' },
+  { key: 'submit', label: 'ส่งกิจกรรม', icon: <path d="M12 5v14M5 12h14" /> },
+  { key: 'challenges', label: 'ชาเลนจ์', icon: <path d="M5 21V4h11l-2 4 2 4H5" /> },
+  {
+    key: 'rewards',
+    label: 'ของรางวัล',
+    icon: (
+      <>
+        <rect x="3" y="8" width="18" height="4" rx="1" />
+        <path d="M12 8v13M5 12v9h14v-9M12 8C10 4 6 4 6 6.5S9 8 12 8Zm0 0c2-4 6-4 6-1.5S15 8 12 8Z" />
+      </>
+    ),
+  },
+  {
+    key: 'badges',
+    label: 'เหรียญตรา',
+    icon: (
+      <>
+        <circle cx="12" cy="15" r="6" />
+        <path d="M8.5 10.2 6 3h4l2 5 2-5h4l-2.5 7.2" />
+      </>
+    ),
+  },
 ];
+
+// ปีบนเบอร์วิ่ง เป็น พ.ศ.
+const BIB_YEAR = new Date().getFullYear() + 543;
 
 export default function App() {
   const [status, setStatus] = useState('initializing'); // initializing | loading | needsNationalId | needsHealthAssessment | done | error
@@ -574,31 +595,45 @@ export default function App() {
 
   if (status === 'error') {
     return (
-      <div className="ws-app" style={{ padding: 24, textAlign: 'center' }}>
-        <p>เข้าสู่ระบบไม่สำเร็จ: {errorMsg}</p>
-        <button className="ws-btn ws-btn-primary" onClick={() => window.location.reload()}>ลองอีกครั้ง</button>
+      <div className="ws-app ws-gate">
+        <div className="ws-gate-card">
+          <div className="ws-wordmark">WELLNESS RUNNING</div>
+          <h2>เข้าสู่ระบบไม่สำเร็จ</h2>
+          <div className="ws-alert ws-alert-danger">{errorMsg}</div>
+          <button className="ws-btn ws-btn-primary" style={{ width: '100%' }} onClick={() => window.location.reload()}>
+            ลองอีกครั้ง
+          </button>
+        </div>
       </div>
     );
   }
 
   if (status === 'needsNationalId') {
     return (
-      <div className="ws-app" style={{ padding: 24, textAlign: 'center' }}>
-        <p>ยืนยันตัวตนครั้งแรก กรุณากรอกเลขบัตรประชาชน 13 หลัก</p>
-        <form onSubmit={handleSubmitNationalId} className="ws-row" style={{ justifyContent: 'center' }}>
-          <input
-            type="text"
-            inputMode="numeric"
-            maxLength={13}
-            value={nationalIdInput}
-            onChange={(e) => setNationalIdInput(e.target.value.replace(/\D/g, ''))}
-            placeholder="เลขบัตรประชาชน 13 หลัก"
-            className="ws-input"
-            style={{ maxWidth: 220 }}
-          />
-          <button type="submit" className="ws-btn ws-btn-primary">ยืนยัน</button>
-        </form>
-        {errorMsg && <div className="ws-alert ws-alert-danger" style={{ maxWidth: 320, margin: '12px auto 0' }}>{errorMsg}</div>}
+      <div className="ws-app ws-gate">
+        <div className="ws-gate-card">
+          <div className="ws-wordmark">WELLNESS RUNNING</div>
+          <h2>ยืนยันตัวตนครั้งแรก</h2>
+          <p>กรอกเลขบัตรประชาชน 13 หลัก เพื่อผูกบัญชี LINE กับข้อมูลพนักงาน ทำครั้งเดียว</p>
+          <form onSubmit={handleSubmitNationalId} className="ws-stack">
+            <div>
+              <label htmlFor="nationalIdInput" className="ws-label">เลขบัตรประชาชน</label>
+              <input
+                id="nationalIdInput"
+                type="text"
+                inputMode="numeric"
+                maxLength={13}
+                value={nationalIdInput}
+                onChange={(e) => setNationalIdInput(e.target.value.replace(/\D/g, ''))}
+                placeholder="ตัวเลข 13 หลัก"
+                className="ws-input"
+                style={{ fontVariantNumeric: 'tabular-nums' }}
+              />
+            </div>
+            <button type="submit" className="ws-btn ws-btn-primary">ยืนยัน</button>
+          </form>
+          {errorMsg && <div className="ws-alert ws-alert-danger" style={{ marginTop: 12, marginBottom: 0 }}>{errorMsg}</div>}
+        </div>
       </div>
     );
   }
@@ -629,32 +664,34 @@ export default function App() {
 
     return (
       <>
-        <div className="ws-app" style={{ padding: 24, maxWidth: 640, margin: '0 auto' }}>
-          <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid var(--ws-border)' }}>
-            <div style={{ fontSize: 13, color: 'var(--ws-text-secondary)' }}>เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ</div>
-            <div style={{ fontSize: 20, fontWeight: 700 }}>{user?.displayName}</div>
-          </div>
+        <div className="ws-app ws-shell">
+          {/* เบอร์วิ่ง — ตัวเลขใหญ่คือคะแนนคงเหลือ */}
+          <header className="ws-bib">
+            <div className="ws-bib-band">
+              <span>WELLNESS RUNNING</span>
+              <span>{BIB_YEAR}</span>
+            </div>
+            <div className="ws-bib-body">
+              <div className="ws-bib-number">{Number(scoreBalance || 0).toLocaleString('th-TH')}</div>
+              <div className="ws-bib-unit">คะแนนคงเหลือ</div>
+            </div>
+            <div className="ws-bib-foot">
+              <span className="ws-bib-name">{user?.displayName}</span>
+              {user?.employeeId && <span className="ws-bib-id">{user.employeeId}</span>}
+            </div>
+          </header>
 
           {pendingCampaign && (
-            <div className="ws-alert" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-              <span>มีแบบประเมินติดตามผลรอกรอก: {pendingCampaign.campaignName}</span>
-              <button className="ws-btn ws-btn-primary ws-btn-sm" onClick={() => setShowFollowupWizard(true)}>
+            <div className="ws-callout">
+              <span>
+                <strong>มีแบบประเมินติดตามผลรอกรอก</strong>
+                {pendingCampaign.campaignName}
+              </span>
+              <button className="ws-btn ws-btn-volt ws-btn-sm" onClick={() => setShowFollowupWizard(true)}>
                 กรอกเลย
               </button>
             </div>
           )}
-
-          <div className="ws-tabs ws-tabs-fill">
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                className={`ws-tab ${activeTab === tab.key ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.key)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
 
           {activeTab === 'badges' && (
             <BadgesSection badges={badges} apiBase={API_BASE} />
@@ -720,6 +757,22 @@ export default function App() {
               savingAliasChallengeId={savingAliasChallengeId}
             />
           )}
+
+          <nav className="ws-bottomnav" aria-label="เมนูหลัก">
+            <div className="ws-bottomnav-inner">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  className={`ws-bottomnav-item ${activeTab === tab.key ? 'active' : ''}`}
+                  aria-current={activeTab === tab.key ? 'page' : undefined}
+                  onClick={() => setActiveTab(tab.key)}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">{tab.icon}</svg>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </nav>
         </div>
 
         <NewBadgePopup badges={newBadgesToShow} apiBase={API_BASE} onClose={closeNewBadgePopup} />
@@ -736,8 +789,11 @@ export default function App() {
   }
 
   return (
-    <div className="ws-app" style={{ padding: 24, textAlign: 'center' }}>
-      <p>กำลังเข้าสู่ระบบผ่าน LINE...</p>
+    <div className="ws-app ws-gate">
+      <div>
+        <div className="ws-track" aria-hidden="true" />
+        <p className="ws-splash-text" role="status">กำลังเข้าสู่ระบบผ่าน LINE...</p>
+      </div>
     </div>
   );
 }

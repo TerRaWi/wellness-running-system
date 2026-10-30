@@ -14,28 +14,20 @@ export default function LeaderboardModal({ challengeId, leaderboard, loading, er
         )}
 
         {!loading && leaderboard.length > 0 && (
-          <div className="ws-stack" style={{ gap: 6 }}>
+          <ol className="ws-leader">
             {leaderboard.map((row) => (
-              <div
-                key={row.rank}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  padding: '6px 0',
-                  borderBottom: '1px solid var(--ws-border)',
-                  fontWeight: row.isMe ? 'bold' : 'normal',
-                  color: row.isMe ? 'var(--ws-primary)' : 'inherit',
-                }}
-              >
-                <span>
-                  #{row.rank} {row.displayName} {row.isMe && '(คุณ)'}
+              <li key={row.rank} className={`ws-leader-row${row.isMe ? ' is-me' : ''}`}>
+                <span className="ws-leader-rank">{row.rank}</span>
+                <span className="ws-leader-name">
+                  {row.displayName} {row.isMe && '(คุณ)'}
                 </span>
-                <span>
-                  {row.totalDistance} กม. · {row.runCount} ครั้ง
+                <span className="ws-leader-stat">
+                  <strong>{row.totalDistance} กม.</strong>
+                  {row.runCount} ครั้ง
                 </span>
-              </div>
+              </li>
             ))}
-          </div>
+          </ol>
         )}
 
         <div className="ws-modal-actions">

@@ -123,7 +123,7 @@ const ALL_STEPS = [
 // ปุ่มเลือกได้หลายข้อ (chip) — toggle ค่าเข้า/ออกจาก array ใน form state
 function ChipGroup({ options, selected, onToggle }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+    <div className="ws-chips">
       {options.map((opt) => {
         const active = selected.includes(opt);
         return (
@@ -131,12 +131,8 @@ function ChipGroup({ options, selected, onToggle }) {
             key={opt}
             type="button"
             onClick={() => onToggle(opt)}
-            className="ws-btn ws-btn-sm"
-            style={{
-              borderColor: active ? 'var(--ws-primary)' : undefined,
-              background: active ? 'var(--ws-primary)' : undefined,
-              color: active ? '#fff' : undefined,
-            }}
+            className={`ws-chip${active ? ' is-active' : ''}`}
+            aria-pressed={active}
           >
             {opt}
           </button>
@@ -148,7 +144,7 @@ function ChipGroup({ options, selected, onToggle }) {
 
 function RadioPills({ options, value, onChange }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+    <div className="ws-chips" role="radiogroup">
       {options.map((opt) => {
         const optValue = typeof opt === 'string' ? opt : opt.value;
         const optLabel = typeof opt === 'string' ? opt : opt.label;
@@ -158,12 +154,9 @@ function RadioPills({ options, value, onChange }) {
             key={optValue}
             type="button"
             onClick={() => onChange(optValue)}
-            className="ws-btn ws-btn-sm"
-            style={{
-              borderColor: active ? 'var(--ws-primary)' : undefined,
-              background: active ? 'var(--ws-primary)' : undefined,
-              color: active ? '#fff' : undefined,
-            }}
+            className={`ws-chip${active ? ' is-active' : ''}`}
+            role="radio"
+            aria-checked={active}
           >
             {optLabel}
           </button>
@@ -307,23 +300,16 @@ export default function HealthAssessmentWizard({
   const isLastStep = stepIndex === steps.length - 1;
 
   return (
-    <div className="ws-app" style={{ padding: 24, maxWidth: 480, margin: '0 auto' }}>
-      {/* progress bar */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+    <div className="ws-app ws-shell ws-shell-narrow">
+      <div className="ws-wordmark" style={{ marginBottom: 'var(--ws-sp-4)' }}>WELLNESS RUNNING</div>
+      {/* progress bar แบบเลนวิ่ง — ช่องที่ผ่านแล้วสีอิฐ ช่องปัจจุบันสีหมึก */}
+      <div className="ws-progress" aria-hidden="true">
         {steps.map((s, i) => (
-          <div
-            key={s.key}
-            style={{
-              flex: 1,
-              height: 4,
-              borderRadius: 2,
-              background: i <= stepIndex ? 'var(--ws-primary)' : 'var(--ws-border)',
-            }}
-          />
+          <span key={s.key} className={i < stepIndex ? 'is-done' : i === stepIndex ? 'is-current' : ''} />
         ))}
       </div>
 
-      <p style={{ fontSize: 12, color: 'var(--ws-text-muted)', margin: '0 0 4px' }}>
+      <p className="ws-eyebrow">
         ขั้นตอน {stepIndex + 1} / {steps.length}
       </p>
       <h3 style={{ marginTop: 0 }}>{steps[stepIndex].title}</h3>

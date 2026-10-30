@@ -1,58 +1,71 @@
 /* =========================================================================
    WELLNESS RUNNING — SHARED DESIGN SYSTEM
    ใช้ร่วมกันทั้ง App.jsx (พนักงาน/LIFF) และ AdminApp.jsx (แอดมิน)
-   วางไฟล์นี้ที่: client/src/styles/design-system.css
-   แล้ว import ใน main.jsx (บรรทัดบนสุด ก่อน "./index.css"):
-       import "./styles/design-system.css";
-   ========================================================================= */
+   import ใน main.jsx ก่อน "./index.css"
 
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap');
+   ทิศทางดีไซน์ (ทุกค่าในไฟล์นี้ต้องรับใช้ 3 ข้อนี้):
+     - Mood:      สปอร์ต มั่นใจ อบอุ่น — ไม่ใช่แอปโรงพยาบาลขาวโพลน
+     - Reference: "เบอร์วิ่ง" กระดาษในงานวิ่ง + ลู่วิ่งยางสีอิฐ
+     - Signature: การ์ดหัวหน้าพนักงานเป็นเบอร์วิ่ง (มีรูเข็มกลัด 4 มุม ตัวเลขคะแนนใหญ่แบบเบอร์),
+                  แถบ "เลน" เป็นตัวบอกสถานะ active, ปุ่มโมเมนต์พิเศษมีลายธงเส้นชัย
+   ฟอนต์: Chakra Petch (หัวข้อ/ตัวเลข สไตล์ป้ายคะแนนสนาม) + Anuphan (เนื้อหา อ่านไทยสบาย)
+   โหลดฟอนต์ที่ index.html
+   ========================================================================= */
 
 /* -------------------------------------------------------------------------
    1) DESIGN TOKENS
-   จัดเต็มสีสัน — โทนหลักเขียวมรกต/ฟ้าทะเลสาบ สดใสมีชีวิตชีวา (ไม่ใช่ teal หม่น ๆ แบบเดิม)
-   สีทอง/อำพัน (แบบ trophy gold ไล่โทนส้ม) ใช้เฉพาะจุดรางวัล/เหรียญตรา ให้รู้สึกพิเศษ
-   ใช้ gradient แบบเจาะจง (ปุ่มหลัก, ตัวเลขสถิติ, วงกลม badge) แทนสีล้วนในบางจุด
-   เพื่อความสนุก/มีมิติ แต่ยังคุมโทนเดียวต่อองค์ประกอบ ไม่ผสมหลายสีจนลายตา
+   พื้นกระดาษอุ่น (neutral อมน้ำตาลนิด ๆ ไปทางสีอิฐ ไม่ใช่เทาล้วน)
+   Primary = สีอิฐลู่วิ่ง ใช้กับปุ่มหลัก/สถานะ active/ตัวเลขสำคัญ
+   Volt = เขียวมะนาวสะท้อนแสง ใช้น้อยมาก เฉพาะบนพื้นหมึกเข้ม (callout, แถบหัวแอดมิน)
    ------------------------------------------------------------------------- */
 :root {
-  /* Primary — เขียวมรกตสดใส (ปุ่มหลัก, ลิงก์, ไฮไลต์) */
-  --ws-primary: #0eab8f;
-  --ws-primary-hover: #0c8f78;
-  --ws-primary-active: #0a7563;
-  --ws-primary-light: #e3f8f3;
-  --ws-primary-border: #a8e6d9;
-  --ws-primary-gradient: linear-gradient(135deg, #22d3ae 0%, #0c8f78 100%);
-  --ws-primary-gradient-hover: linear-gradient(135deg, #14c6a3 0%, #0a7563 100%);
+  /* Neutrals — กระดาษเบอร์วิ่ง → หมึกพิมพ์ */
+  --ws-bg: #f3efe6;
+  --ws-surface: #fffdf8;
+  --ws-surface-subtle: #f8f4ec;
+  --ws-border: #e3dccd;
+  --ws-border-strong: #c9bfac;
+  --ws-text: #1e1a15;
+  --ws-text-secondary: #4f483d;
+  --ws-text-muted: #6f675a;
+  --ws-ink: #1e1a15;
+  --ws-ink-soft: #2d2821;
+  --ws-ink-text: #cfc7b8;    /* ตัวอักษรรองบนพื้นหมึก */
+  --ws-ink-border: #4a4337;  /* เส้นขอบบนพื้นหมึก */
 
-  /* Accent — ทองรางวัล ไล่โทนส้ม (รางวัล/เหรียญตรา) */
-  --ws-accent: #f5a623;
-  --ws-accent-hover: #dd8f14;
-  --ws-accent-light: #fdf0d9;
-  --ws-accent-gradient: linear-gradient(135deg, #ffc856 0%, #f5a623 55%, #e8791f 100%);
+  /* Primary — สีอิฐลู่วิ่ง */
+  --ws-primary: #d9480f;
+  --ws-primary-hover: #bd3d0b;
+  --ws-primary-active: #9e3208;
+  --ws-primary-light: #fbe7dc;
+  --ws-primary-border: #f1bfa5;
 
-  /* Status — สดขึ้นกว่าเดิมแต่ยังอ่านง่าย */
-  --ws-success: #22b573;
-  --ws-success-bg: #e4f9ee;
-  --ws-warning: #d98a1a;
-  --ws-warning-bg: #fdf1dc;
-  --ws-danger: #ef5350;
-  --ws-danger-hover: #e13d3a;
-  --ws-danger-bg: #fdecec;
-  --ws-info: #4f8ef7;
-  --ws-info-bg: #ecf3fe;
+  /* Accent — volt (บนพื้นเข้มเท่านั้น) */
+  --ws-accent: #c8f23c;
+  --ws-accent-hover: #b5df28;
+  --ws-accent-light: #f1fbd2;
 
-  /* Neutrals */
-  --ws-bg: #f5f7f7;
-  --ws-surface: #ffffff;
-  --ws-border: #e2e7e6;
-  --ws-border-strong: #cdd6d4;
-  --ws-text: #202b2a;
-  --ws-text-secondary: #5c6b69;
-  --ws-text-muted: #93a3a1;
+  /* Status */
+  --ws-success: #276b3c;
+  --ws-success-bg: #e3f1e5;
+  --ws-warning: #9a5b00;
+  --ws-warning-bg: #faeed6;
+  --ws-danger: #b42a2a;
+  --ws-danger-hover: #962020;
+  --ws-danger-bg: #fbe6e3;
+  --ws-info: #2a639e;
+  --ws-info-bg: #e3edf7;
 
   /* Typography */
-  --ws-font: 'Noto Sans Thai', 'Segoe UI', system-ui, Roboto, sans-serif;
+  --ws-font: 'Anuphan', 'Segoe UI', system-ui, sans-serif;
+  --ws-font-display: 'Chakra Petch', 'Anuphan', 'Segoe UI', system-ui, sans-serif;
+  --ws-fs-xs: 12px;
+  --ws-fs-sm: 14px;
+  --ws-fs-md: 16px;
+  --ws-fs-lg: 20px;
+  --ws-fs-xl: 28px;
+  --ws-fs-2xl: 40px;
+  --ws-fs-3xl: 64px;
 
   /* Spacing scale */
   --ws-sp-1: 4px;
@@ -62,36 +75,68 @@
   --ws-sp-5: 20px;
   --ws-sp-6: 24px;
   --ws-sp-8: 32px;
+  --ws-sp-12: 48px;
+  --ws-sp-16: 64px;
 
-  /* Radius — โค้งมนแบบ friendly */
-  --ws-radius-sm: 8px;
-  --ws-radius-md: 12px;
-  --ws-radius-lg: 20px;
+  /* Radius — ระบบเดียว: มุมคมเล็กน้อยแบบกระดาษพิมพ์ (pill ใช้กับ tag/chip เท่านั้น) */
+  --ws-radius-sm: 4px;
+  --ws-radius-md: 6px;
+  --ws-radius-lg: 6px;
   --ws-radius-pill: 999px;
 
-  /* Shadow */
-  --ws-shadow-sm: 0 1px 2px rgba(20, 40, 38, 0.06);
-  --ws-shadow-md: 0 6px 20px rgba(20, 40, 38, 0.10);
-  --ws-shadow-lg: 0 16px 40px rgba(20, 40, 38, 0.20);
+  /* Shadow — แทบไม่ใช้ ระดับเดียวสำหรับของที่ลอยจริง (modal/popup) */
+  --ws-shadow-sm: none;
+  --ws-shadow-md: 0 8px 24px rgba(30, 26, 21, 0.12);
+  --ws-shadow-lg: 0 8px 24px rgba(30, 26, 21, 0.12);
 
-  --ws-transition: 150ms ease;
+  --ws-transition: 160ms ease;
+
+  /* ความสูงแถบเมนูล่าง (แอปพนักงาน) — ใช้เว้นที่ท้ายหน้าไม่ให้เนื้อหาโดนบัง */
+  --ws-bottomnav-h: 64px;
 }
 
 /* -------------------------------------------------------------------------
    2) BASE
-   พื้นหลังไล่เฉดอ่อน ๆ แทนสีเทาแบนทึบ — มินต์สดใสมุมบนซ้าย ไปครีมอุ่นทองมุมล่างขวา
-   fixed attachment กันลายเลื่อนตอน scroll หน้ายาว การ์ดพื้นขาวด้านบนยังคอนทราสต์ชัดเจน
    ------------------------------------------------------------------------- */
 .ws-app, body {
   font-family: var(--ws-font);
+  font-size: var(--ws-fs-md);
+  line-height: 1.7;
   color: var(--ws-text);
-  background: linear-gradient(160deg, #eafaf5 0%, #f5f7f7 45%, #fdf3e2 100%);
-  background-attachment: fixed;
+  background: var(--ws-bg);
   min-height: 100vh;
 }
 
 .ws-app * {
   box-sizing: border-box;
+}
+
+.ws-app h1,
+.ws-app h2,
+.ws-app h3 {
+  font-family: var(--ws-font-display);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ws-text);
+}
+.ws-app h1 { font-size: var(--ws-fs-2xl); margin: 0 0 var(--ws-sp-6); }
+.ws-app h2 { font-size: var(--ws-fs-xl); margin: 0 0 var(--ws-sp-4); }
+.ws-app h3 { font-size: var(--ws-fs-lg); margin: var(--ws-sp-6) 0 var(--ws-sp-3); }
+.ws-app h4 {
+  font-family: var(--ws-font);
+  font-size: var(--ws-fs-md);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ws-text);
+  margin: var(--ws-sp-6) 0 var(--ws-sp-3);
+}
+.ws-app p { margin: 0 0 var(--ws-sp-3); }
+
+/* ตัวเลขทุกที่อ่านเทียบกันได้ตรงหลัก */
+.ws-app table,
+.ws-app .ws-stat-value,
+.ws-app .ws-badge {
+  font-variant-numeric: tabular-nums;
 }
 
 /* focus-visible ทุก interactive element ต้องเห็นชัด (accessibility) */
@@ -105,88 +150,75 @@
   outline-offset: 2px;
 }
 
-/* -------------------------------------------------------------------------
-   3) BUTTONS
-   คอนเซปต์: "ก้าววิ่ง" — ปุ่มมีลูกเล่นที่สื่อถึงการเคลื่อนไหว/จังหวะการวิ่ง
-     - hover  = แถบแสง "sheen" พาดเฉียงคล้ายเส้นความเร็ว (speed line) + ยกตัวขึ้นเบา ๆ
-     - active = สปริงยุบ-เด้งคล้ายจังหวะก้าวเท้าลงพื้นแล้วออกแรงถีบตัว
-     - ws-btn-shine = ปุ่มโมเมนต์พิเศษ (แลกของรางวัล/เข้าร่วมชาเลนจ์/รับ badge)
-       มีวงแสงเบา ๆ เต้นตุบ ๆ ดึงสายตา หยุดเองเมื่อ hover หรือ disabled
-   ------------------------------------------------------------------------- */
-@keyframes ws-btn-sheen {
-  from { transform: translateX(-150%) skewX(-20deg); }
-  to   { transform: translateX(250%) skewX(-20deg); }
+/* โครงหน้า: แอปพนักงาน (LIFF จอมือถือ) และหน้า wizard */
+.ws-shell {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--ws-sp-4) var(--ws-sp-4) calc(var(--ws-bottomnav-h) + var(--ws-sp-8) + env(safe-area-inset-bottom));
 }
-@keyframes ws-btn-press {
-  0%   { transform: scale(1, 1); }
-  40%  { transform: scale(0.92, 0.88); }
-  70%  { transform: scale(1.03, 1.05); }
-  100% { transform: scale(1, 1); }
-}
-@keyframes ws-btn-glow-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 166, 35, 0.45); }
-  50%      { box-shadow: 0 0 0 9px rgba(245, 166, 35, 0); }
+.ws-shell-narrow {
+  max-width: 520px;
+  padding-bottom: var(--ws-sp-12);
 }
 
+/* -------------------------------------------------------------------------
+   3) BUTTONS
+   ปุ่มหลักสีอิฐล้วน (ไม่มี gradient) กดแล้วยุบลง 1px เหมือนเหยียบพื้น
+   ws-btn-shine = ปุ่มโมเมนต์พิเศษ (แลกของรางวัล/เข้าร่วมชาเลนจ์/รับ badge)
+     → มีลายธงตาหมากรุกเส้นชัยที่ขอบขวา บอกว่า "นี่คือเส้นชัย" ไม่ต้องกระพริบเรียกร้องความสนใจ
+   ws-btn เปล่า ๆ (ไม่มี variant) = ปุ่มขอบ ใช้เป็นตัวเลือกแบบ chip ในหน้าแอดมิน
+   ------------------------------------------------------------------------- */
 .ws-btn {
   position: relative;
-  overflow: hidden;
   font-family: var(--ws-font);
   font-size: 15px;
   font-weight: 600;
-  line-height: 1;
-  padding: 10px 18px;
-  border-radius: var(--ws-radius-pill);
-  border: 1.5px solid transparent;
+  line-height: 1.2;
+  min-height: 44px;
+  padding: 10px 20px;
+  border-radius: var(--ws-radius-sm);
+  border: 1.5px solid var(--ws-border-strong);
+  background: var(--ws-surface);
+  color: var(--ws-text);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   transition: background var(--ws-transition), border-color var(--ws-transition),
-    transform 180ms ease, box-shadow var(--ws-transition), opacity var(--ws-transition);
+    color var(--ws-transition), transform 120ms ease;
   white-space: nowrap;
 }
-/* แถบแสงพาดเฉียง ใช้สีของตัวอักษรปุ่มเอง (currentColor) เลยเข้ากับทุก variant อัตโนมัติ */
-.ws-btn::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  width: 45%;
-  background: linear-gradient(120deg, transparent, color-mix(in srgb, currentColor 35%, transparent), transparent);
-  transform: translateX(-150%) skewX(-20deg);
-  pointer-events: none;
-}
-.ws-btn:hover:not(:disabled)::before { animation: ws-btn-sheen 0.65s ease; }
-.ws-btn:active:not(:disabled) { animation: ws-btn-press 0.38s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+.ws-btn:hover:not(:disabled) { border-color: var(--ws-text-secondary); }
+.ws-btn:active:not(:disabled) { transform: translateY(1px); }
 .ws-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
-  transform: none;
-  animation: none;
 }
 
 .ws-btn-primary {
-  background: var(--ws-primary-gradient);
+  background: var(--ws-primary);
+  border-color: var(--ws-primary);
   color: #fff;
 }
 .ws-btn-primary:hover:not(:disabled) {
-  background: var(--ws-primary-gradient-hover);
-  box-shadow: 0 8px 20px rgba(14, 171, 143, 0.4);
-  transform: translateY(-2px);
+  background: var(--ws-primary-hover);
+  border-color: var(--ws-primary-hover);
 }
-.ws-btn-primary:active:not(:disabled) { background: var(--ws-primary-active); }
+.ws-btn-primary:active:not(:disabled) {
+  background: var(--ws-primary-active);
+  border-color: var(--ws-primary-active);
+}
 
 .ws-btn-secondary {
-  background: var(--ws-surface);
-  color: var(--ws-primary);
-  border-color: var(--ws-primary-border);
+  background: transparent;
+  color: var(--ws-text);
+  border-color: var(--ws-text);
 }
 .ws-btn-secondary:hover:not(:disabled) {
-  background: var(--ws-primary-light);
-  border-color: var(--ws-primary);
-  transform: translateY(-1px);
-  box-shadow: var(--ws-shadow-sm);
+  background: var(--ws-text);
+  border-color: var(--ws-text);
+  color: var(--ws-surface);
 }
 
 .ws-btn-ghost {
@@ -196,26 +228,59 @@
 }
 .ws-btn-ghost:hover:not(:disabled) {
   background: var(--ws-border);
+  border-color: transparent;
   color: var(--ws-text);
 }
 
 .ws-btn-danger {
-  background: var(--ws-danger-bg);
+  background: transparent;
   color: var(--ws-danger);
-  border-color: transparent;
+  border-color: var(--ws-danger);
 }
 .ws-btn-danger:hover:not(:disabled) {
   background: var(--ws-danger);
+  border-color: var(--ws-danger);
   color: #fff;
-  box-shadow: 0 8px 18px rgba(207, 74, 66, 0.3);
 }
 
-.ws-btn-sm { padding: 6px 14px; font-size: 13px; }
+/* ปุ่ม volt ใช้บนพื้นหมึกเข้มเท่านั้น (callout) */
+.ws-btn-volt {
+  background: var(--ws-accent);
+  border-color: var(--ws-accent);
+  color: var(--ws-ink);
+}
+.ws-btn-volt:hover:not(:disabled) {
+  background: var(--ws-accent-hover);
+  border-color: var(--ws-accent-hover);
+}
 
-/* ปุ่มโมเมนต์พิเศษ — แลกของรางวัล / เข้าร่วมชาเลนจ์ / รับทราบ badge ใหม่ */
-.ws-btn-shine { animation: ws-btn-glow-pulse 2.2s ease-in-out infinite; }
-.ws-btn-shine:hover:not(:disabled) { animation-play-state: paused; }
-.ws-btn-shine:disabled { animation: none; box-shadow: none; }
+.ws-btn-sm {
+  min-height: 34px;
+  padding: 6px 14px;
+  font-size: 13.5px;
+}
+
+/* ลายธงเส้นชัย */
+.ws-btn-shine {
+  padding-right: 34px;
+}
+.ws-btn-shine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  background:
+    conic-gradient(currentColor 25%, transparent 0 50%, currentColor 0 75%, transparent 0)
+    0 0 / 8px 8px;
+  opacity: 0.4;
+  border-radius: 0 var(--ws-radius-sm) var(--ws-radius-sm) 0;
+  pointer-events: none;
+}
+.ws-btn-sm.ws-btn-shine { padding-right: 28px; }
+.ws-btn-sm.ws-btn-shine::after { width: 12px; background-size: 6px 6px; }
+.ws-btn-shine:disabled::after { display: none; }
 
 /* -------------------------------------------------------------------------
    4) INPUTS
@@ -224,12 +289,14 @@
 .ws-select,
 .ws-textarea {
   font-family: var(--ws-font);
-  font-size: 15px;
+  font-size: var(--ws-fs-md);
+  line-height: 1.5;
   color: var(--ws-text);
   background: var(--ws-surface);
   border: 1.5px solid var(--ws-border);
   border-radius: var(--ws-radius-sm);
-  padding: 9px 12px;
+  padding: 10px 12px;
+  min-height: 44px;
   width: 100%;
   transition: border-color var(--ws-transition), box-shadow var(--ws-transition);
 }
@@ -241,53 +308,54 @@
   border-color: var(--ws-primary);
   box-shadow: 0 0 0 3px var(--ws-primary-light);
 }
+.ws-input::placeholder, .ws-textarea::placeholder {
+  color: var(--ws-text-muted);
+  opacity: 0.8;
+}
 .ws-label {
   display: block;
-  font-size: 13px;
+  font-size: var(--ws-fs-sm);
   font-weight: 600;
+  line-height: 1.5;
   color: var(--ws-text-secondary);
   margin-bottom: 6px;
 }
 
 /* -------------------------------------------------------------------------
    4b) FIELD COLOR CODING
-   แยกสีช่องกรอกตาม "ชนิดของการกรอก" ไม่ใช่สุ่มสี — ผู้ใช้จะเรียนรู้ความหมาย
-   ของสีได้ทันทีและใช้ซ้ำได้ทั้งแอป (ทั้งฝั่งพนักงานและแอดมิน):
-     - เขียวอมฟ้า (metric)  = ตัวเลข/ค่าที่วัดได้ เช่น ระยะทาง น้ำหนัก ส่วนสูง อายุ คะแนน
-     - น้ำเงิน   (choice)  = ค่าที่เลือกจากตัวเลือก เช่น dropdown, วันที่, ประเภท
-     - ม่วงพลัม  (note)    = ข้อความอิสระ เช่น หมายเหตุ ชื่อ คำอธิบาย ไฟล์แนบ
+   แยกสีช่องกรอกตาม "ชนิดของการกรอก" — ผู้ใช้เรียนรู้ความหมายของสีได้และใช้ซ้ำทั้งแอป:
+     - สีอิฐ  (metric)  = ตัวเลข/ค่าที่วัดได้ เช่น ระยะทาง น้ำหนัก ส่วนสูง อายุ คะแนน
+     - น้ำเงิน (choice)  = ค่าที่เลือกจากตัวเลือก เช่น dropdown, วันที่, ประเภท
+     - หมึก   (note)    = ข้อความอิสระ เช่น หมายเหตุ ชื่อ คำอธิบาย ไฟล์แนบ
    ใช้ตัวเลือก attribute (type=...) จับคู่อัตโนมัติ ไม่ต้องแก้ className ในไฟล์อื่น
-   เพื่อให้คงเส้นคงวาทั้งระบบโดยแก้ที่ไฟล์เดียว
-   หลักการ UX ที่ยังคงไว้:
+   หลักการ UX:
      - สีเป็นตัวช่วยรอง ไม่ใช่ตัวบอกความหมายเดียว (label ยังอยู่ครบ)
-     - โทนสีอ่อน ใช้เป็นเส้นขอบ/แถบซ้าย ไม่ใช่พื้นหลังทึบ อ่านง่าย ไม่ล้าตา
-     - โฟกัส/คีย์บอร์ด (:focus-visible) ยังเห็นชัดเจนในสีของกลุ่มนั้น ๆ
-     - ฟิลด์ที่อ่อนไหว (password) จงใจไม่ใส่สี เพื่อไม่ให้ปนกับกลุ่มข้อมูลทั่วไป
+     - ใช้เป็นแถบซ้าย ไม่ใช่พื้นหลังทึบ อ่านง่าย ไม่ล้าตา
+     - ฟิลด์ที่อ่อนไหว (password) จงใจไม่ใส่สี
    ------------------------------------------------------------------------- */
 :root {
   --ws-field-metric: var(--ws-primary);
   --ws-field-metric-hover: var(--ws-primary-hover);
-  --ws-field-metric-border: var(--ws-primary-border);
+  --ws-field-metric-border: var(--ws-border);
   --ws-field-metric-light: var(--ws-primary-light);
 
-  --ws-field-choice: #4f8ef7;
-  --ws-field-choice-hover: #3672db;
-  --ws-field-choice-border: #c7dcfb;
-  --ws-field-choice-light: #ecf3fe;
+  --ws-field-choice: var(--ws-info);
+  --ws-field-choice-hover: #1f4f80;
+  --ws-field-choice-border: var(--ws-border);
+  --ws-field-choice-light: var(--ws-info-bg);
 
-  --ws-field-note: #9b6fd6;
-  --ws-field-note-hover: #8355c2;
-  --ws-field-note-border: #e4d7f7;
-  --ws-field-note-light: #f6f0fd;
+  --ws-field-note: var(--ws-text-muted);
+  --ws-field-note-hover: var(--ws-text-secondary);
+  --ws-field-note-border: var(--ws-border);
+  --ws-field-note-light: var(--ws-surface-subtle);
 }
 
-/* ตัวเลข/ค่าที่วัดได้ → เขียวอมฟ้า */
+/* ตัวเลข/ค่าที่วัดได้ → สีอิฐ (ตัวเลขใช้ฟอนต์ display ให้เหมือนอ่านค่าบนนาฬิกาวิ่ง) */
 .ws-app input.ws-input[type="number"] {
-  border-color: var(--ws-field-metric-border);
-  border-left: 3px solid var(--ws-field-metric);
-}
-.ws-app input.ws-input[type="number"]:hover {
-  border-color: var(--ws-field-metric-border);
+  border-left: 4px solid var(--ws-field-metric);
+  font-family: var(--ws-font-display);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .ws-app input.ws-input[type="number"]:focus {
   border-color: var(--ws-field-metric);
@@ -302,14 +370,7 @@
 .ws-app input.ws-input[type="date"],
 .ws-app input.ws-input[type="datetime-local"],
 .ws-app input.ws-input[type="time"] {
-  border-color: var(--ws-field-choice-border);
-  border-left: 3px solid var(--ws-field-choice);
-}
-.ws-app select.ws-select:hover,
-.ws-app input.ws-input[type="date"]:hover,
-.ws-app input.ws-input[type="datetime-local"]:hover,
-.ws-app input.ws-input[type="time"]:hover {
-  border-color: var(--ws-field-choice-border);
+  border-left: 4px solid var(--ws-field-choice);
 }
 .ws-app select.ws-select:focus,
 .ws-app input.ws-input[type="date"]:focus,
@@ -325,66 +386,60 @@
   outline-color: var(--ws-field-choice);
 }
 
-/* ข้อความอิสระ (text / textarea) → ม่วงพลัม */
+/* ข้อความอิสระ (text / textarea) → หมึก */
 .ws-app textarea.ws-textarea,
 .ws-app input.ws-input[type="text"],
 .ws-app input.ws-input:not([type]) {
-  border-color: var(--ws-field-note-border);
-  border-left: 3px solid var(--ws-field-note);
-}
-.ws-app textarea.ws-textarea:hover,
-.ws-app input.ws-input[type="text"]:hover,
-.ws-app input.ws-input:not([type]):hover {
-  border-color: var(--ws-field-note-border);
+  border-left: 4px solid var(--ws-field-note);
 }
 .ws-app textarea.ws-textarea:focus,
 .ws-app input.ws-input[type="text"]:focus,
 .ws-app input.ws-input:not([type]):focus {
-  border-color: var(--ws-field-note);
-  box-shadow: 0 0 0 3px var(--ws-field-note-light);
+  border-color: var(--ws-text);
+  box-shadow: 0 0 0 3px var(--ws-border);
 }
 .ws-app textarea.ws-textarea:focus-visible,
 .ws-app input.ws-input[type="text"]:focus-visible,
 .ws-app input.ws-input:not([type]):focus-visible {
-  outline-color: var(--ws-field-note);
+  outline-color: var(--ws-text);
 }
 
-/* ไฟล์แนบ (รูปหลักฐาน/ไอคอน) → จัดกลุ่มเดียวกับข้อความอิสระ + ปรับหน้าตาปุ่มเลือกไฟล์
-   ให้ตรงดีไซน์ระบบ (เดิมเป็น input ดิบของเบราว์เซอร์) */
+/* ไฟล์แนบ (รูปหลักฐาน/ไอคอน) — กรอบเส้นประแบบช่องแปะรูป */
 .ws-app input[type="file"] {
   font-family: var(--ws-font);
-  font-size: 14px;
+  font-size: var(--ws-fs-sm);
   color: var(--ws-text-secondary);
-  background: var(--ws-field-note-light);
-  border: 1.5px dashed var(--ws-field-note-border);
+  background: var(--ws-surface-subtle);
+  border: 1.5px dashed var(--ws-border-strong);
   border-radius: var(--ws-radius-sm);
-  padding: 8px 12px;
+  padding: 10px 12px;
   width: 100%;
   cursor: pointer;
   transition: border-color var(--ws-transition), background var(--ws-transition);
 }
 .ws-app input[type="file"]:hover {
-  border-color: var(--ws-field-note);
+  border-color: var(--ws-text-secondary);
+  background: var(--ws-surface);
 }
 .ws-app input[type="file"]:focus-visible {
-  outline: 2px solid var(--ws-field-note);
+  outline: 2px solid var(--ws-text);
   outline-offset: 2px;
 }
 .ws-app input[type="file"]::file-selector-button {
   font-family: var(--ws-font);
   font-weight: 600;
   font-size: 13px;
-  color: #fff;
-  background: var(--ws-field-note);
+  color: var(--ws-surface);
+  background: var(--ws-ink);
   border: none;
-  border-radius: var(--ws-radius-pill);
-  padding: 6px 14px;
-  margin-right: 10px;
+  border-radius: var(--ws-radius-sm);
+  padding: 7px 14px;
+  margin-right: 12px;
   cursor: pointer;
   transition: background var(--ws-transition);
 }
 .ws-app input[type="file"]:hover::file-selector-button {
-  background: var(--ws-field-note-hover);
+  background: var(--ws-ink-soft);
 }
 
 /* -------------------------------------------------------------------------
@@ -395,11 +450,10 @@
   border: 1px solid var(--ws-border);
   border-radius: var(--ws-radius-md);
   padding: var(--ws-sp-4);
-  transition: box-shadow var(--ws-transition), border-color var(--ws-transition);
+  transition: border-color var(--ws-transition), background var(--ws-transition);
 }
 .ws-card-hover:hover {
-  box-shadow: var(--ws-shadow-md);
-  border-color: var(--ws-border-strong);
+  border-color: var(--ws-text-secondary);
 }
 .ws-card-row {
   display: flex;
@@ -409,30 +463,47 @@
   flex-wrap: wrap;
 }
 
-/* สถิติแดชบอร์ด */
+/* สถิติแดชบอร์ด — ตัวเลขใหญ่แบบป้ายคะแนนสนาม มีแถบเลนสีอิฐด้านบน */
 .ws-stat-card {
+  position: relative;
   background: var(--ws-surface);
   border: 1px solid var(--ws-border);
-  border-radius: var(--ws-radius-md);
+  border-top: 3px solid var(--ws-ink);
+  border-radius: var(--ws-radius-sm);
   padding: var(--ws-sp-4);
+  transition: border-color var(--ws-transition);
+}
+.ws-stat-card.ws-card-hover { border-top-color: var(--ws-primary); }
+.ws-stat-card.ws-card-hover::after {
+  content: "→";
+  position: absolute;
+  right: var(--ws-sp-4);
+  bottom: var(--ws-sp-3);
+  font-family: var(--ws-font-display);
+  font-size: var(--ws-fs-lg);
+  color: var(--ws-text-muted);
+  transition: transform var(--ws-transition), color var(--ws-transition);
+}
+.ws-stat-card.ws-card-hover:hover::after {
+  color: var(--ws-primary);
+  transform: translateX(4px);
 }
 .ws-stat-label {
   font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
   color: var(--ws-text-secondary);
-  margin-bottom: 4px;
+  margin-bottom: var(--ws-sp-1);
 }
 .ws-stat-value {
-  font-size: 28px;
+  font-family: var(--ws-font-display);
+  font-size: var(--ws-fs-2xl);
   font-weight: 700;
-  /* เผื่อพื้นที่ด้านบน: background-clip:text ระบายสีได้แค่ในกรอบบรรทัด
-     วรรณยุกต์ไทยที่ซ้อนบนสระบน (เช่น "ชิ้น") สูงเกินกรอบเลยถูกตัดหายไป */
-  padding-top: 0.15em;
-  background: var(--ws-primary-gradient);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: var(--ws-primary); /* fallback ถ้าเบราว์เซอร์ไม่รองรับ background-clip:text */
+  line-height: 1.15;
+  color: var(--ws-text);
+  font-variant-numeric: tabular-nums;
 }
+.ws-stat-card.ws-card-hover .ws-stat-value { color: var(--ws-primary); }
 
 /* -------------------------------------------------------------------------
    6) BADGES / STATUS PILLS
@@ -441,49 +512,82 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 12.5px;
+  font-size: var(--ws-fs-xs);
   font-weight: 600;
-  padding: 3px 10px;
+  line-height: 1.6;
+  padding: 1px 10px;
   border-radius: var(--ws-radius-pill);
   white-space: nowrap;
+  vertical-align: middle;
 }
 .ws-badge-success { background: var(--ws-success-bg); color: var(--ws-success); }
 .ws-badge-warning { background: var(--ws-warning-bg); color: var(--ws-warning); }
 .ws-badge-danger  { background: var(--ws-danger-bg);  color: var(--ws-danger); }
 .ws-badge-info    { background: var(--ws-info-bg);    color: var(--ws-info); }
 .ws-badge-neutral { background: var(--ws-border);     color: var(--ws-text-secondary); }
-.ws-badge-accent  { background: var(--ws-accent-light); color: var(--ws-accent-hover); }
+.ws-badge-accent  { background: var(--ws-ink);        color: var(--ws-accent); }
 
-/* วงกลมไอคอนเหรียญตรา (badge/reward icon) — ขอบไล่โทนทองแบบ trophy shine */
+/* เหรียญตรา — วงหมึกสองชั้นแบบเหรียญปั๊ม */
 .ws-icon-circle {
   border-radius: 50%;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--ws-accent-light);
-  border: 2.5px solid transparent;
-  background-image: linear-gradient(var(--ws-accent-light), var(--ws-accent-light)), var(--ws-accent-gradient);
-  background-origin: border-box;
-  background-clip: content-box, border-box;
+  background: var(--ws-surface);
+  border: 2px solid var(--ws-ink);
+  box-shadow: inset 0 0 0 3px var(--ws-surface), inset 0 0 0 4px var(--ws-border-strong);
   flex-shrink: 0;
-  transition: transform var(--ws-transition), box-shadow var(--ws-transition);
+  transition: transform var(--ws-transition);
 }
 .ws-icon-circle img { width: 100%; height: 100%; object-fit: cover; }
+/* ไม่มีรูปไอคอน → แสดงตัวเลขเงื่อนไขแทน เหมือนเหรียญที่ปั๊มระยะทาง */
+.ws-medal-fallback {
+  font-family: var(--ws-font-display);
+  font-weight: 700;
+  color: var(--ws-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
 
 /* -------------------------------------------------------------------------
-   7) ALERT / MESSAGE BANNER  (แทน <p style={{color:'red'}}> เดิม)
+   7) ALERT / MESSAGE BANNER
+   แถบซ้ายหนาแบบเทปติดประกาศ
    ------------------------------------------------------------------------- */
 .ws-alert {
   border-radius: var(--ws-radius-sm);
+  border-left: 4px solid currentColor;
   padding: 10px 14px;
-  font-size: 14px;
+  font-size: var(--ws-fs-sm);
+  line-height: 1.6;
   margin-bottom: var(--ws-sp-3);
+  background: var(--ws-surface);
+  color: var(--ws-text-secondary);
 }
 .ws-alert-success { background: var(--ws-success-bg); color: var(--ws-success); }
 .ws-alert-warning { background: var(--ws-warning-bg); color: var(--ws-warning); }
 .ws-alert-danger  { background: var(--ws-danger-bg);  color: var(--ws-danger); }
 .ws-alert-info    { background: var(--ws-info-bg);    color: var(--ws-info); }
+
+/* callout พื้นหมึก — งานที่รอให้พนักงานทำ (แบบประเมินติดตามผล) */
+.ws-callout {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--ws-sp-3);
+  background: var(--ws-ink);
+  color: var(--ws-surface);
+  border-radius: var(--ws-radius-md);
+  padding: var(--ws-sp-3) var(--ws-sp-3) var(--ws-sp-3) var(--ws-sp-4);
+  margin-bottom: var(--ws-sp-4);
+  font-size: var(--ws-fs-sm);
+  line-height: 1.5;
+}
+.ws-callout strong {
+  display: block;
+  color: var(--ws-accent);
+  font-weight: 600;
+}
 
 /* -------------------------------------------------------------------------
    8) TABLE
@@ -491,21 +595,25 @@
 .ws-table-wrap {
   border: 1px solid var(--ws-border);
   border-radius: var(--ws-radius-md);
-  overflow: hidden;
+  overflow: auto;
+  background: var(--ws-surface);
 }
 .ws-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14.5px;
+  font-size: var(--ws-fs-sm);
+  line-height: 1.5;
+  background: var(--ws-surface);
 }
 .ws-table th {
   text-align: left;
-  background: var(--ws-primary-light);
+  background: var(--ws-surface-subtle);
   color: var(--ws-text-secondary);
   font-weight: 600;
   font-size: 13px;
   padding: 10px 14px;
-  border-bottom: 1px solid var(--ws-border);
+  border-bottom: 2px solid var(--ws-ink);
+  white-space: nowrap;
 }
 .ws-table td {
   padding: 10px 14px;
@@ -516,7 +624,7 @@
   transition: background var(--ws-transition);
 }
 .ws-table tbody tr:hover {
-  background: var(--ws-primary-light);
+  background: var(--ws-surface-subtle);
 }
 .ws-table tbody tr:last-child td {
   border-bottom: none;
@@ -524,11 +632,16 @@
 
 /* -------------------------------------------------------------------------
    9) MODAL
+   บนมือถือเลื่อนขึ้นจากด้านล่าง (นิ้วโป้งเอื้อมถึงปุ่ม) บนจอใหญ่อยู่กลางจอ
    ------------------------------------------------------------------------- */
+@keyframes ws-modal-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 .ws-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(20, 30, 29, 0.45);
+  background: rgba(30, 26, 21, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -537,13 +650,14 @@
 }
 .ws-modal {
   background: var(--ws-surface);
-  border-radius: var(--ws-radius-lg);
+  border-radius: var(--ws-radius-md);
   padding: var(--ws-sp-6);
   width: 100%;
   max-width: 420px;
   max-height: 85vh;
   overflow-y: auto;
   box-shadow: var(--ws-shadow-lg);
+  animation: ws-modal-in 200ms ease;
 }
 .ws-modal h3 {
   margin-top: 0;
@@ -552,51 +666,362 @@
   display: flex;
   justify-content: flex-end;
   gap: var(--ws-sp-2);
-  margin-top: var(--ws-sp-4);
+  margin-top: var(--ws-sp-6);
+}
+@media (max-width: 480px) {
+  .ws-modal-overlay { align-items: flex-end; padding: 0; }
+  .ws-modal {
+    max-width: none !important;
+    border-radius: var(--ws-radius-md) var(--ws-radius-md) 0 0;
+    padding-bottom: calc(var(--ws-sp-6) + env(safe-area-inset-bottom));
+  }
 }
 
 /* -------------------------------------------------------------------------
-   10) TABS (ใช้ในหน้าแอดมินที่สลับหลายแท็บ)
+   10) TABS (หน้าแอดมิน + แท็บย่อย)
+   แท็บ active = แถบ "เลน" สีอิฐหนา 3px ใต้ข้อความ
    ------------------------------------------------------------------------- */
 .ws-tabs {
   display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--ws-border);
-  margin-bottom: var(--ws-sp-4);
+  gap: var(--ws-sp-1);
+  border-bottom: 1px solid var(--ws-border-strong);
+  margin-bottom: var(--ws-sp-6);
   overflow-x: auto;
+  scrollbar-width: thin;
 }
 .ws-tab {
   font-family: var(--ws-font);
-  font-size: 14.5px;
+  font-size: 15px;
   font-weight: 600;
-  color: var(--ws-text-secondary);
+  line-height: 1.4;
+  color: var(--ws-text-muted);
   background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
-  padding: 10px 16px;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  padding: 12px 16px 10px;
   cursor: pointer;
   white-space: nowrap;
   transition: color var(--ws-transition), border-color var(--ws-transition);
 }
-.ws-tab:hover { color: var(--ws-primary); }
+.ws-tab:hover { color: var(--ws-text); }
 .ws-tab.active {
-  color: var(--ws-primary);
+  color: var(--ws-text);
   border-bottom-color: var(--ws-primary);
 }
-/* ตัวเลือกเสริม: ให้แท็บกระจายเต็มความกว้างเท่า ๆ กัน (ใช้ตอนมีแท็บน้อยและอยากให้เต็มแถบ ไม่เหลือที่ว่าง) */
 .ws-tabs-fill .ws-tab {
   flex: 1;
   text-align: center;
 }
+/* แท็บย่อย (ตั้งค่า) — เล็กกว่าแท็บหลัก ให้เห็นลำดับชั้น */
+.ws-tabs + .ws-tabs {
+  border-bottom-color: var(--ws-border);
+}
+.ws-tabs + .ws-tabs .ws-tab {
+  font-size: 13.5px;
+  padding: 8px 12px 6px;
+}
 
 /* -------------------------------------------------------------------------
-   11) EMPTY STATE
+   10b) BOTTOM NAV (แอปพนักงาน) — ปุ่มเมนูอยู่ล่างจอ นิ้วโป้งกดถึง
+   active = แถบเลนสีอิฐด้านบนของปุ่ม
+   ------------------------------------------------------------------------- */
+.ws-bottomnav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 900;
+  background: var(--ws-surface);
+  border-top: 1px solid var(--ws-border-strong);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.ws-bottomnav-inner {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  max-width: 640px;
+  margin: 0 auto;
+}
+.ws-bottomnav-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: var(--ws-bottomnav-h);
+  font-family: var(--ws-font);
+  font-size: var(--ws-fs-xs);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ws-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color var(--ws-transition);
+  -webkit-tap-highlight-color: transparent;
+}
+.ws-bottomnav-item svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ws-bottomnav-item::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 22%;
+  right: 22%;
+  height: 3px;
+  background: var(--ws-primary);
+  transform: scaleX(0);
+  transition: transform 200ms ease;
+}
+.ws-bottomnav-item:hover { color: var(--ws-text); }
+.ws-bottomnav-item:active { background: var(--ws-surface-subtle); }
+.ws-bottomnav-item.active { color: var(--ws-primary); }
+.ws-bottomnav-item.active::before { transform: scaleX(1); }
+
+/* -------------------------------------------------------------------------
+   10c) RACE BIB — ลายเซ็นของแอป: หัวหน้าพนักงานเป็นเบอร์วิ่ง
+   แถบสีอิฐด้านบน + ตัวเลขคะแนนใหญ่แบบเบอร์วิ่ง + รูเข็มกลัด 4 มุม
+   ------------------------------------------------------------------------- */
+.ws-bib {
+  position: relative;
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-border-strong);
+  border-radius: var(--ws-radius-md);
+  overflow: hidden;
+  margin-bottom: var(--ws-sp-6);
+}
+/* รูเข็มกลัด — วาดด้วย radial-gradient 4 จุด สีพื้นหน้าเว็บทะลุขึ้นมา */
+.ws-bib::after {
+  --hole: radial-gradient(circle, var(--ws-bg) 4px, var(--ws-border-strong) 4.5px 5.5px, transparent 6px);
+  content: "";
+  position: absolute;
+  inset: 8px;
+  background:
+    var(--hole) top left / 14px 14px no-repeat,
+    var(--hole) top right / 14px 14px no-repeat,
+    var(--hole) bottom left / 14px 14px no-repeat,
+    var(--hole) bottom right / 14px 14px no-repeat;
+  pointer-events: none;
+}
+.ws-bib-band {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--ws-primary);
+  color: #fff;
+  padding: 8px 32px;
+  font-family: var(--ws-font-display);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+.ws-bib-body {
+  padding: var(--ws-sp-4) 32px var(--ws-sp-2);
+}
+.ws-bib-number {
+  font-family: var(--ws-font-display);
+  font-size: var(--ws-fs-3xl);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--ws-ink);
+  font-variant-numeric: tabular-nums;
+}
+.ws-bib-unit {
+  font-size: var(--ws-fs-sm);
+  font-weight: 500;
+  color: var(--ws-text-secondary);
+  margin-top: var(--ws-sp-1);
+}
+.ws-bib-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--ws-sp-3);
+  margin: var(--ws-sp-2) 32px 0;
+  padding: var(--ws-sp-3) 0 var(--ws-sp-5);
+  border-top: 1.5px dashed var(--ws-border-strong);
+}
+.ws-bib-name {
+  font-size: var(--ws-fs-lg);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ws-text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-bib-id {
+  font-family: var(--ws-font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ws-text-muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+@media (max-width: 360px) {
+  .ws-bib-number { font-size: 52px; }
+}
+
+/* -------------------------------------------------------------------------
+   10d) GATE / SPLASH — หน้าเข้าสู่ระบบ, ยืนยันตัวตน, error, กำลังโหลด
+   ------------------------------------------------------------------------- */
+.ws-gate {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ws-sp-6) var(--ws-sp-4);
+}
+.ws-gate-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-border-strong);
+  border-top: 6px solid var(--ws-primary);
+  border-radius: var(--ws-radius-md);
+  padding: var(--ws-sp-8) var(--ws-sp-6) var(--ws-sp-6);
+}
+.ws-gate-card h2 { margin-bottom: var(--ws-sp-2); }
+.ws-gate-card p { color: var(--ws-text-secondary); }
+.ws-wordmark {
+  font-family: var(--ws-font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--ws-primary);
+  margin-bottom: var(--ws-sp-6);
+}
+
+/* splash — ลู่วิ่ง 3 เลน มีจุดนักวิ่งเคลื่อนไปทางเส้นชัย */
+@keyframes ws-run {
+  from { left: 0; }
+  to   { left: calc(100% - 10px); }
+}
+.ws-track {
+  position: relative;
+  width: 200px;
+  height: 30px;
+  margin: 0 auto var(--ws-sp-4);
+  background:
+    linear-gradient(var(--ws-border-strong), var(--ws-border-strong)) 0 0 / 100% 1px no-repeat,
+    linear-gradient(var(--ws-border-strong), var(--ws-border-strong)) 0 10px / 100% 1px no-repeat,
+    linear-gradient(var(--ws-border-strong), var(--ws-border-strong)) 0 20px / 100% 1px no-repeat,
+    linear-gradient(var(--ws-border-strong), var(--ws-border-strong)) 0 30px / 100% 1px no-repeat;
+}
+.ws-track::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 31px;
+  background: conic-gradient(var(--ws-ink) 25%, transparent 0 50%, var(--ws-ink) 0 75%, transparent 0) 0 0 / 10px 10px;
+  opacity: 0.8;
+}
+.ws-track::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ws-primary);
+  animation: ws-run 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+.ws-splash-text {
+  text-align: center;
+  font-size: var(--ws-fs-sm);
+  color: var(--ws-text-secondary);
+}
+
+/* -------------------------------------------------------------------------
+   10e) ADMIN SHELL — แถบหัวพื้นหมึก
+   ------------------------------------------------------------------------- */
+.ws-topbar {
+  background: var(--ws-ink);
+  color: var(--ws-surface);
+}
+.ws-topbar-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--ws-sp-3) var(--ws-sp-6);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--ws-sp-4);
+  flex-wrap: wrap;
+}
+.ws-topbar-brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ws-sp-3);
+}
+.ws-topbar-brand .ws-wordmark {
+  color: var(--ws-accent);
+  margin: 0;
+}
+.ws-topbar .ws-topbar-title {
+  font-family: var(--ws-font-display);
+  font-size: var(--ws-fs-lg);
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 0;
+  color: var(--ws-surface);
+}
+.ws-topbar-user {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-sp-3);
+  font-size: 13.5px;
+  color: var(--ws-ink-text);
+}
+.ws-topbar-user strong {
+  font-family: var(--ws-font-display);
+  color: var(--ws-surface);
+  font-variant-numeric: tabular-nums;
+}
+.ws-topbar .ws-btn-ghost {
+  color: var(--ws-ink-text);
+  border-color: var(--ws-ink-border);
+}
+.ws-topbar .ws-btn-ghost:hover:not(:disabled) {
+  background: var(--ws-ink-soft);
+  border-color: var(--ws-surface);
+  color: var(--ws-surface);
+}
+.ws-admin-main {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--ws-sp-4) var(--ws-sp-6) var(--ws-sp-16);
+}
+@media (max-width: 640px) {
+  .ws-topbar-inner, .ws-admin-main { padding-left: var(--ws-sp-4); padding-right: var(--ws-sp-4); }
+}
+
+/* -------------------------------------------------------------------------
+   11) EMPTY STATE — กรอบเส้นประเหมือนช่องว่างบนบอร์ด รอให้มีของมาเติม
    ------------------------------------------------------------------------- */
 .ws-empty {
   text-align: center;
   color: var(--ws-text-muted);
   padding: var(--ws-sp-6) var(--ws-sp-4);
-  font-size: 14px;
+  font-size: var(--ws-fs-sm);
+  border: 1.5px dashed var(--ws-border-strong);
+  border-radius: var(--ws-radius-md);
+  margin: 0 0 var(--ws-sp-3);
 }
 
 /* -------------------------------------------------------------------------
@@ -605,34 +1030,197 @@
 .ws-stack { display: flex; flex-direction: column; gap: var(--ws-sp-3); }
 .ws-row { display: flex; align-items: center; gap: var(--ws-sp-2); flex-wrap: wrap; }
 .ws-row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--ws-sp-2); flex-wrap: wrap; }
-.ws-grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--ws-sp-4); }
+.ws-grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--ws-sp-3); }
+
+/* หัวข้อ section พร้อมตัวเลขสรุปด้านขวา (เช่น คะแนนคงเหลือ) */
+.ws-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--ws-sp-3);
+  margin: 0 0 var(--ws-sp-4);
+}
+.ws-section-head h3 { margin: 0; }
+.ws-section-head-meta {
+  text-align: right;
+  font-size: var(--ws-fs-xs);
+  color: var(--ws-text-muted);
+  line-height: 1.3;
+}
+.ws-section-head-meta strong {
+  display: block;
+  font-family: var(--ws-font-display);
+  font-size: var(--ws-fs-xl);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--ws-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* chip / radio pill (ตัวเลือกในแบบประเมินสุขภาพ) */
+.ws-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ws-sp-2);
+  margin-top: 6px;
+}
+.ws-chip {
+  font-family: var(--ws-font);
+  font-size: var(--ws-fs-sm);
+  font-weight: 500;
+  line-height: 1.4;
+  min-height: 38px;
+  padding: 7px 14px;
+  border-radius: var(--ws-radius-pill);
+  border: 1.5px solid var(--ws-border-strong);
+  background: var(--ws-surface);
+  color: var(--ws-text);
+  cursor: pointer;
+  transition: background var(--ws-transition), border-color var(--ws-transition), color var(--ws-transition);
+}
+.ws-chip:hover { border-color: var(--ws-text-secondary); }
+.ws-chip.is-active {
+  background: var(--ws-ink);
+  border-color: var(--ws-ink);
+  color: var(--ws-surface);
+}
+.ws-chip:focus-visible { outline: 2px solid var(--ws-primary); outline-offset: 2px; }
+
+/* progress แบบเลนวิ่ง — ช่องละหนึ่งขั้นตอน */
+.ws-progress {
+  display: flex;
+  gap: 3px;
+  margin-bottom: var(--ws-sp-4);
+}
+.ws-progress span {
+  flex: 1;
+  height: 6px;
+  background: var(--ws-border);
+  transition: background 200ms ease;
+}
+.ws-progress span:first-child { border-radius: 3px 0 0 3px; }
+.ws-progress span:last-child { border-radius: 0 3px 3px 0; }
+.ws-progress span.is-done { background: var(--ws-primary); }
+.ws-progress span.is-current { background: var(--ws-ink); }
+.ws-eyebrow {
+  font-family: var(--ws-font-display);
+  font-size: var(--ws-fs-xs);
+  font-weight: 600;
+  color: var(--ws-text-muted);
+  margin: 0 0 var(--ws-sp-1);
+  font-variant-numeric: tabular-nums;
+}
+
+/* leaderboard */
+.ws-leader {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ws-leader-row {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: var(--ws-sp-3);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--ws-border);
+}
+.ws-leader-row:last-child { border-bottom: none; }
+.ws-leader-rank {
+  font-family: var(--ws-font-display);
+  font-size: var(--ws-fs-lg);
+  font-weight: 700;
+  color: var(--ws-text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.ws-leader-row:nth-child(-n + 3) .ws-leader-rank { color: var(--ws-text); }
+.ws-leader-row:first-child .ws-leader-rank { color: var(--ws-primary); font-size: var(--ws-fs-xl); }
+.ws-leader-name {
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ws-leader-stat {
+  text-align: right;
+  font-size: 13px;
+  color: var(--ws-text-muted);
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+.ws-leader-stat strong {
+  display: block;
+  font-family: var(--ws-font-display);
+  font-size: var(--ws-fs-md);
+  color: var(--ws-text);
+}
+.ws-leader-row.is-me {
+  background: var(--ws-primary-light);
+  border-radius: var(--ws-radius-sm);
+  border-bottom-color: transparent;
+  margin: 0 -8px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.ws-leader-row.is-me .ws-leader-name { color: var(--ws-primary-active); }
+
+/* badge grid (แอปพนักงาน) */
+.ws-medal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: var(--ws-sp-6) var(--ws-sp-3);
+}
+.ws-medal {
+  text-align: center;
+}
+.ws-medal .ws-icon-circle {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto var(--ws-sp-2);
+}
+.ws-medal.is-locked .ws-icon-circle {
+  filter: grayscale(1);
+  opacity: 0.45;
+  border-style: dashed;
+}
+.ws-medal.is-locked .ws-medal-fallback { color: var(--ws-text-muted); }
+.ws-medal-name {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.ws-medal.is-locked .ws-medal-name { color: var(--ws-text-muted); }
+.ws-medal-cond {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--ws-text-muted);
+}
 
 /* -------------------------------------------------------------------------
-   13) TILE CARD — การ์ดแนวตั้งมีรูปใหญ่ด้านบน (ใช้กับของรางวัล/badge แบบ grid)
+   13) TILE CARD — การ์ดแนวตั้งมีรูปใหญ่ด้านบน (ของรางวัล)
    ------------------------------------------------------------------------- */
 .ws-grid-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: var(--ws-sp-4);
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--ws-sp-3);
 }
 .ws-tile {
   display: flex;
   flex-direction: column;
   background: var(--ws-surface);
   border: 1px solid var(--ws-border);
-  border-radius: var(--ws-radius-lg);
+  border-radius: var(--ws-radius-md);
   overflow: hidden;
-  transition: box-shadow var(--ws-transition), transform var(--ws-transition), border-color var(--ws-transition);
+  transition: border-color var(--ws-transition);
 }
 .ws-tile:hover {
-  box-shadow: 0 10px 26px rgba(245, 166, 35, 0.22), var(--ws-shadow-md);
-  border-color: var(--ws-accent);
-  transform: translateY(-3px);
+  border-color: var(--ws-text-secondary);
 }
 .ws-tile-image {
   width: 100%;
   aspect-ratio: 1.3 / 1;
-  background: var(--ws-accent-light);
+  background: var(--ws-surface-subtle);
+  border-bottom: 1px solid var(--ws-border);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -643,19 +1231,57 @@
   height: 100%;
   object-fit: cover;
 }
-.ws-tile-body {
-  padding: var(--ws-sp-3) var(--ws-sp-4);
+/* ไม่มีรูปของรางวัล → ลายเส้นทแยงแบบเทปกั้นสนาม + ตัวเลขคะแนนที่ต้องใช้ */
+.ws-tile-placeholder {
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  background: repeating-linear-gradient(-45deg, var(--ws-surface-subtle) 0 10px, var(--ws-bg) 10px 20px);
+  font-family: var(--ws-font-display);
+  font-size: var(--ws-fs-xl);
+  font-weight: 700;
+  color: var(--ws-text-secondary);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.ws-tile-placeholder small {
+  font-family: var(--ws-font);
+  font-size: var(--ws-fs-xs);
+  font-weight: 500;
+  color: var(--ws-text-muted);
+}
+.ws-tile-body {
+  padding: var(--ws-sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   flex: 1;
 }
 .ws-tile-title {
-  font-weight: 700;
+  font-weight: 600;
   font-size: 15px;
+  line-height: 1.4;
+}
+.ws-tile-price {
+  font-family: var(--ws-font-display);
+  font-size: var(--ws-fs-lg);
+  font-weight: 700;
+  color: var(--ws-primary);
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+.ws-tile-price small {
+  font-family: var(--ws-font);
+  font-size: var(--ws-fs-xs);
+  font-weight: 500;
+  color: var(--ws-text-muted);
+  margin-left: 4px;
 }
 .ws-tile-actions {
-  padding: 0 var(--ws-sp-4) var(--ws-sp-4);
+  padding: 0 var(--ws-sp-3) var(--ws-sp-3);
 }
 .ws-tile-actions .ws-btn {
   width: 100%;
@@ -682,8 +1308,7 @@
   min-width: 170px;
 }
 .ws-app input.ws-input.ws-date-input {
-  border-color: var(--ws-field-choice-border);
-  border-left: 3px solid var(--ws-field-choice);
+  border-left: 4px solid var(--ws-field-choice);
   padding-right: 38px;
   font-variant-numeric: tabular-nums;
 }
@@ -701,8 +1326,8 @@
   transform: translateY(-50%);
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border: none;
   border-radius: var(--ws-radius-sm);
   background: transparent;
@@ -722,7 +1347,7 @@
   max-width: calc(100vw - 32px);
   padding: 12px;
   background: var(--ws-surface);
-  border: 1px solid var(--ws-border);
+  border: 1px solid var(--ws-border-strong);
   border-radius: var(--ws-radius-md);
   box-shadow: var(--ws-shadow-md);
   text-align: center;
@@ -766,7 +1391,7 @@
   border: none;
   border-radius: var(--ws-radius-sm);
   background: transparent;
-  font-family: var(--ws-font);
+  font-family: var(--ws-font-display);
   font-size: 15px;
   font-weight: 700;
   color: var(--ws-text);
@@ -868,4 +1493,17 @@
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--ws-border);
+}
+
+/* -------------------------------------------------------------------------
+   15) REDUCED MOTION
+   ------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .ws-app *,
+  .ws-app *::before,
+  .ws-app *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
 }

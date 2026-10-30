@@ -339,10 +339,10 @@ function HealthTrendChart({ points, unit }) {
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: 'auto' }} role="img" aria-label={`กราฟแนวโน้ม ${points.map((p) => `${p.label} ${p.value}${unit}`).join(', ')}`}>
-      <path d={pathD} fill="none" stroke="#2a78d6" strokeWidth="2" />
+      <path d={pathD} fill="none" stroke="var(--ws-primary)" strokeWidth="2" />
       {coords.map((c, i) => (
         <g key={i}>
-          <circle cx={c.x} cy={c.y} r="4" fill="#2a78d6" />
+          <circle cx={c.x} cy={c.y} r="4" fill="var(--ws-primary)" />
           <text x={c.x} y={height - 4} textAnchor="middle" fontSize="11" fill="var(--ws-text-muted)">{c.label}</text>
           <text x={c.x} y={c.y - 10} textAnchor="middle" fontSize="11" fill="var(--ws-text-secondary)">{c.value}</text>
         </g>
@@ -1754,57 +1754,71 @@ body: JSON.stringify({
 
   if (!authChecked) {
     return (
-      <div className="ws-app" style={{ padding: 24, textAlign: 'center' }}>
-        <p>กำลังตรวจสอบสิทธิ์...</p>
+      <div className="ws-app ws-gate">
+        <div>
+          <div className="ws-track" aria-hidden="true" />
+          <p className="ws-splash-text" role="status">กำลังตรวจสอบสิทธิ์...</p>
+        </div>
       </div>
     );
   }
 
   if (!isLoggedIn) {
     return (
-      <div className="ws-app" style={{ padding: 24, maxWidth: 360, margin: '0 auto' }}>
-        <h2 style={{ textAlign: 'center' }}>เข้าสู่ระบบแอดมิน</h2>
-        <form onSubmit={handleLogin} className="ws-stack">
-          <div>
-            <label htmlFor="loginEmployeeId" className="ws-label">รหัสพนักงาน</label>
-            <input
-              id="loginEmployeeId"
-              type="text"
-              value={loginEmployeeId}
-              onChange={(e) => setLoginEmployeeId(e.target.value)}
-              className="ws-input"
-              autoComplete="username"
-            />
-          </div>
-          <div>
-            <label htmlFor="loginPassword" className="ws-label">รหัสผ่าน</label>
-            <input
-              id="loginPassword"
-              type="password"
-              value={loginPassword}
-              onChange={(e) => setLoginPassword(e.target.value)}
-              className="ws-input"
-              autoComplete="current-password"
-            />
-          </div>
-          <button type="submit" className="ws-btn ws-btn-primary" disabled={loginSubmitting} style={{ width: '100%' }}>
-            {loginSubmitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
-          </button>
-        </form>
-        {loginError && <div className="ws-alert ws-alert-danger" style={{ textAlign: 'center' }}>{loginError}</div>}
+      <div className="ws-app ws-gate">
+        <div className="ws-gate-card">
+          <div className="ws-wordmark">WELLNESS RUNNING</div>
+          <h2>เข้าสู่ระบบแอดมิน</h2>
+          <p>ใช้รหัสพนักงานและรหัสผ่านที่ได้รับจากผู้ดูแลระบบ</p>
+          <form onSubmit={handleLogin} className="ws-stack">
+            <div>
+              <label htmlFor="loginEmployeeId" className="ws-label">รหัสพนักงาน</label>
+              <input
+                id="loginEmployeeId"
+                type="text"
+                value={loginEmployeeId}
+                onChange={(e) => setLoginEmployeeId(e.target.value)}
+                className="ws-input"
+                autoComplete="username"
+              />
+            </div>
+            <div>
+              <label htmlFor="loginPassword" className="ws-label">รหัสผ่าน</label>
+              <input
+                id="loginPassword"
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                className="ws-input"
+                autoComplete="current-password"
+              />
+            </div>
+            <button type="submit" className="ws-btn ws-btn-primary" disabled={loginSubmitting} style={{ width: '100%' }}>
+              {loginSubmitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
+            </button>
+          </form>
+          {loginError && <div className="ws-alert ws-alert-danger" style={{ marginTop: 12, marginBottom: 0 }}>{loginError}</div>}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="ws-app" style={{ padding: 24 }}>
-      <div className="ws-row-between" style={{ marginBottom: 16 }}>
-        <h2 style={{ margin: 0 }}>แดชบอร์ดแอดมิน</h2>
-        <div className="ws-row">
-          <span style={{ color: 'var(--ws-text-secondary)' }}>เข้าสู่ระบบเป็น: {adminId}</span>
-          <button className="ws-btn ws-btn-ghost ws-btn-sm" onClick={handleLogout}>ออกจากระบบ</button>
+    <div className="ws-app">
+      <header className="ws-topbar">
+        <div className="ws-topbar-inner">
+          <div className="ws-topbar-brand">
+            <span className="ws-wordmark">WELLNESS RUNNING</span>
+            <h2 className="ws-topbar-title">แดชบอร์ดแอดมิน</h2>
+          </div>
+          <div className="ws-topbar-user">
+            <span>เข้าสู่ระบบเป็น <strong>{adminId}</strong></span>
+            <button className="ws-btn ws-btn-ghost ws-btn-sm" onClick={handleLogout}>ออกจากระบบ</button>
+          </div>
         </div>
-      </div>
+      </header>
+
+      <main className="ws-admin-main">
 
       <div className="ws-tabs">
         <button className={`ws-tab ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
@@ -3935,6 +3949,7 @@ body: JSON.stringify({
           )}
         </>
       )}
+      </main>
     </div>
   );
 }

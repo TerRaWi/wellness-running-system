@@ -29,3 +29,8 @@ uploads/
 
 # ไฟล์ที่มีข้อมูลส่วนบุคคลจริงของพนักงาน (เลขบัตรประชาชน ฯลฯ) - ห้าม commit เด็ดขาด
 employee_import_template.xlsx
+# หน้าพรีวิวดีไซน์ด้วยข้อมูลตัวอย่าง (ใช้ดูบน local เท่านั้น — localhost:5173/__demo/)
+wellness-running-system/client/__demo/
+
+# ไฟล์ตั้งค่าส่วนตัวของ Claude Code (skill ใน .claude/skills/ ยัง commit ได้ตามปกติ)
+.claude/settings.local.json

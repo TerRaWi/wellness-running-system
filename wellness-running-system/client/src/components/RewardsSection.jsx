@@ -22,11 +22,12 @@ export default function RewardsSection({
 }) {
   return (
     <div>
-      <div className="ws-row-between">
-        <h3 style={{ margin: 0 }}>แลกของรางวัล</h3>
-        <span>
-          คะแนนคงเหลือ: <strong style={{ color: 'var(--ws-primary)' }}>{scoreBalance}</strong>
-        </span>
+      <div className="ws-section-head">
+        <h3>แลกของรางวัล</h3>
+        <div className="ws-section-head-meta">
+          <strong>{Number(scoreBalance || 0).toLocaleString('th-TH')}</strong>
+          คะแนนคงเหลือ
+        </div>
       </div>
 
       {rewardMessage && (
@@ -46,13 +47,19 @@ export default function RewardsSection({
                 {r.image ? (
                   <img src={resolveImageUrl(apiBase, r.image)} alt={r.reward_name} />
                 ) : (
-                  <span style={{ fontSize: 48 }}>🎁</span>
+                  <div className="ws-tile-placeholder" aria-hidden="true">
+                    <small>ยังไม่มีรูป</small>
+                  </div>
                 )}
               </div>
               <div className="ws-tile-body">
                 <div className="ws-tile-title">{r.reward_name}</div>
-                <div style={{ fontSize: 14, color: 'var(--ws-text-secondary)' }}>
-                  {r.required_score} คะแนน · เหลือ {r.stock} ชิ้น
+                <div className="ws-tile-price">
+                  {Number(r.required_score).toLocaleString('th-TH')}
+                  <small>คะแนน</small>
+                </div>
+                <div style={{ fontSize: 13, color: inStock ? 'var(--ws-text-muted)' : 'var(--ws-danger)' }}>
+                  {inStock ? `เหลือ ${r.stock} ชิ้น` : 'หมดแล้ว'}
                 </div>
                 {r.description && (
                   <div style={{ fontSize: 13, color: 'var(--ws-text-muted)' }}>{r.description}</div>

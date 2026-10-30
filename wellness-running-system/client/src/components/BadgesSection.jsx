@@ -8,32 +8,39 @@ const BADGE_CONDITION_LABEL_TH = {
 };
 
 export default function BadgesSection({ badges, apiBase }) {
+  const earnedCount = badges.filter((b) => b.earned).length;
+
   return (
     <div>
-      <h3>เหรียญตราของฉัน</h3>
+      <div className="ws-section-head">
+        <h3>เหรียญตราของฉัน</h3>
+        {badges.length > 0 && (
+          <div className="ws-section-head-meta">
+            <strong>
+              {earnedCount}/{badges.length}
+            </strong>
+            เหรียญที่ได้แล้ว
+          </div>
+        )}
+      </div>
       {badges.length === 0 && <p className="ws-empty">ยังไม่มี เหรียญตรา ให้เก็บตอนนี้</p>}
       {badges.length > 0 && (
-        <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
+        <div className="ws-medal-grid">
           {badges.map((b) => (
             <div
               key={b.badgeId}
               title={b.description || ''}
-              style={{
-                minWidth: 100,
-                textAlign: 'center',
-                opacity: b.earned ? 1 : 0.35,
-                flexShrink: 0,
-              }}
+              className={`ws-medal${b.earned ? '' : ' is-locked'}`}
             >
-              <div className="ws-icon-circle" style={{ width: 64, height: 64, margin: '0 auto 6px' }}>
+              <div className="ws-icon-circle">
                 {b.icon ? (
                   <img src={resolveImageUrl(apiBase, b.icon)} alt={b.badgeName} />
                 ) : (
-                  <span style={{ fontSize: 24 }}>🏅</span>
+                  <span className="ws-medal-fallback" style={{ fontSize: 22 }}>{b.conditionValue}</span>
                 )}
               </div>
-              <div style={{ fontSize: 12, fontWeight: 'bold' }}>{b.badgeName}</div>
-              <div style={{ fontSize: 11, color: 'var(--ws-text-muted)' }}>
+              <div className="ws-medal-name">{b.badgeName}</div>
+              <div className="ws-medal-cond">
                 {BADGE_CONDITION_LABEL_TH[b.conditionType] || b.conditionType} ≥ {b.conditionValue}
               </div>
             </div>
