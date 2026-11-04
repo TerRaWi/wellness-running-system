@@ -102,7 +102,10 @@ test('แอดมิน: ทุกแท็บ', async ({ page }) => {
 
   await openSettingsTab(page, 'ประวัติการใช้งาน');
   await expect(page.locator('main tbody tr:visible').first()).toBeVisible();
-  // เวลาในประวัติการใช้งานเปลี่ยนทุกครั้งที่รัน → บังตารางไว้
+  // กรองเฉพาะหมวดล็อกอิน (มีแถวเดียวแน่นอน) — หมวดเปิดดูข้อมูลนับซ้ำได้ในโหมด dev เพราะ React StrictMode
+  // เรียก effect สองรอบ และเวลาในตารางเปลี่ยนทุกครั้งที่รัน → บังตารางไว้
+  await page.locator('#auditCategory').selectOption('AUTH');
+  await expect(page.locator('main tbody tr:visible')).toHaveCount(1);
   await shot(page, 'admin-audit-log', { mask: [page.locator('main table')] });
 });
 
