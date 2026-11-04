@@ -3,6 +3,7 @@
   "private": true,
   "description": "ชุดทดสอบ Playwright ของหน้าแอดมินและหน้าพนักงาน (ใช้ฐานข้อมูลทดสอบบนเครื่องเท่านั้น)",
   "scripts": {
+    "db:start": "node db/start-mysql.js",
     "db:seed": "node db/seed.js",
     "db:recreate": "node db/seed.js --recreate",
     "test": "playwright test --project=functional",

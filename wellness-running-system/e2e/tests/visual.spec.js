@@ -12,8 +12,11 @@ test.beforeAll(async () => {
   await resetDb();
 });
 
-const shot = (page, name, options = {}) =>
-  expect(page).toHaveScreenshot(`${name}.png`, { fullPage: true, ...options });
+// รอฟอนต์เว็บ (Google Fonts) โหลดครบก่อนถ่าย — ไม่งั้นตัวหนังสือเล็กบางจุดเรนเดอร์ต่างกันไม่กี่พิกเซลแบบสุ่ม
+async function shot(page, name, options = {}) {
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page).toHaveScreenshot(`${name}.png`, { fullPage: true, ...options });
+}
 
 test('แอดมิน: ทุกแท็บ', async ({ page }) => {
   test.setTimeout(120_000);
