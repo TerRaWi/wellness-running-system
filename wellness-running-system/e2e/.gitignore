@@ -1,0 +1,5 @@
+node_modules/
+test-results/
+playwright-report/
+# ภาพต้นแบบขึ้นกับเครื่อง/ฟอนต์/วันที่ — สร้างใหม่บนเครื่องที่ใช้เทียบ (npm run test:visual:update)
+tests/*-snapshots/
