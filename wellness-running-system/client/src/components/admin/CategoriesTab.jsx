@@ -34,7 +34,7 @@ function CreateCategoryForm({ api, onCreated }) {
         errorMessage: 'สร้างหมวดหมู่ไม่สำเร็จ',
       });
       setCategoryName('');
-      onCreated();
+      await onCreated();
     } catch (err) {
       setError(err.message || 'เกิดข้อผิดพลาด');
     } finally {
@@ -84,7 +84,7 @@ function CategoryEditRow({ api, category, onSaved, onCancel }) {
     setSaving(true);
     try {
       await saveCategory(api, category.category_id, form.categoryName.trim(), form.status, 'แก้ไขหมวดหมู่ไม่สำเร็จ');
-      onSaved();
+      await onSaved();
     } catch (err) {
       setError(err.message || 'เกิดข้อผิดพลาด');
       setSaving(false);
@@ -131,7 +131,7 @@ export default function CategoriesTab({ api, refreshKey }) {
         cat.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE',
         'เปลี่ยนสถานะไม่สำเร็จ'
       );
-      categories.reload();
+      await categories.reload();
     } catch (err) {
       categories.setError(err.message || 'เกิดข้อผิดพลาด');
     } finally {
@@ -141,7 +141,7 @@ export default function CategoriesTab({ api, refreshKey }) {
 
   function handleSaved() {
     setEditingId(null);
-    categories.reload();
+    return categories.reload();
   }
 
   return (

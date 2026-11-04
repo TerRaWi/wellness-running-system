@@ -49,7 +49,7 @@ function CreateActivityTypeForm({ api, categories, onCreated }) {
         errorMessage: 'สร้างประเภทกิจกรรมไม่สำเร็จ',
       });
       setForm(emptyForm);
-      onCreated();
+      await onCreated();
     } catch (err) {
       setError(err.message || 'เกิดข้อผิดพลาด');
     } finally {
@@ -152,7 +152,7 @@ function ActivityTypeEditRow({ api, activity, categories, onSaved, onCancel }) {
         { ...form, activityName: form.activityName.trim(), description: form.description.trim() },
         'แก้ไขประเภทกิจกรรมไม่สำเร็จ'
       );
-      onSaved();
+      await onSaved();
     } catch (err) {
       setError(err.message || 'เกิดข้อผิดพลาด');
       setSaving(false);
@@ -239,7 +239,7 @@ export default function ActivityTypesTab({ api, refreshKey }) {
         },
         'เปลี่ยนสถานะไม่สำเร็จ'
       );
-      activityTypes.reload();
+      await activityTypes.reload();
     } catch (err) {
       activityTypes.setError(err.message || 'เกิดข้อผิดพลาด');
     } finally {
@@ -249,7 +249,7 @@ export default function ActivityTypesTab({ api, refreshKey }) {
 
   function handleSaved() {
     setEditingId(null);
-    activityTypes.reload();
+    return activityTypes.reload();
   }
 
   return (

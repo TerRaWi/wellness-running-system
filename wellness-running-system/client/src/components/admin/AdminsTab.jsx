@@ -29,7 +29,7 @@ function GrantAdminForm({ api, onGranted }) {
         errorMessage: 'ตั้งค่าแอดมินไม่สำเร็จ',
       });
       setForm(emptyForm);
-      onGranted();
+      await onGranted();
     } catch (err) {
       setError(err.message || 'เกิดข้อผิดพลาด');
     } finally {
@@ -90,7 +90,7 @@ export default function AdminsTab({ api, refreshKey, adminId }) {
     setActioningId(employeeId);
     try {
       await api.request(`/api/admin/admins/${employeeId}/revoke`, { method: 'POST', errorMessage: 'ถอดสิทธิ์แอดมินไม่สำเร็จ' });
-      admins.reload();
+      await admins.reload();
     } catch (err) {
       admins.setError(err.message || 'เกิดข้อผิดพลาด');
     } finally {

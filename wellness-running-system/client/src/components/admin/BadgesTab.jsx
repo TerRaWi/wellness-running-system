@@ -75,7 +75,7 @@ function CreateBadgeForm({ api, onCreated }) {
       });
       setForm(emptyForm);
       setIconFile(null);
-      onCreated();
+      await onCreated();
     } catch (err) {
       setError(err.message || 'เกิดข้อผิดพลาด');
     } finally {
@@ -157,7 +157,7 @@ function BadgeEditRow({ api, badge, onSaved, onCancel }) {
         body: toBadgeFormData(form, { iconFile, removeIcon, status: form.status }),
         errorMessage: 'แก้ไข badge ไม่สำเร็จ',
       });
-      onSaved();
+      await onSaved();
     } catch (err) {
       setError(err.message || 'เกิดข้อผิดพลาด');
       setSaving(false);
@@ -243,7 +243,7 @@ export default function BadgesTab({ api, refreshKey }) {
         },
         errorMessage: 'เปลี่ยนสถานะไม่สำเร็จ',
       });
-      badges.reload();
+      await badges.reload();
     } catch (err) {
       badges.setError(err.message || 'เกิดข้อผิดพลาด');
     } finally {
@@ -253,7 +253,7 @@ export default function BadgesTab({ api, refreshKey }) {
 
   function handleSaved() {
     setEditingId(null);
-    badges.reload();
+    return badges.reload();
   }
 
   return (

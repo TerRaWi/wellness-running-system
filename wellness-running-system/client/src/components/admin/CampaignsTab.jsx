@@ -214,7 +214,7 @@ function CreateCampaignForm({ api, onCreated }) {
         errorMessage: 'สร้างรอบ follow-up ไม่สำเร็จ',
       });
       setForm(emptyForm);
-      onCreated();
+      await onCreated();
     } catch (err) {
       setError(err.message || 'เกิดข้อผิดพลาด');
     } finally {
@@ -289,7 +289,7 @@ export default function CampaignsTab({ api, refreshKey }) {
         method: 'POST',
         errorMessage: 'เปลี่ยนสถานะไม่สำเร็จ',
       });
-      campaigns.reload();
+      await campaigns.reload();
     } catch (err) {
       campaigns.setError(err.message || 'เกิดข้อผิดพลาด');
     } finally {

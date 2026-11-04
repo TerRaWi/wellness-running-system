@@ -125,7 +125,7 @@ function CreateChallengeForm({ api, categories, onCreated }) {
         errorMessage: 'สร้าง challenge ไม่สำเร็จ',
       });
       setForm(emptyForm);
-      onCreated();
+      await onCreated();
     } catch (err) {
       setError(err.message || 'เกิดข้อผิดพลาด');
     } finally {
@@ -276,7 +276,7 @@ export default function ChallengesTab({ api, refreshKey, participantsChallenge, 
     setActionError('');
     try {
       await api.request(`/api/admin/challenges/${challengeId}/cancel`, { method: 'POST', errorMessage: 'ยกเลิกไม่สำเร็จ' });
-      challenges.reload();
+      await challenges.reload();
     } catch (err) {
       setActionError(err.message || 'เกิดข้อผิดพลาด');
     } finally {

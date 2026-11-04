@@ -63,7 +63,7 @@ function CreateRewardForm({ api, onCreated }) {
       });
       setForm(emptyForm);
       setImageFile(null);
-      onCreated();
+      await onCreated();
     } catch (err) {
       setError(err.message || 'เกิดข้อผิดพลาด');
     } finally {
@@ -143,7 +143,7 @@ function RewardEditRow({ api, reward, onSaved, onCancel }) {
         body: toRewardFormData(form, { imageFile, removeImage, status: form.status }),
         errorMessage: 'แก้ไขของรางวัลไม่สำเร็จ',
       });
-      onSaved();
+      await onSaved();
     } catch (err) {
       setError(err.message || 'เกิดข้อผิดพลาด');
       setSaving(false);
@@ -234,7 +234,7 @@ export default function RewardsTab({ api, refreshKey }) {
         ),
         errorMessage: 'เปลี่ยนสถานะไม่สำเร็จ',
       });
-      rewards.reload();
+      await rewards.reload();
     } catch (err) {
       rewards.setError(err.message || 'เกิดข้อผิดพลาด');
     } finally {
@@ -244,7 +244,7 @@ export default function RewardsTab({ api, refreshKey }) {
 
   function handleSaved() {
     setEditingId(null);
-    rewards.reload();
+    return rewards.reload();
   }
 
   return (
